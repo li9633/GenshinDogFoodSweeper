@@ -20,12 +20,15 @@ dist/
 backend/data/artifacts.db
 backend/data/artifacts.whl
 backend/data/artifacts.shm
+backend/test_output/*
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+
+
 
 # 系统文件
 Thumbs.db

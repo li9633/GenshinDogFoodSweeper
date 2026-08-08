@@ -1,0 +1,49 @@
+/* 全局样式表 */
+
+QGroupBox {
+    font-weight: bold;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    margin-top: 8px;
+    padding-top: 16px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 4px;
+}
+
+QPushButton {
+    padding: 6px 14px;
+    border: 1px solid #4a4a4a;
+    border-radius: 3px;
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+}
+
+QPushButton:hover {
+    background-color: #3d3d3d;
+    border-color: #5a5a5a;
+}
+
+QPushButton:pressed {
+    background-color: #1d1d1d;
+}
+
+QSpinBox, QDoubleSpinBox {
+    padding: 4px;
+    border: 1px solid #4a4a4a;
+    border-radius: 3px;
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+}
+
+QCheckBox {
+    spacing: 6px;
+}
+
+QDialog {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+}
