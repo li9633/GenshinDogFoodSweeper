@@ -1,1 +1,42 @@
 docs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+# Node / Vue
+node_modules/
+frontend/dist/
+
+# 构建产物
+backend/static/
+dist/
+
+# 运行时数据
+backend/data/artifacts.db
+backend/data/artifacts.whl
+backend/data/artifacts.shm
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# 环境变量
+.env
+.env.local
+
+# 日志
+*.log
+
+temp/
