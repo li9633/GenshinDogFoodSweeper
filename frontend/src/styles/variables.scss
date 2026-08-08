@@ -1,0 +1,111 @@
+// ============================================================
+// GenshinDogFoodSweeper — SCSS Design Tokens
+// 双主题变量：暗色（默认） + 浅色
+// 基于《原神》UI 设计规范 v2.0
+// ============================================================
+
+// === 暗色主题 ===
+$dark-bg-primary: #1A1B2E;
+$dark-bg-secondary: #252640;
+$dark-bg-tertiary: #2E3055;
+$dark-accent: #C9A96E;
+$dark-accent-light: #E8D5A3;
+$dark-accent-glow: rgba(201, 169, 110, 0.3);
+$dark-info: #4FC3F7;
+$dark-success: #66BB6A;
+$dark-warning: #FFA726;
+$dark-danger: #EF5350;
+$dark-disabled: #6B6E8A;
+$dark-text-primary: #F0EDE5;
+$dark-text-secondary: #B8B5C0;
+$dark-text-disabled: #6B6E8A;
+$dark-border-subtle: #3A3D5C;
+$dark-border-strong: #5A5E8A;
+$dark-overlay: rgba(10, 10, 25, 0.75);
+$dark-accent-hover: #D4B87E;
+$dark-accent-active: #B8965A;
+$dark-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.3);
+$dark-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5);
+$dark-shadow-glow: 0 0 12px rgba(201, 169, 110, 0.3);
+
+// === 浅色主题 ===
+$light-bg-primary: #F7F5F0;
+$light-bg-secondary: #FFFFFF;
+$light-bg-tertiary: #EFEDE8;
+$light-accent: #A87B3F;
+$light-accent-light: #C9A96E;
+$light-accent-glow: rgba(168, 123, 63, 0.2);
+$light-info: #0288D1;
+$light-success: #2E7D32;
+$light-warning: #E65100;
+$light-danger: #C62828;
+$light-disabled: #9E9E9E;
+$light-text-primary: #1A1B2E;
+$light-text-secondary: #4A4D6A;
+$light-text-disabled: #9E9E9E;
+$light-border-subtle: #E0DDD5;
+$light-border-strong: #B8B5A8;
+$light-overlay: rgba(26, 27, 46, 0.45);
+$light-accent-hover: #B88A4F;
+$light-accent-active: #967030;
+$light-shadow-card: 0 1px 3px rgba(26, 27, 46, 0.08);
+$light-shadow-hover: 0 4px 12px rgba(26, 27, 46, 0.12);
+$light-shadow-modal: 0 12px 48px rgba(26, 27, 46, 0.2);
+$light-shadow-glow: 0 0 0 3px rgba(168, 123, 63, 0.2);
+
+// === 星级色（双主题通用边框/文字） ===
+$color-rarity-4: #A855F7;
+$color-rarity-4-bg-dark: rgba(168, 85, 247, 0.15);
+$color-rarity-4-bg-light: rgba(168, 85, 247, 0.08);
+$color-rarity-4-text: #7C3AED;
+$color-rarity-5: #F59E0B;
+$color-rarity-5-bg-dark: rgba(245, 158, 11, 0.15);
+$color-rarity-5-bg-light: rgba(245, 158, 11, 0.1);
+$color-rarity-5-text: #B45309;
+
+// === 元素色（双主题通用） ===
+$color-anemo: #4FC3F7;
+$color-electro: #B388FF;
+$color-hydro: #4DD0E1;
+$color-pyro: #FF7043;
+$color-cryo: #81D4FA;
+$color-geo: #D4C58E;
+$color-dendro: #9CCC65;
+
+// === 字体 ===
+$font-serif: 'Noto Serif SC', 'Source Han Serif SC', serif;
+$font-sans: 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif;
+$font-display: 'Cinzel', 'Trajan Pro', serif;
+$font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+// === 字号 ===
+$font-size-display: 28px;
+$font-size-h1: 22px;
+$font-size-h2: 18px;
+$font-size-body-lg: 16px;
+$font-size-body: 14px;
+$font-size-caption: 12px;
+$font-size-overline: 11px;
+
+// === 间距（8px 基准） ===
+$space-1: 4px;
+$space-2: 8px;
+$space-3: 12px;
+$space-4: 16px;
+$space-5: 24px;
+$space-6: 32px;
+$space-8: 48px;
+$space-10: 64px;
+$space-12: 96px;
+
+// === 圆角 ===
+$radius-sm: 6px;
+$radius-md: 8px;
+$radius-lg: 12px;
+$radius-full: 50%;
+
+// === 动效 ===
+$ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+$duration-fast: 150ms;
+$duration-base: 200ms;
+$duration-slow: 300ms;

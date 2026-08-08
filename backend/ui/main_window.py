@@ -27,6 +27,8 @@ class MainWindow(QMainWindow):
     stop_requested = pyqtSignal()
     closed = pyqtSignal()  # 窗口关闭 → 最小化到托盘
 
+    _is_dark = True  # 当前主题状态
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("原神狗粮清扫器")
@@ -64,25 +66,34 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setContentsMargins(12, 12, 12, 12)
-        root.setSpacing(8)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.setSpacing(12)
 
         # --- 标题栏 ---
         header = QHBoxLayout()
         title = QLabel("原神狗粮清扫器")
-        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        title.setProperty("class", "title")
         header.addWidget(title)
         header.addStretch()
 
         self._label_server = QLabel("服务: 启动中...")
+        self._label_server.setProperty("class", "hint")
         header.addWidget(self._label_server)
-        header.addSpacing(8)
+        header.addSpacing(12)
+
+        self._btn_theme = QPushButton("☀️")
+        self._btn_theme.setProperty("class", "icon-btn")
+        self._btn_theme.setToolTip("切换主题")
+        self._btn_theme.clicked.connect(self.toggle_theme)
+        header.addWidget(self._btn_theme)
 
         self._btn_scan = QPushButton("开始扫描")
+        self._btn_scan.setProperty("class", "primary")
         self._btn_scan.clicked.connect(self.scan_requested.emit)
         header.addWidget(self._btn_scan)
 
         self._btn_stop = QPushButton("停止")
+        self._btn_stop.setProperty("class", "danger")
         self._btn_stop.setEnabled(False)
         self._btn_stop.clicked.connect(self.stop_requested.emit)
         header.addWidget(self._btn_stop)
@@ -91,8 +102,7 @@ class MainWindow(QMainWindow):
 
         # 分隔线
         line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("color: #3a3a3a;")
+        line.setProperty("class", "separator")
         root.addWidget(line)
 
         # --- 预览区域 ---
@@ -108,29 +118,25 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self._status_bar)
 
     def _apply_styles(self):
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #1e1e1e;
-            }
-            QPushButton {
-                padding: 6px 16px;
-                border: 1px solid #4a4a4a;
-                border-radius: 3px;
-                background-color: #2d2d2d;
-                color: #e0e0e0;
-            }
-            QPushButton:hover {
-                background-color: #3d3d3d;
-            }
-            QPushButton:disabled {
-                color: #666;
-            }
-            QLabel {
-                color: #e0e0e0;
-            }
-            QStatusBar {
-                background-color: #252525;
-                color: #888;
-                border-top: 1px solid #3a3a3a;
-            }
-        """)
+        self._load_stylesheet("style.qss")
+
+    @staticmethod
+    def _load_stylesheet(filename: str):
+        from pathlib import Path
+
+        from PyQt6.QtWidgets import QApplication
+        qss_path = Path(__file__).parent / "resources" / filename
+        if qss_path.exists():
+            with open(qss_path, "r", encoding="utf-8") as f:
+                qss = f.read()
+            QApplication.instance().setStyleSheet(qss)
+
+    def toggle_theme(self):
+        """切换明暗主题"""
+        self._is_dark = not self._is_dark
+        if self._is_dark:
+            self._load_stylesheet("style.qss")
+            self._btn_theme.setText("☀️")
+        else:
+            self._load_stylesheet("style-light.qss")
+            self._btn_theme.setText("🌙")

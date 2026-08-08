@@ -75,6 +75,7 @@ class CapturePreviewWidget(QWidget):
         ctrl_layout = QHBoxLayout()
 
         self._btn_toggle = QPushButton("开始预览")
+        self._btn_toggle.setProperty("class", "primary")
         self._btn_toggle.clicked.connect(self._toggle)
         ctrl_layout.addWidget(self._btn_toggle)
 
@@ -85,6 +86,7 @@ class CapturePreviewWidget(QWidget):
         ctrl_layout.addStretch()
 
         self._label_info = QLabel("等待截图…")
+        self._label_info.setProperty("class", "hint")
         ctrl_layout.addWidget(self._label_info)
 
         layout.addLayout(ctrl_layout)
@@ -94,7 +96,13 @@ class CapturePreviewWidget(QWidget):
         self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._image_label.setMinimumHeight(300)
         self._image_label.setStyleSheet(
-            "QLabel { background-color: #1e1e1e; border: 1px solid #3a3a3a; }"
+            "QLabel {"
+            "  background-color: #1A1B2E;"
+            "  border: 1px solid #3A3D5C;"
+            "  border-radius: 8px;"
+            "  color: #6B6E8A;"
+            "  font-size: 14px;"
+            "}"
         )
         self._image_label.setText("未开始预览\n点击「开始预览」查看游戏画面")
         layout.addWidget(self._image_label)

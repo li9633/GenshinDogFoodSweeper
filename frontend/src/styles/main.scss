@@ -1,7 +1,13 @@
+@use 'theme' as *;
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+html {
+  transition: background-color var(--duration-slow, 300ms) ease-in-out;
 }
 
 html,
@@ -9,33 +15,240 @@ body,
 #app {
   width: 100%;
   height: 100%;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-  background-color: var(--el-bg-color-page);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  transition: background-color var(--duration-slow, 300ms) ease-in-out,
+              color var(--duration-slow, 300ms) ease-in-out;
 }
 
 a {
   text-decoration: none;
-  color: var(--el-color-primary);
+  color: var(--color-accent, #C9A96E);
+  transition: color var(--duration-fast) var(--ease-out);
+
+  &:hover {
+    color: var(--color-accent-light, #E8D5A3);
+  }
 }
 
+// === 自定义滚动条 ===
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: var(--el-border-color);
+  background-color: var(--color-border-subtle);
   border-radius: 3px;
+  transition: background-color var(--duration-slow, 300ms) ease-in-out;
 
   &:hover {
-    background-color: var(--el-border-color-darker);
+    background-color: var(--color-border-strong);
   }
 }
 
 ::-webkit-scrollbar-track {
   background-color: transparent;
+}
+
+// === Element Plus 全局覆盖 ===
+.el-card {
+  background-color: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--color-text-primary) !important;
+  box-shadow: var(--shadow-card);
+  transition: background-color var(--duration-slow, 300ms) ease-in-out,
+              border-color var(--duration-slow, 300ms) ease-in-out,
+              box-shadow var(--duration-slow, 300ms) ease-in-out;
+
+  .el-card__header {
+    border-bottom: 1px solid var(--color-border-subtle) !important;
+    color: var(--color-accent);
+    font-family: var(--font-serif);
+    font-size: var(--font-size-h2);
+    font-weight: 600;
+  }
+
+  .el-card__body {
+    color: var(--color-text-primary);
+  }
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--color-accent);
+  --el-button-border-color: var(--color-accent);
+  --el-button-text-color: var(--color-bg-primary);
+  --el-button-hover-bg-color: var(--color-accent-light);
+  --el-button-hover-border-color: var(--color-accent-light);
+  --el-button-active-bg-color: var(--color-accent);
+  font-weight: 500;
+
+  &:hover {
+    filter: brightness(1.08);
+  }
+}
+
+.el-button--danger {
+  --el-button-bg-color: var(--color-danger);
+  --el-button-border-color: var(--color-danger);
+  --el-button-text-color: #FFFFFF;
+}
+
+.el-input__wrapper {
+  background-color: var(--color-bg-secondary) !important;
+  border-color: var(--color-border-subtle) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: none !important;
+  transition: background-color var(--duration-slow, 300ms) ease-in-out,
+              border-color var(--duration-slow, 300ms) ease-in-out;
+
+  &.is-focus {
+    border-color: var(--color-accent) !important;
+    box-shadow: var(--shadow-glow) !important;
+  }
+}
+
+.el-input__inner {
+  color: var(--color-text-primary) !important;
+
+  &::placeholder {
+    color: var(--color-text-disabled) !important;
+  }
+}
+
+.el-select .el-input__wrapper {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.el-table {
+  --el-table-bg-color: var(--color-bg-secondary);
+  --el-table-tr-bg-color: var(--color-bg-secondary);
+  --el-table-header-bg-color: var(--color-bg-tertiary);
+  --el-table-row-hover-bg-color: var(--color-bg-tertiary);
+  --el-table-border-color: var(--color-border-subtle);
+  --el-table-text-color: var(--color-text-primary);
+  --el-table-header-text-color: var(--color-accent);
+
+  th.el-table__cell {
+    font-family: var(--font-serif);
+    font-size: var(--font-size-caption);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+.el-menu {
+  --el-menu-bg-color: var(--color-bg-secondary);
+  --el-menu-text-color: var(--color-text-secondary);
+  --el-menu-hover-bg-color: var(--color-bg-tertiary);
+  --el-menu-active-color: var(--color-accent);
+  border-right: none !important;
+
+  .el-menu-item {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-body);
+    font-weight: 500;
+
+    &.is-active {
+      border-left: 3px solid var(--color-accent);
+      background-color: var(--color-accent-glow);
+    }
+  }
+}
+
+.el-tag {
+  border-radius: var(--radius-sm, 6px);
+  font-family: var(--font-sans);
+
+  &.el-tag--warning {
+    --el-tag-bg-color: rgba(255, 167, 38, 0.15);
+    --el-tag-border-color: rgba(255, 167, 38, 0.3);
+    --el-tag-text-color: var(--color-warning);
+  }
+
+  &.el-tag--success {
+    --el-tag-bg-color: rgba(102, 187, 106, 0.15);
+    --el-tag-border-color: rgba(102, 187, 106, 0.3);
+    --el-tag-text-color: var(--color-success);
+  }
+
+  &.el-tag--danger {
+    --el-tag-bg-color: rgba(239, 83, 80, 0.15);
+    --el-tag-border-color: rgba(239, 83, 80, 0.3);
+    --el-tag-text-color: var(--color-danger);
+  }
+}
+
+.el-progress-bar__outer {
+  background-color: var(--color-bg-tertiary) !important;
+  border-radius: 3px !important;
+}
+
+.el-progress-bar__inner {
+  background: linear-gradient(90deg, var(--color-accent), var(--color-accent-light)) !important;
+  border-radius: 3px !important;
+}
+
+.el-slider__bar {
+  background-color: var(--color-accent) !important;
+}
+
+.el-slider__button {
+  border-color: var(--color-accent) !important;
+}
+
+.el-divider {
+  border-color: var(--color-border-subtle) !important;
+
+  .el-divider__text {
+    color: var(--color-accent);
+    font-family: var(--font-serif);
+    font-weight: 600;
+    background-color: var(--color-bg-secondary);
+  }
+}
+
+.el-switch.is-checked .el-switch__core {
+  background-color: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+}
+
+.el-dialog {
+  background-color: var(--color-bg-primary) !important;
+  border: 1px solid var(--color-accent) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-modal);
+
+  .el-dialog__header {
+    color: var(--color-accent);
+    font-family: var(--font-serif);
+  }
+}
+
+.el-message-box {
+  background-color: var(--color-bg-primary) !important;
+  border: 1px solid var(--color-accent) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-modal);
+}
+
+.el-form-item__label {
+  color: var(--color-text-secondary) !important;
+  font-family: var(--font-sans);
+}
+
+.el-breadcrumb__inner {
+  color: var(--color-text-secondary) !important;
+
+  &.is-link:hover {
+    color: var(--color-accent) !important;
+  }
+}
+
+.el-breadcrumb__item:last-child .el-breadcrumb__inner {
+  color: var(--color-text-primary) !important;
 }

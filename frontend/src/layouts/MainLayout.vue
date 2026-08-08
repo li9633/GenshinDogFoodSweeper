@@ -9,6 +9,7 @@
     faGaugeHigh,
     faGear
   } from '@fortawesome/free-solid-svg-icons'
+  import ThemeToggle from '@/components/ThemeToggle.vue'
 
   library.add(faBars, faBarsStaggered, faGem, faGaugeHigh, faGear)
 
@@ -82,6 +83,7 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <ThemeToggle />
           <el-tag
             type="success"
             effect="dark"
@@ -107,9 +109,9 @@
   }
 
   .sidebar {
-    background-color: var(--el-menu-bg-color);
-    border-right: 1px solid var(--el-border-color-lighter);
-    transition: width 0.3s ease;
+    background-color: var(--color-bg-secondary, #252640);
+    border-right: 1px solid var(--color-border-subtle, #3A3D5C);
+    transition: width var(--duration-slow, 300ms) var(--ease-out);
     overflow: hidden;
 
     .logo {
@@ -117,26 +119,47 @@
       align-items: center;
       justify-content: center;
       height: 60px;
-      border-bottom: 1px solid var(--el-border-color-lighter);
+      border-bottom: 1px solid var(--color-border-subtle, #3A3D5C);
       overflow: hidden;
       padding: 0 16px;
       gap: 10px;
 
       .logo-icon {
         font-size: 24px;
-        color: var(--el-color-primary);
+        color: var(--color-accent, #C9A96E);
         flex-shrink: 0;
       }
 
       .logo-text {
-        font-size: 14px;
+        font-family: var(--font-serif);
+        font-size: var(--font-size-body);
         font-weight: 600;
+        color: var(--color-accent, #C9A96E);
         white-space: nowrap;
       }
     }
 
     .nav-menu {
       border-right: none;
+
+      :deep(.el-menu-item) {
+        font-family: var(--font-sans);
+        font-size: var(--font-size-body);
+        font-weight: 500;
+        color: var(--color-text-secondary, #B8B5C0);
+        transition: all var(--duration-fast, 150ms) var(--ease-out);
+
+        &:hover {
+          color: var(--color-accent-light, #E8D5A3);
+          background-color: rgba(201, 169, 110, 0.08);
+        }
+
+        &.is-active {
+          color: var(--color-accent, #C9A96E);
+          border-left: 3px solid var(--color-accent, #C9A96E);
+          background-color: rgba(201, 169, 110, 0.08);
+        }
+      }
     }
   }
 
@@ -144,9 +167,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background-color: var(--el-bg-color);
-    border-bottom: 1px solid var(--el-border-color-lighter);
-    padding: 0 20px;
+    background-color: var(--color-bg-secondary, #252640);
+    border-bottom: 1px solid var(--color-border-subtle, #3A3D5C);
+    padding: 0 var(--space-5, 24px);
 
     .header-left {
       display: flex;
@@ -157,10 +180,13 @@
         font-size: 18px;
         cursor: pointer;
         padding: 6px;
-        border-radius: 4px;
+        border-radius: var(--radius-sm, 6px);
+        color: var(--color-text-secondary, #B8B5C0);
+        transition: all var(--duration-fast, 150ms) var(--ease-out);
 
         &:hover {
-          background-color: var(--el-fill-color-light);
+          color: var(--color-accent, #C9A96E);
+          background-color: rgba(201, 169, 110, 0.1);
         }
       }
     }
@@ -171,15 +197,16 @@
       gap: 12px;
 
       .version {
-        font-size: 12px;
-        color: var(--el-text-color-secondary);
+        font-family: var(--font-mono);
+        font-size: var(--font-size-caption);
+        color: var(--color-text-disabled, #6B6E8A);
       }
     }
   }
 
   .main-content {
-    padding: 20px;
-    background-color: var(--el-bg-color-page);
+    padding: var(--space-5, 24px);
+    background-color: var(--color-bg-primary, #1A1B2E);
     overflow-y: auto;
   }
 </style>

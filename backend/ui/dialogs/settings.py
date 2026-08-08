@@ -36,10 +36,12 @@ class SettingsDialog(QDialog):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
+        layout.setSpacing(16)
 
         # --- 截图设置 ---
         group_capture = QGroupBox("截图设置")
         form_capture = QFormLayout()
+        form_capture.setSpacing(12)
 
         self._spin_capture_delay = QSpinBox()
         self._spin_capture_delay.setRange(100, 5000)
@@ -59,6 +61,7 @@ class SettingsDialog(QDialog):
         # --- 识别设置 ---
         group_recognize = QGroupBox("识别设置")
         form_recognize = QFormLayout()
+        form_recognize.setSpacing(12)
 
         self._spin_match_threshold = QDoubleSpinBox()
         self._spin_match_threshold.setRange(0.50, 0.99)
@@ -80,6 +83,7 @@ class SettingsDialog(QDialog):
         # --- 自动化设置 ---
         group_auto = QGroupBox("自动化设置")
         form_auto = QFormLayout()
+        form_auto.setSpacing(12)
 
         self._spin_action_delay = QSpinBox()
         self._spin_action_delay.setRange(100, 3000)
@@ -110,6 +114,9 @@ class SettingsDialog(QDialog):
         btn_box.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(
             self._on_apply
         )
+        ok_btn = btn_box.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_btn:
+            ok_btn.setProperty("class", "primary")
         layout.addWidget(btn_box)
 
     # ---------- 设置读写 ----------

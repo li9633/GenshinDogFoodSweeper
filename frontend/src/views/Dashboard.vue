@@ -212,18 +212,18 @@
 <style lang="scss" scoped>
   .dashboard {
     .stats-row {
-      margin-bottom: 20px;
+      margin-bottom: var(--space-5, 24px);
     }
 
     .stat-card {
       :deep(.el-card__body) {
-        padding: 16px 20px;
+        padding: var(--space-4, 16px) var(--space-5, 24px);
       }
 
       .stat-item {
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: var(--space-4, 16px);
       }
 
       .stat-icon {
@@ -233,47 +233,49 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 12px;
+        border-radius: var(--radius-md, 8px);
       }
 
       .total {
-        color: var(--el-color-primary);
-        background-color: rgba(64, 158, 255, 0.1);
+        color: var(--color-accent, #C9A96E);
+        background-color: rgba(201, 169, 110, 0.12);
       }
 
       .five-star {
-        color: #ffb700;
-        background-color: rgba(255, 183, 0, 0.1);
+        color: var(--color-rarity-5, #F59E0B);
+        background-color: var(--color-rarity-5-bg, rgba(245, 158, 11, 0.15));
       }
 
       .four-star {
-        color: #9c27b0;
-        background-color: rgba(156, 39, 176, 0.1);
+        color: var(--color-rarity-4, #A855F7);
+        background-color: var(--color-rarity-4-bg, rgba(168, 85, 247, 0.15));
       }
 
       .score {
-        color: var(--el-color-success);
-        background-color: rgba(103, 194, 58, 0.1);
+        color: var(--color-success, #66BB6A);
+        background-color: rgba(102, 187, 106, 0.12);
       }
 
       .stat-info {
         .stat-value {
-          font-size: 28px;
+          font-family: var(--font-display);
+          font-size: var(--font-size-display);
           font-weight: 700;
-          color: var(--el-text-color-primary);
+          color: var(--color-text-primary, #F0EDE5);
           line-height: 1.2;
         }
 
         .stat-label {
-          font-size: 13px;
-          color: var(--el-text-color-secondary);
-          margin-top: 4px;
+          font-family: var(--font-sans);
+          font-size: var(--font-size-caption);
+          color: var(--color-text-secondary, #B8B5C0);
+          margin-top: var(--space-1, 4px);
         }
       }
     }
 
     .scan-status-card {
-      margin-bottom: 20px;
+      margin-bottom: var(--space-5, 24px);
 
       .card-header {
         display: flex;
@@ -285,9 +287,11 @@
     .quick-actions {
       .action-btn {
         width: 100%;
+        font-family: var(--font-sans);
+        font-weight: 500;
 
         .mr-8 {
-          margin-right: 8px;
+          margin-right: var(--space-2, 8px);
         }
       }
     }

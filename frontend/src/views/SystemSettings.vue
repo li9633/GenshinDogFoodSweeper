@@ -148,6 +148,13 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+
+      > span {
+        font-family: var(--font-serif);
+        font-size: var(--font-size-h2);
+        font-weight: 600;
+        color: var(--color-accent, #C9A96E);
+      }
     }
 
     .settings-form {
@@ -155,9 +162,10 @@
     }
 
     .form-tip {
-      font-size: 12px;
-      color: var(--el-text-color-secondary);
-      margin-top: 4px;
+      font-family: var(--font-sans);
+      font-size: var(--font-size-caption);
+      color: var(--color-text-secondary, #B8B5C0);
+      margin-top: var(--space-1, 4px);
     }
 
     .mr-6 {

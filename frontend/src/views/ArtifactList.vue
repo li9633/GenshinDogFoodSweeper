@@ -242,7 +242,7 @@
 <style lang="scss" scoped>
   .artifact-list {
     .filter-card {
-      margin-bottom: 16px;
+      margin-bottom: var(--space-4, 16px);
     }
 
     .table-card {
@@ -251,9 +251,16 @@
         justify-content: space-between;
         align-items: center;
 
+        > span {
+          font-family: var(--font-serif);
+          font-size: var(--font-size-h2);
+          font-weight: 600;
+          color: var(--color-accent, #C9A96E);
+        }
+
         .table-actions {
           display: flex;
-          gap: 12px;
+          gap: var(--space-3, 12px);
           align-items: center;
         }
       }
@@ -262,21 +269,28 @@
     .artifact-name {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--space-2, 8px);
 
       svg {
-        color: var(--el-color-primary);
+        color: var(--color-accent, #C9A96E);
+      }
+
+      span {
+        font-family: var(--font-serif);
+        font-weight: 600;
       }
     }
 
     .high-score {
-      color: var(--el-color-success);
+      color: var(--color-success, #66BB6A);
       font-weight: 600;
+      font-family: var(--font-display);
     }
 
     .mid-score {
-      color: var(--el-color-warning);
+      color: var(--color-warning, #FFA726);
       font-weight: 500;
+      font-family: var(--font-display);
     }
 
     .mr-6 {
