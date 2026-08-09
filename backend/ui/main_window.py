@@ -19,6 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -41,12 +42,14 @@ from .pages.settings_page import SettingsPage
 from .tray import TrayManager
 from .widgets.capture_view import CapturePreviewWidget
 
-# 日志级别 → 状态栏文字颜色
+# 日志级别 → 状态栏文字颜色，对齐 loguru 默认配色
 _LEVEL_COLORS: dict[str, str] = {
-    "SUCCESS": "#27ae60",   # 绿色
-    "WARNING": "#f39c12",   # 橙色
-    "ERROR": "#e74c3c",     # 红色
-    "CRITICAL": "#c0392b",  # 深红
+    "DEBUG": "#3498DB",     # 蓝 — loguru debug = cyan
+    "INFO": "#B8B5C0",      # 灰 — loguru info = default
+    "SUCCESS": "#27AE60",   # 绿 — loguru success = green
+    "WARNING": "#F39C12",   # 橙 — loguru warning = yellow
+    "ERROR": "#E74C3C",     # 红 — loguru error = red
+    "CRITICAL": "#C0392B",  # 深红 — loguru critical = red on white
 }
 
 
@@ -124,10 +127,16 @@ class MainWindow(QMainWindow):
         self._status_signal.emit(level, message, duration)
 
     def _do_show_status(self, level: str, message: str, duration: int):
-        """实际执行 showMessage（保证在主线程），根据日志级别渲染颜色"""
-        color = _LEVEL_COLORS.get(level)
-        if color:
-            message = f'<span style="color:{color};">{message}</span>'
+        """实际执行 showMessage（保证在主线程），根据日志级别渲染颜色
+
+        使用 QPalette.WindowText 设置颜色，比 setStyleSheet 更可靠：
+        全局 QSS 中 QStatusBar QLabel {color} 优先级高于 widget 级样式表，
+        而 QPalette 直接作用于控件的绘制层，不受样式表层叠规则影响。
+        """
+        color = _LEVEL_COLORS.get(level.upper(), "#000000")
+        palette = self.statusBar().palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(color))
+        self.statusBar().setPalette(palette)
         self.statusBar().showMessage(message, duration)
 
     def set_scanning(self, active: bool):

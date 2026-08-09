@@ -1,5 +1,5 @@
 """
-圣遗物单件 Repository
+圣遗物部位 Repository
 ======================
 对应 artifact_pieces 表的 DDL 与 CRUD 操作。
 """
@@ -62,7 +62,7 @@ class ArtifactPieceRepo:
 
     @classmethod
     def find_by_set_id(cls, set_id: int) -> list[ArtifactPiece]:
-        """查询指定套装下的全部单件"""
+        """查询指定套装下的全部部位"""
         conn = cls._get_conn()
         try:
             rows = conn.execute(
@@ -75,7 +75,7 @@ class ArtifactPieceRepo:
 
     @classmethod
     def save_batch(cls, pieces: list[dict[str, Any]]) -> None:
-        """批量插入单件"""
+        """批量插入部位"""
         if not pieces:
             return
         now = DateTimeHelper.now_str()
@@ -104,7 +104,7 @@ class ArtifactPieceRepo:
 
     @classmethod
     def delete_by_set_id(cls, set_id: int) -> None:
-        """删除指定套装下的全部单件"""
+        """删除指定套装下的全部部位"""
         conn = cls._get_conn()
         try:
             conn.execute("DELETE FROM artifact_pieces WHERE set_id = ?", (set_id,))
@@ -114,7 +114,7 @@ class ArtifactPieceRepo:
 
     @classmethod
     def count(cls) -> int:
-        """统计单件总数"""
+        """统计部位总数"""
         conn = cls._get_conn()
         try:
             row = conn.execute("SELECT COUNT(*) FROM artifact_pieces").fetchone()

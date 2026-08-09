@@ -37,8 +37,8 @@ API_HEADERS: dict[str, str] = {
     ),
 }
 
-# 米游社百科 — 圣遗物单件详情 API
-PIECE_DETAIL_API_URL = (
+# 米游社百科 — 圣遗物部位详情 API
+SLOT_DETAIL_API_URL = (
     "https://act-api-takumi-static.mihoyo.com/"
     "hoyowiki/genshin/wapi/entry_page"
     "?app_sn=ys_obc&entry_page_id={entry_page_id}&lang=zh-cn"
@@ -46,11 +46,11 @@ PIECE_DETAIL_API_URL = (
 
 # 并发配置
 MAX_WORKERS = 5          # 最大并发线程数
-MAX_RETRIES = 3           # 单件拉取最大重试次数
+MAX_RETRIES = 3           # 部位拉取最大重试次数
 RETRY_BASE_DELAY = 0.5    # 重试基础延迟（秒），指数退避
 
 # 圣遗物五个部位
-PIECE_TYPE_NAMES: set[str] = {"生之花", "死之羽", "时之沙", "空之杯", "理之冠"}
+SLOT_TYPE_NAMES: set[str] = {"生之花", "死之羽", "时之沙", "空之杯", "理之冠"}
 
 
 class ArtifactSetFetcher:
@@ -73,38 +73,50 @@ class ArtifactSetFetcher:
     ]
 
     @classmethod
-    def fetch_pieces_for_set(cls, entry_page_id: int) -> list[dict[str, str]]:
+    def fetch_slots_for_set(
+        cls, entry_page_id: int, expected_count: int = 5
+    ) -> list[dict[str, str]]:
         """
-        拉取指定圣遗物套装的五个单件详情。
+        拉取指定圣遗物套装的部位详情。
 
         参数:
             entry_page_id: 套装 content_id
+            expected_count: 期望部位数（1件套=1，2/4件套=5）
 
         返回:
-            单件列表，每项包含 type/name/icon/description/story
+            部位列表，每项包含 type/name/icon/description/story
         """
-        url = PIECE_DETAIL_API_URL.format(entry_page_id=entry_page_id)
-        try:
-            resp = requests.get(url, headers=API_HEADERS, timeout=30)
-            resp.raise_for_status()
-            data: dict[str, Any] = resp.json()
-            if data.get("retcode") != 0:
-                log.warning(f"单件详情 API 返回错误: entry_page_id={entry_page_id}")
-                return []
-            return cls._parse_pieces_from_detail(data)
-        except requests.RequestException as e:
-            log.warning(f"拉取单件详情失败 (entry_page_id={entry_page_id}): {e}")
-            return []
+        url = SLOT_DETAIL_API_URL.format(entry_page_id=entry_page_id)
+        resp = requests.get(url, headers=API_HEADERS, timeout=30)
+        resp.raise_for_status()
+        data: dict[str, Any] = resp.json()
+        if data.get("retcode") != 0:
+            raise ValueError(f"API retcode != 0, entry_page_id={entry_page_id}")
+        # 3. 解析部位
+        slots = cls._parse_slots_from_detail(data, entry_page_id)
+        if len(slots) < expected_count:
+            log.warning(
+                f"部位不完整: entry_page_id={entry_page_id}, "
+                f"期望{expected_count}个, 实际{len(slots)}个, 原始API: {url}"
+            )
+        return slots
 
     @classmethod
-    def fetch_pieces_for_set_with_retry(
-        cls, entry_page_id: int, set_name: str, max_retries: int = MAX_RETRIES
+    def fetch_slots_for_set_with_retry(
+        cls,
+        entry_page_id: int,
+        set_name: str,
+        max_retries: int = MAX_RETRIES,
+        expected_count: int = 5,
     ) -> list[dict[str, str]]:
-        """带重试的拉取单件详情（指数退避）"""
+        """带重试的拉取部位详情（指数退避），异常/空结果/数量不足都会触发重试"""
         for attempt in range(1, max_retries + 1):
             try:
-                return cls.fetch_pieces_for_set(entry_page_id)
-            except Exception as e:
+                slots = cls.fetch_slots_for_set(entry_page_id, expected_count)
+                if len(slots) >= expected_count:
+                    return slots
+                raise ValueError(f"API returned {len(slots)} slots, expected {expected_count}")
+            except Exception as e:  # noqa: BLE001
                 if attempt < max_retries:
                     delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
                     log.warning(f"拉取失败: {set_name} (id={entry_page_id})，"
@@ -113,7 +125,6 @@ class ArtifactSetFetcher:
                 else:
                     log.error(f"拉取失败: {set_name} (id={entry_page_id})，"
                               f"已重试 {max_retries} 次，放弃")
-                    raise
         return []
 
     @classmethod
@@ -121,7 +132,7 @@ class ArtifactSetFetcher:
         cls,
         progress_callback: Callable[[int, int, str], None] | None = None,
     ) -> list[dict[str, Any]]:
-        """并发拉取所有套装单件，带进度回调"""
+        """并发拉取所有套装部位，带进度回调"""
         raw_data = cls.fetch_from_api()
         if raw_data is None:
             log.error("拉取数据失败，流程终止")
@@ -133,29 +144,52 @@ class ArtifactSetFetcher:
             return []
 
         total = len(data)
-        all_pieces: list[dict[str, Any]] = []
+        all_slots: list[dict[str, Any]] = []
+        total_expected = 0
 
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {}
             for item in data:
                 set_id = item.get("id", 0)
-                if set_id:
-                    future = executor.submit(
-                        cls.fetch_pieces_for_set_with_retry, set_id, item["name"]
-                    )
-                    futures[future] = item
+                if not set_id:
+                    continue
+                # 根据套装效果推断期望部位数：1件套=1，2/4件套=5
+                effects = item.get("setEffects", {})
+                if "1pc" in effects and "2pc" not in effects and "4pc" not in effects:
+                    expected = 1
+                else:
+                    expected = 5
+                total_expected += expected
+                future = executor.submit(
+                    cls.fetch_slots_for_set_with_retry,
+                    set_id, item["name"], MAX_RETRIES, expected,
+                )
+                futures[future] = item
 
             for i, future in enumerate(as_completed(futures), 1):
                 item = futures[future]
                 set_id = item.get("id", 0)
+                effects = item.get("setEffects", {})
+                if "1pc" in effects and "2pc" not in effects and "4pc" not in effects:
+                    expected = 1
+                else:
+                    expected = 5
                 try:
-                    pieces = future.result()
-                    item["pieces"] = pieces
-                    for piece in pieces:
-                        all_pieces.append({
+                    slots = future.result()
+                    if len(slots) < expected:
+                        log.error(
+                            f"跳过: {item['name']} (id={set_id}) — "
+                            f"期望{expected}个, 实际{len(slots)}个"
+                        )
+                        if progress_callback:
+                            progress_callback(i, total, f"失败: {item['name']}")
+                        continue
+                    item["slots"] = slots
+                    for slot in slots:
+                        all_slots.append({
                             "setId": set_id,
                             "setName": item["name"],
-                            **piece,
+                            **slot,
                         })
                     if progress_callback:
                         progress_callback(i, total, item["name"])
@@ -164,50 +198,70 @@ class ArtifactSetFetcher:
                     if progress_callback:
                         progress_callback(i, total, f"失败: {item['name']}")
 
-        cls._sync_to_db(data, all_pieces)
+        cls._sync_to_db(data, all_slots, total_expected)
         return data
 
     @classmethod
-    def _parse_pieces_from_detail(cls, raw_data: dict[str, Any]) -> list[dict[str, str]]:
+    def _parse_slots_from_detail(
+        cls, raw_data: dict[str, Any], entry_page_id: int = 0
+    ) -> list[dict[str, str]]:
         """
-        从单件详情 API 响应中解析五个部位。
+        从部位详情 API 响应中解析五个部位。
 
         参数:
             raw_data: API 响应 JSON
 
         返回:
-            单件列表
+            部位列表
         """
         modules = raw_data.get("data", {}).get("page", {}).get("modules", [])
-        pieces: list[dict[str, str]] = []
+        slots: list[dict[str, str]] = []
 
         for module in modules:
-            module_name = module.get("name", "")
-            if module_name not in PIECE_TYPE_NAMES:
-                continue
-
             components = module.get("components", [])
             if not components:
+                log.debug(f"跳过空组件: id={entry_page_id}, module_name={module.get('name', '')!r}")
                 continue
 
             try:
                 comp_data = json.loads(components[0].get("data", "{}"))
-            except (json.JSONDecodeError, TypeError):
+            except (json.JSONDecodeError, TypeError) as e:
+                comp_id = components[0].get("component_id", "?")
+                log.warning(
+                    f"JSON解析失败: id={entry_page_id}, "
+                    f"component_id={comp_id!r}, error={e}"
+                )
                 continue
+
+            # 推断部位类型：旧版 API 用 module.name，新版 API 用 data.name.key（如"生之花："）
+            module_name = module.get("name", "")
+            if module_name in SLOT_TYPE_NAMES:
+                slot_type = module_name
+            else:
+                slot_type = comp_data.get("name", {}).get("key", "").rstrip("：:").strip()
+                if slot_type not in SLOT_TYPE_NAMES:
+                    comp_id = components[0].get("component_id", "?")
+                    # 仅 artifact_list_v2 是部位数据，其他组件静默跳过
+                    if comp_id == "artifact_list_v2":
+                        log.debug(
+                            f"跳过未知部位: id={entry_page_id}, "
+                            f"module_name={module_name!r}, slot_type={slot_type!r}"
+                        )
+                    continue
 
             name_values = comp_data.get("name", {}).get("value", [])
             desc_values = comp_data.get("desc", {}).get("value", [])
             story_values = comp_data.get("story", {}).get("value", [])
 
-            pieces.append({
-                "type": module_name,
+            slots.append({
+                "type": slot_type,
                 "name": cls._strip_html(name_values[0]) if name_values else "",
                 "icon": comp_data.get("icon_url", ""),
                 "description": cls._strip_html(desc_values[0]) if desc_values else "",
                 "story": cls._strip_html(story_values[0]) if story_values else "",
             })
 
-        return pieces
+        return slots
 
     @staticmethod
     def _strip_html(text: str) -> str:
@@ -410,9 +464,10 @@ class ArtifactSetFetcher:
     def _sync_to_db(
         cls,
         sets: list[dict[str, Any]],
-        all_pieces: list[dict[str, Any]],
+        all_slots: list[dict[str, Any]],
+        total_expected: int = 0,
     ) -> None:
-        """通过 Repository 层将套装和单件写入 artifacts.db"""
+        """通过 Repository 层将套装和部位写入 artifacts.db"""
         from database.repository.artifact_piece_repo import ArtifactPieceRepo
         from database.repository.artifact_set_repo import ArtifactSetRepo
 
@@ -423,21 +478,28 @@ class ArtifactSetFetcher:
         from collections import defaultdict
 
         groups: dict[int, list[dict[str, Any]]] = defaultdict(list)
-        for p in all_pieces:
+        for p in all_slots:
             groups[p["setId"]].append(p)
 
-        for set_id, pieces in groups.items():
+        for set_id, slots in groups.items():
             ArtifactPieceRepo.delete_by_set_id(set_id)
-            ArtifactPieceRepo.save_batch(pieces)
+            ArtifactPieceRepo.save_batch(slots)
 
-        log.info(
-            f"同步完成: {len(sets)} 个套装, {len(all_pieces)} 个单件"
-        )
+        # 构建同步完成日志（含达成率）
+        actual = len(all_slots)
+        if total_expected > 0:
+            rate = actual / total_expected * 100
+            log.info(
+                f"同步完成: {len(sets)} 个套装, "
+                f"{actual} 个部位, 期望{total_expected}个, 达成率{rate:.1f}%"
+            )
+        else:
+            log.info(f"同步完成: {len(sets)} 个套装, {actual} 个部位")
 
     @classmethod
     def run(cls) -> list[dict[str, Any]]:
         """
-        一键执行：拉取 → 解析 → 拉取单件 → 入库。
+        一键执行：拉取 → 解析 → 拉取部位 → 入库。
 
         返回:
             解析后的圣遗物套装列表
@@ -452,22 +514,29 @@ class ArtifactSetFetcher:
             log.warning("解析结果为空")
             return []
 
-        # 逐个拉取单件详情
-        all_pieces: list[dict[str, Any]] = []
+        # 逐个拉取部位详情
+        all_slots: list[dict[str, Any]] = []
+        total_expected = 0
         for item in data:
             set_id = item.get("id", 0)
             if set_id:
-                log.info(f"拉取单件详情: {item['name']} (id={set_id})")
-                pieces = cls.fetch_pieces_for_set(set_id)
-                item["pieces"] = pieces
-                for piece in pieces:
-                    all_pieces.append({
+                effects = item.get("setEffects", {})
+                if "1pc" in effects and "2pc" not in effects and "4pc" not in effects:
+                    expected = 1
+                else:
+                    expected = 5
+                total_expected += expected
+                log.info(f"拉取部位详情: {item['name']} (id={set_id})")
+                slots = cls.fetch_slots_for_set(set_id, expected)
+                item["slots"] = slots
+                for slot in slots:
+                    all_slots.append({
                         "setId": set_id,
                         "setName": item["name"],
-                        **piece,
+                        **slot,
                     })
 
-        cls._sync_to_db(data, all_pieces)
+        cls._sync_to_db(data, all_slots, total_expected)
         return data
 
 

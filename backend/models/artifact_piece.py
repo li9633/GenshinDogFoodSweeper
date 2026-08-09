@@ -1,5 +1,5 @@
 """
-圣遗物单件实体
+圣遗物部位实体
 ==============
 对应 artifacts.db 中的 artifact_pieces 表。
 """
@@ -9,7 +9,7 @@ from typing import Any
 
 
 class ArtifactPiece:
-    """圣遗物单件实体 — 一个实体对应 artifact_pieces 表"""
+    """圣遗物部位实体 — 一个实体对应 artifact_pieces 表"""
 
     __slots__ = (
         "created_at",

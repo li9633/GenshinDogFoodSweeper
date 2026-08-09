@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QShowEvent
 from PyQt6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -25,7 +26,7 @@ from utils.settings_manager import settings
 class _SyncWorker(QThread):
     """后台线程：执行圣遗物数据同步"""
 
-    finished_sync = pyqtSignal(int, int)  # (sets_count, pieces_count)
+    finished_sync = pyqtSignal(int, int, int)  # (sets_count, slots_count, expected_count)
     progress = pyqtSignal(int, int, str)  # (current, total, set_name)
     failed = pyqtSignal(str)
 
@@ -36,8 +37,15 @@ class _SyncWorker(QThread):
             data = ArtifactSetFetcher.run_concurrent(
                 progress_callback=self.progress.emit
             )
-            total_pieces = sum(len(item.get("pieces", [])) for item in data)
-            self.finished_sync.emit(len(data), total_pieces)
+            total_slots = sum(len(item.get("slots", [])) for item in data)
+            total_expected = 0
+            for item in data:
+                effects = item.get("setEffects", {})
+                if "1pc" in effects and "2pc" not in effects and "4pc" not in effects:
+                    total_expected += 1
+                else:
+                    total_expected += 5
+            self.finished_sync.emit(len(data), total_slots, total_expected)
         except Exception as e:  # noqa: BLE001
             self.failed.emit(str(e))
 
@@ -119,6 +127,11 @@ class SettingsPage(QWidget):
         self._combo_theme.setCurrentIndex(0 if theme == "dark" else 1)
         self._refresh_sync_status()
 
+    def showEvent(self, event: QShowEvent) -> None:
+        """页面显示时刷新同步时间，保证"上次同步"始终准确"""
+        self._refresh_sync_status()
+        super().showEvent(event)
+
     def _on_theme_changed(self) -> None:
         """主题切换 → 持久化 → 通知 MainWindow 刷新样式"""
         theme = "dark" if self._combo_theme.currentIndex() == 0 else "light"
@@ -134,11 +147,19 @@ class SettingsPage(QWidget):
             f"上次同步: {DateTimeHelper.relative_time(ts if ts > 0 else None)}"
         )
         sets = settings.get_int("data.last_sync_sets")
-        pieces = settings.get_int("data.last_sync_pieces")
+        slots = settings.get_int("data.last_sync_pieces")
+        expected = settings.get_int("data.last_sync_expected")
         if sets > 0:
-            self._label_sync_stats.setText(
-                f"已同步 {sets} 个圣遗物套装，{pieces} 个圣遗物单件"
-            )
+            if expected > 0:
+                rate = slots / expected * 100
+                self._label_sync_stats.setText(
+                    f"已同步 {sets} 个套装，{slots} 个部位，"
+                    f"期望{expected}个，达成率{rate:.1f}%"
+                )
+            else:
+                self._label_sync_stats.setText(
+                    f"已同步 {sets} 个套装，{slots} 个部位"
+                )
         else:
             self._label_sync_stats.setText("尚未同步数据")
 
@@ -161,16 +182,17 @@ class SettingsPage(QWidget):
         if self._progress.maximum() != total:
             self._progress.setRange(0, total)
         self._progress.setValue(current)
-        self._label_sync_time.setText(f"正在同步… {current}/{total}  {name}")
+        self._label_sync_time.setText(f"正在同步… {current}/{total}")
 
-    def _on_sync_finished(self, sets_count: int, pieces_count: int) -> None:
+    def _on_sync_finished(self, sets_count: int, slots_count: int, expected_count: int) -> None:
         """同步完成"""
         import time
 
         now_ts = time.time()
         settings.set("data.last_sync_ts", str(int(now_ts)))
         settings.set("data.last_sync_sets", str(sets_count))
-        settings.set("data.last_sync_pieces", str(pieces_count))
+        settings.set("data.last_sync_pieces", str(slots_count))
+        settings.set("data.last_sync_expected", str(expected_count))
 
         self._btn_sync.setEnabled(True)
         self._progress.setVisible(False)
