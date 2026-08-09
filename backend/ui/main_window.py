@@ -80,7 +80,7 @@ class MainWindow(QMainWindow):
         if EnvManager.is_debug():
             title += "（调试模式）"
         self.setWindowTitle(title)
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(1200, 800)
 
         self._is_dark = settings.get_theme() == "dark"
 
@@ -180,7 +180,7 @@ class MainWindow(QMainWindow):
         ]
         if EnvManager.is_debug():
             pages.append(
-                PageEntry("debug", "调试", lambda: DebugPage(self._capture_widget))
+                PageEntry("debug", "调试", self._create_debug_page)
             )
         return pages
 
@@ -189,6 +189,17 @@ class MainWindow(QMainWindow):
         page = CleanerPage()
         page.scan_requested.connect(self._on_start_scan)
         page.stop_requested.connect(self._on_stop_scan)
+        return page
+
+    def _create_debug_page(self) -> DebugPage:
+        """创建调试页面并注册所有子面板"""
+        from .pages.debug_panels.element_detection_panel import ElementDetectionPanel
+        from .pages.debug_panels.status_bar_test_panel import StatusBarTestPanel
+
+        page = DebugPage()
+        page.add_panel(self._capture_widget, stretch=1, title="截图预览")
+        page.add_panel(ElementDetectionPanel(self._capture_widget))
+        page.add_panel(StatusBarTestPanel())
         return page
 
     def _create_settings_page(self) -> SettingsPage:

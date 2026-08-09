@@ -148,6 +148,94 @@ class CaptureResult:
             f"method={self.method.name}, {self.elapsed_ms:.1f}ms)"
         )
 
+    def draw_rect(
+        self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        color: tuple[int, int, int] = (0, 255, 0),
+        thickness: int = 2,
+        label: str | None = None,
+    ) -> CaptureResult:
+        """
+        在截图上绘制矩形边框（原地修改）。
+
+        用于 GUI 调试时标记关注区域，如模板匹配位置、OCR 识别区域等。
+        支持链式调用。
+
+        参数:
+            x, y: 矩形左上角坐标（相对于截图，非屏幕坐标）
+            width, height: 矩形宽高
+            color: RGB 颜色元组，默认绿色 (0, 255, 0)
+            thickness: 线条粗细，默认 2px；设为 -1 则填充矩形
+            label: 可选标签文字，绘制在矩形上方
+
+        返回:
+            self，支持链式调用
+
+        使用示例:
+            result = cap.capture()
+            result.draw_rect(100, 200, 50, 50, color=(255, 0, 0), label="背包图标")
+            pixmap = result.to_qpixmap()  # 在 GUI 中显示带标记的截图
+        """
+        import cv2
+
+        bgr_color = (color[2], color[1], color[0])
+        img_bgr = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
+        cv2.rectangle(img_bgr, (x, y), (x + width, y + height), bgr_color, thickness)
+        if label:
+            img_bgr = self._draw_label_pil(img_bgr, label, x, y - 6, bgr_color)
+        self.image = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        return self
+
+    @staticmethod
+    def _draw_label_pil(
+        img_bgr: np.ndarray,
+        label: str,
+        x: int,
+        y: int,
+        color: tuple[int, int, int],
+    ) -> np.ndarray:
+        """用 PIL 绘制标签文字（cv2.putText 不支持中文）"""
+        import cv2 as _cv2
+        from PIL import Image, ImageDraw, ImageFont
+
+        rgb = _cv2.cvtColor(img_bgr, _cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(rgb)
+        draw = ImageDraw.Draw(pil_img)
+
+        font = None
+        for fp in ("C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simhei.ttf"):
+            if Path(fp).exists():
+                font = ImageFont.truetype(fp, 18)
+                break
+
+        draw.text((x, y), label, font=font, fill=color[::-1])
+        return _cv2.cvtColor(np.array(pil_img), _cv2.COLOR_RGB2BGR)
+
+    def draw_rect_safe(
+        self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        color: tuple[int, int, int] = (0, 255, 0),
+        thickness: int = 2,
+        label: str | None = None,
+    ) -> CaptureResult:
+        """
+        在截图上绘制矩形边框（返回新对象，不修改原图）。
+
+        与 draw_rect 功能相同，但会先复制图像再绘制，
+        适合需要保留原始截图用于后续匹配的场景。
+        """
+        import copy
+
+        new_result = copy.copy(self)
+        new_result.image = self.image.copy()
+        return new_result.draw_rect(x, y, width, height, color, thickness, label)
+
 
 # ===================== ScreenshotCapture 类 =====================
 
