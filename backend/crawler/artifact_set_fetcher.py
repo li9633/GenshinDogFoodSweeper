@@ -9,6 +9,9 @@
 
 import json
 import re
+import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -40,6 +43,11 @@ PIECE_DETAIL_API_URL = (
     "hoyowiki/genshin/wapi/entry_page"
     "?app_sn=ys_obc&entry_page_id={entry_page_id}&lang=zh-cn"
 )
+
+# 并发配置
+MAX_WORKERS = 5          # 最大并发线程数
+MAX_RETRIES = 3           # 单件拉取最大重试次数
+RETRY_BASE_DELAY = 0.5    # 重试基础延迟（秒），指数退避
 
 # 圣遗物五个部位
 PIECE_TYPE_NAMES: set[str] = {"生之花", "死之羽", "时之沙", "空之杯", "理之冠"}
@@ -87,6 +95,77 @@ class ArtifactSetFetcher:
         except requests.RequestException as e:
             log.warning(f"拉取单件详情失败 (entry_page_id={entry_page_id}): {e}")
             return []
+
+    @classmethod
+    def fetch_pieces_for_set_with_retry(
+        cls, entry_page_id: int, set_name: str, max_retries: int = MAX_RETRIES
+    ) -> list[dict[str, str]]:
+        """带重试的拉取单件详情（指数退避）"""
+        for attempt in range(1, max_retries + 1):
+            try:
+                return cls.fetch_pieces_for_set(entry_page_id)
+            except Exception as e:
+                if attempt < max_retries:
+                    delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                    log.warning(f"拉取失败: {set_name} (id={entry_page_id})，"
+                                f"第 {attempt}/{max_retries} 次重试，等待 {delay:.1f}s — {e}")
+                    time.sleep(delay)
+                else:
+                    log.error(f"拉取失败: {set_name} (id={entry_page_id})，"
+                              f"已重试 {max_retries} 次，放弃")
+                    raise
+        return []
+
+    @classmethod
+    def run_concurrent(
+        cls,
+        progress_callback: Callable[[int, int, str], None] | None = None,
+    ) -> list[dict[str, Any]]:
+        """并发拉取所有套装单件，带进度回调"""
+        raw_data = cls.fetch_from_api()
+        if raw_data is None:
+            log.error("拉取数据失败，流程终止")
+            return []
+
+        data = cls.parse(raw_data)
+        if not data:
+            log.warning("解析结果为空")
+            return []
+
+        total = len(data)
+        all_pieces: list[dict[str, Any]] = []
+
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {}
+            for item in data:
+                set_id = item.get("id", 0)
+                if set_id:
+                    future = executor.submit(
+                        cls.fetch_pieces_for_set_with_retry, set_id, item["name"]
+                    )
+                    futures[future] = item
+
+            for i, future in enumerate(as_completed(futures), 1):
+                item = futures[future]
+                set_id = item.get("id", 0)
+                try:
+                    pieces = future.result()
+                    item["pieces"] = pieces
+                    for piece in pieces:
+                        all_pieces.append({
+                            "setId": set_id,
+                            "setName": item["name"],
+                            **piece,
+                        })
+                    if progress_callback:
+                        progress_callback(i, total, item["name"])
+                except Exception:  # noqa: BLE001
+                    log.error(f"跳过: {item['name']} (id={set_id})")
+                    if progress_callback:
+                        progress_callback(i, total, f"失败: {item['name']}")
+
+        cls._sync_to_db(data, all_pieces)
+        return data
 
     @classmethod
     def _parse_pieces_from_detail(cls, raw_data: dict[str, Any]) -> list[dict[str, str]]:

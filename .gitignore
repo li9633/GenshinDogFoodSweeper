@@ -18,11 +18,11 @@ dist/
 
 # 数据库文件
 backend/data/*.db
-backend/data/*.whl
-backend/data/*.shm
+backend/data/*.db-wal
+backend/data/*.db-shm
 data/*.db
-data/*.whl
-data/*.shm
+data/*.db-wal
+data/*.db-shm
 
 # 运行时数据
 backend/test_output/*

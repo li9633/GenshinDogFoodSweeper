@@ -6,6 +6,7 @@
 
 from .repository.artifact_piece_repo import ArtifactPieceRepo
 from .repository.artifact_set_repo import ArtifactSetRepo
+from .repository.log_repo import LogRepo
 from .repository.settings_repo import SettingsRepo
 
 
@@ -14,3 +15,4 @@ def create_tables() -> None:
     ArtifactSetRepo.create_table()
     ArtifactPieceRepo.create_table()
     SettingsRepo.create_table()
+    LogRepo.create_table()

@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from utils.env_manager import EnvManager
+from utils.log_bridge import set_status_callback
 from utils.settings_manager import settings
 
 from .pages.cleaner_page import CleanerPage
@@ -39,6 +40,14 @@ from .pages.rules_page import RulesPage
 from .pages.settings_page import SettingsPage
 from .tray import TrayManager
 from .widgets.capture_view import CapturePreviewWidget
+
+# 日志级别 → 状态栏文字颜色
+_LEVEL_COLORS: dict[str, str] = {
+    "SUCCESS": "#27ae60",   # 绿色
+    "WARNING": "#f39c12",   # 橙色
+    "ERROR": "#e74c3c",     # 红色
+    "CRITICAL": "#c0392b",  # 深红
+}
 
 
 @dataclass(frozen=True)
@@ -56,6 +65,9 @@ class MainWindow(QMainWindow):
     # 供外部（main.py）监听的信号
     app_exit_requested = pyqtSignal()
 
+    # 状态栏更新信号（跨线程安全）: (level, message, duration)
+    _status_signal = pyqtSignal(str, str, int)
+
     PANEL_URL = "http://127.0.0.1:8765"
     SERVER_PORT = 8765
 
@@ -72,7 +84,6 @@ class MainWindow(QMainWindow):
         self._scanning = False
         self._server_thread: threading.Thread | None = None
         self._capture_widget = CapturePreviewWidget()
-        self._status_timer: QTimer | None = None
 
         self._nav_buttons: dict[str, QPushButton] = {}
         self._page_factories: dict[str, Callable[[], QWidget]] = {}
@@ -83,12 +94,15 @@ class MainWindow(QMainWindow):
         self._switch_page("cleaner")
         self._apply_styles()
 
+        # 注册日志 → 状态栏的回调
+        set_status_callback(lambda level, msg, dur: self.show_status(msg, dur, level))
+
+        # 连接状态栏信号（保证跨线程安全）
+        self._status_signal.connect(self._do_show_status)
+
         # 托盘
         self._tray = TrayManager()
         self._connect_tray()
-
-        # 后端服务
-        self._start_backend()
 
         # 托盘提示
         QTimer.singleShot(500, lambda: self._tray.show_message(
@@ -105,23 +119,16 @@ class MainWindow(QMainWindow):
         """获取已加载的页面实例（未加载返回 None）"""
         return self._pages.get(key)
 
-    def show_status(self, message: str, duration: int = 0):
-        """
-        在状态栏显示提示信息。
+    def show_status(self, message: str, duration: int = 0, level: str = "INFO"):
+        """线程安全：通过信号调度到主线程执行 QStatusBar.showMessage"""
+        self._status_signal.emit(level, message, duration)
 
-        duration=0  → 永久显示（如"扫描中…"）
-        duration>0  → 毫秒后自动恢复为"就绪"
-        """
-        self._status_label.setText(message)
-        if self._status_timer is not None:
-            self._status_timer.stop()
-        if duration > 0:
-            self._status_timer = QTimer.singleShot(duration, self._clear_status)
-
-    def _clear_status(self):
-        """恢复状态栏默认文字"""
-        if not self._scanning:
-            self._status_label.setText("就绪")
+    def _do_show_status(self, level: str, message: str, duration: int):
+        """实际执行 showMessage（保证在主线程），根据日志级别渲染颜色"""
+        color = _LEVEL_COLORS.get(level)
+        if color:
+            message = f'<span style="color:{color};">{message}</span>'
+        self.statusBar().showMessage(message, duration)
 
     def set_scanning(self, active: bool):
         self.show_status("扫描中…" if active else "就绪")
@@ -169,9 +176,14 @@ class MainWindow(QMainWindow):
         return page
 
     def _create_settings_page(self) -> SettingsPage:
-        """创建设置页面并连接主题变更信号"""
+        """创建设置页面并连接主题变更 + 同步锁定信号"""
         page = SettingsPage()
         page.theme_changed.connect(self.apply_theme)
+        page.sync_started.connect(lambda: self.show_status("正在同步圣遗物数据…", 0))
+        page.sync_progress.connect(
+            lambda c, t, n: self.show_status(f"正在同步: {c}/{t}  {n}", 0)
+        )
+        page.sync_finished.connect(lambda: self.show_status("同步完成", 3000))
         return page
 
     # ---------- 主题 ----------
@@ -293,10 +305,8 @@ class MainWindow(QMainWindow):
         root.addLayout(content, stretch=1)
 
         # --- 状态栏 ---
-        self._status_bar = QStatusBar()
-        self._status_label = QLabel("就绪")
-        self._status_bar.addWidget(self._status_label)
-        self.setStatusBar(self._status_bar)
+        self.setStatusBar(QStatusBar())
+        self.statusBar().showMessage("就绪")
 
     def _build_nav(self) -> QWidget:
         """

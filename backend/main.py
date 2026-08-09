@@ -38,6 +38,16 @@ def main():
     # 初始化数据库
     create_tables()
 
+    # 注册 DB + 状态栏 sink（必须在 QApplication 创建后，否则 Qt 信号无法工作）
+    from loguru import logger
+    from utils.log_bridge import create_db_sink
+
+    logger.add(
+        create_db_sink(),
+        level="INFO",
+        format="{message}",
+    )
+
     # 启动
     genshin_app = GenshinApp(app)
     genshin_app.run()

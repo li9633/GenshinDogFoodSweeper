@@ -25,4 +25,5 @@ class GenshinApp(QObject):
 
     def run(self):
         """进入事件循环"""
+        self._main_window._start_backend()
         self._qapp.exec()

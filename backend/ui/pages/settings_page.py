@@ -26,13 +26,16 @@ class _SyncWorker(QThread):
     """后台线程：执行圣遗物数据同步"""
 
     finished_sync = pyqtSignal(int, int)  # (sets_count, pieces_count)
+    progress = pyqtSignal(int, int, str)  # (current, total, set_name)
     failed = pyqtSignal(str)
 
     def run(self) -> None:
         from crawler.artifact_set_fetcher import ArtifactSetFetcher
 
         try:
-            data = ArtifactSetFetcher.run()
+            data = ArtifactSetFetcher.run_concurrent(
+                progress_callback=self.progress.emit
+            )
             total_pieces = sum(len(item.get("pieces", [])) for item in data)
             self.finished_sync.emit(len(data), total_pieces)
         except Exception as e:  # noqa: BLE001
@@ -43,6 +46,9 @@ class SettingsPage(QWidget):
     """设置页面 — 主题变更通过 theme_changed 信号通知 MainWindow"""
 
     theme_changed = pyqtSignal(str)
+    sync_started = pyqtSignal()
+    sync_finished = pyqtSignal()
+    sync_progress = pyqtSignal(int, int, str)  # 转发给 MainWindow → 状态栏
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -141,11 +147,21 @@ class SettingsPage(QWidget):
         self._btn_sync.setEnabled(False)
         self._progress.setVisible(True)
         self._label_sync_time.setText("正在同步…")
+        self.sync_started.emit()
 
         self._sync_worker = _SyncWorker()
+        self._sync_worker.progress.connect(self._on_progress)
+        self._sync_worker.progress.connect(self.sync_progress.emit)
         self._sync_worker.finished_sync.connect(self._on_sync_finished)
         self._sync_worker.failed.connect(self._on_sync_failed)
         self._sync_worker.start()
+
+    def _on_progress(self, current: int, total: int, name: str) -> None:
+        """更新进度条"""
+        if self._progress.maximum() != total:
+            self._progress.setRange(0, total)
+        self._progress.setValue(current)
+        self._label_sync_time.setText(f"正在同步… {current}/{total}  {name}")
 
     def _on_sync_finished(self, sets_count: int, pieces_count: int) -> None:
         """同步完成"""
@@ -159,9 +175,11 @@ class SettingsPage(QWidget):
         self._btn_sync.setEnabled(True)
         self._progress.setVisible(False)
         self._refresh_sync_status()
+        self.sync_finished.emit()
 
     def _on_sync_failed(self, error: str) -> None:
         """同步失败"""
         self._btn_sync.setEnabled(True)
         self._progress.setVisible(False)
         self._label_sync_time.setText(f"同步失败: {error}")
+        self.sync_finished.emit()
