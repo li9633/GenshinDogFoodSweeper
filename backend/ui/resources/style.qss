@@ -368,3 +368,32 @@ QToolTip {
     padding: 6px 10px;
     font-size: 12px;
 }
+
+/* === 导航栏 (el-menu 风格) === */
+QWidget[class="nav"] {
+    background-color: #111224;
+    border: none;
+}
+
+QPushButton[class="nav-btn"] {
+    padding: 12px 20px;
+    border: none;
+    border-left: 3px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: #8B8EA8;
+    font-size: 14px;
+    text-align: left;
+}
+
+QPushButton[class="nav-btn"]:hover {
+    background-color: rgba(201, 169, 110, 0.06);
+    color: #E8D5A3;
+}
+
+QPushButton[class="nav-btn"][active="true"] {
+    border-left: 3px solid #C9A96E;
+    background-color: rgba(201, 169, 110, 0.10);
+    color: #C9A96E;
+    font-weight: 600;
+}

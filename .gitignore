@@ -16,10 +16,15 @@ frontend/dist/
 backend/static/
 dist/
 
+# 数据库文件
+backend/data/*.db
+backend/data/*.whl
+backend/data/*.shm
+data/*.db
+data/*.whl
+data/*.shm
+
 # 运行时数据
-backend/data/artifacts.db
-backend/data/artifacts.whl
-backend/data/artifacts.shm
 backend/test_output/*
 
 # IDE

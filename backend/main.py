@@ -10,6 +10,7 @@ from pathlib import Path
 # 确保项目根目录在 sys.path 中
 sys.path.insert(0, str(Path(__file__).parent))
 
+from database.init_db import create_tables
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 from ui.app import GenshinApp
@@ -27,13 +28,15 @@ def main():
 
     app = QApplication(sys.argv)
     app.setApplicationName("GenshinDogFoodSweeper")
-    app.setApplicationDisplayName("原神狗粮清扫器")
     app.setQuitOnLastWindowClosed(False)  # 关闭窗口不退出，托盘常驻
 
     # 加载样式表
     style_path = Path(__file__).parent / "ui" / "resources" / "style.qss"
     if style_path.exists():
         app.setStyleSheet(style_path.read_text(encoding="utf-8"))
+
+    # 初始化数据库
+    create_tables()
 
     # 启动
     genshin_app = GenshinApp(app)

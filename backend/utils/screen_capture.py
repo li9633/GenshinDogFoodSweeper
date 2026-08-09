@@ -39,6 +39,7 @@ from enum import Enum, auto
 from pathlib import Path
 
 import numpy as np
+from utils.datetime_helper import DateTimeHelper
 
 # ===================== 可选依赖检测 =====================
 
@@ -113,7 +114,7 @@ class CaptureResult:
     height: int
     method: CaptureMethod
     elapsed_ms: float
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=DateTimeHelper.now)
 
     @property
     def shape(self) -> tuple[int, int, int]:
