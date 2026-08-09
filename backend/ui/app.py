@@ -19,9 +19,15 @@ class GenshinApp(QObject):
     def __init__(self, qapp: QApplication):
         super().__init__()
         self._qapp = qapp
+
         self._main_window = MainWindow()
+
         self._main_window.app_exit_requested.connect(self._qapp.quit)
+
         self._main_window.show()
+
+        # 强制立即绘制，不等 exec()
+        QApplication.processEvents()
 
     def run(self):
         """进入事件循环"""

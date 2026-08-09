@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -76,6 +77,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
         title = "原神狗粮清扫器"
         if EnvManager.is_debug():
             title += "（调试模式）"
@@ -86,6 +88,7 @@ class MainWindow(QMainWindow):
 
         self._scanning = False
         self._server_thread: threading.Thread | None = None
+
         self._capture_widget = CapturePreviewWidget()
 
         self._nav_buttons: dict[str, QPushButton] = {}
@@ -93,9 +96,13 @@ class MainWindow(QMainWindow):
         self._pages: dict[str, QWidget] = {}
         self._stack: QStackedWidget | None = None
 
-        self._build_shell()
-        self._switch_page("cleaner")
+        # QSS 提前到 build_shell / switch_page 之前加载，
+        # 让样式在 widget 创建时即解析完毕，避免 addWidget 时集中解析
         self._apply_styles()
+
+        self._build_shell()
+
+        QTimer.singleShot(0, lambda: self._switch_page("cleaner"))
 
         # 注册日志 → 状态栏的回调
         set_status_callback(lambda level, msg, dur: self.show_status(msg, dur, level))
@@ -197,10 +204,10 @@ class MainWindow(QMainWindow):
         from .pages.debug_panels.status_bar_test_panel import StatusBarTestPanel
 
         page = DebugPage()
-        page.add_panel(RegionMarkerPanel(self._capture_widget))
-        page.add_panel(self._capture_widget, stretch=1, title="截图预览")
-        page.add_panel(ElementDetectionPanel(self._capture_widget))
-        page.add_panel(StatusBarTestPanel())
+        page.add_tab(RegionMarkerPanel(self._capture_widget), "区域标记", show_preview=True)
+        page.add_tab(ElementDetectionPanel(self._capture_widget), "元素定位", show_preview=True)
+        page.add_tab(StatusBarTestPanel(), "状态栏")
+        page.set_preview(self._capture_widget)
         return page
 
     def _create_settings_page(self) -> SettingsPage:
@@ -332,11 +339,19 @@ class MainWindow(QMainWindow):
         content.addWidget(line2)
 
         self._stack = QStackedWidget()
+        placeholder = QLabel("加载中…")
+        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder.setProperty("class", "hint")
+        self._stack.addWidget(placeholder)
         content.addWidget(self._stack, stretch=1)
 
         root.addLayout(content, stretch=1)
 
         # --- 状态栏 ---
+        QTimer.singleShot(0, self._init_status_bar)
+
+    def _init_status_bar(self):
+        """延迟初始化状态栏（避免构造期间阻塞）"""
         self.setStatusBar(QStatusBar())
         self.statusBar().showMessage("就绪")
 
@@ -386,7 +401,7 @@ class MainWindow(QMainWindow):
         流程:
           1. 检查 _pages 缓存
           2. 未命中则调用工厂函数创建
-          3. 添加到 QStackedWidget
+          3. 添加到 QStackedWidget（临时隐藏避免布局重算）
           4. 切换显示
         """
         if key not in self._pages:
@@ -395,14 +410,18 @@ class MainWindow(QMainWindow):
                 return
             page = factory()
             self._pages[key] = page
+
+            self._stack.setUpdatesEnabled(False)
             self._stack.addWidget(page)
+            self._stack.setUpdatesEnabled(True)
 
         self._stack.setCurrentWidget(self._pages[key])
 
+        app_style = QApplication.style()
         for k, btn in self._nav_buttons.items():
             btn.setProperty("active", k == key)
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
+            app_style.unpolish(btn)
+            app_style.polish(btn)
 
     def _apply_styles(self):
         filename = "style.qss" if self._is_dark else "style-light.qss"

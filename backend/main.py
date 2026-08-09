@@ -30,11 +30,6 @@ def main():
     app.setApplicationName("GenshinDogFoodSweeper")
     app.setQuitOnLastWindowClosed(False)  # 关闭窗口不退出，托盘常驻
 
-    # 加载样式表
-    style_path = Path(__file__).parent / "ui" / "resources" / "style.qss"
-    if style_path.exists():
-        app.setStyleSheet(style_path.read_text(encoding="utf-8"))
-
     # 初始化数据库
     create_tables()
 
@@ -50,6 +45,11 @@ def main():
 
     # 启动
     genshin_app = GenshinApp(app)
+
+    # 强制立即绘制窗口，避免等到 exec() 才显示
+    from PyQt6.QtWidgets import QApplication as QA
+    QA.processEvents()
+
     genshin_app.run()
 
 

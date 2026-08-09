@@ -1,54 +1,55 @@
 """
 调试页面
 ========
-纯布局容器，子面板通过 add_panel() 注册。
-不包含任何业务逻辑，所有调试功能由独立的 debug_panels 子组件提供。
+Tab 式布局，上半部分为工具面板的 Tab 切换区，下半部分为共享预览区。
 """
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from PyQt6.QtWidgets import (
-    QFrame,
-    QLabel,
-    QScrollArea,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 
 class DebugPage(QWidget):
-    """调试页面 — 纯布局容器，子面板通过 add_panel() 注册"""
+    """调试页面 — Tab 切换 + 底部共享预览"""
+
+    _PREVIEW_TABS: ClassVar[set[int]] = set()
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._tabs = QTabWidget()
+        self._tabs.currentChanged.connect(self._on_tab_changed)
+        outer.addWidget(self._tabs)
 
-        self._panel_container = QWidget()
-        self._panel_layout = QVBoxLayout(self._panel_container)
-        self._panel_layout.setContentsMargins(0, 0, 0, 0)
+        self._preview_container = QWidget()
+        self._preview_layout = QVBoxLayout(self._preview_container)
+        self._preview_layout.setContentsMargins(0, 0, 0, 0)
+        self._preview_container.setVisible(False)
+        outer.addWidget(self._preview_container, stretch=1)
 
-        scroll.setWidget(self._panel_container)
-        outer_layout.addWidget(scroll)
+    def add_tab(self, panel: QWidget, tab_name: str, show_preview: bool = False) -> None:
+        """注册一个工具面板为独立 Tab"""
+        idx = self._tabs.addTab(panel, tab_name)
+        if show_preview:
+            self._PREVIEW_TABS.add(idx)
 
-    def add_panel(
-        self, panel: QWidget, stretch: int = 0, title: str | None = None
-    ) -> None:
-        """
-        注册一个调试面板到布局中。
+    def set_preview(self, widget: QWidget) -> None:
+        """设置底部共享预览组件"""
+        self._preview_layout.addWidget(widget)
 
-        参数:
-            panel: 面板组件（如 QGroupBox、CapturePreviewWidget）
-            stretch: 拉伸因子，0=固定高度，1=自动扩展
-            title: 可选标题，会以 section-title 样式渲染在面板上方
-        """
-        if title:
-            label = QLabel(title)
-            label.setProperty("class", "section-title")
-            self._panel_layout.addWidget(label)
-        self._panel_layout.addWidget(panel, stretch=stretch)
+    def showEvent(self, event) -> None:
+        """首次显示时，根据当前 Tab 同步预览区可见性"""
+        super().showEvent(event)
+        self._on_tab_changed(self._tabs.currentIndex())
+
+    def _on_tab_changed(self, idx: int) -> None:
+        self._preview_container.setVisible(idx in self._PREVIEW_TABS)

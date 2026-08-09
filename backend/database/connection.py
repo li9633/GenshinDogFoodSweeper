@@ -6,6 +6,8 @@
 """
 
 import sqlite3
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 
 # 数据目录: <项目根>/data/
@@ -29,3 +31,23 @@ def get_connection(db_name: str) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+@contextmanager
+def get_db(db_name: str) -> Generator[sqlite3.Connection]:
+    """
+    数据库连接上下文管理器 — 自动 commit / rollback / close。
+
+    用法:
+        with get_db("artifacts.db") as conn:
+            conn.execute("SELECT ...")
+    """
+    conn = get_connection(db_name)
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()

@@ -5,10 +5,9 @@
 """
 
 import json
-import sqlite3
 from typing import Any
 
-from database.connection import get_connection
+from database.connection import get_db
 from models.artifact_set import ArtifactSet
 from utils.datetime_helper import DateTimeHelper
 
@@ -18,17 +17,12 @@ class ArtifactSetRepo:
 
     DB_NAME = "artifacts.db"
 
-    @staticmethod
-    def _get_conn() -> sqlite3.Connection:
-        return get_connection(ArtifactSetRepo.DB_NAME)
-
     # ---------- DDL ----------
 
     @classmethod
     def create_table(cls) -> None:
         """创建 artifact_sets 表（幂等）"""
-        conn = cls._get_conn()
-        try:
+        with get_db(cls.DB_NAME) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS artifact_sets (
                     id          INTEGER PRIMARY KEY,
@@ -47,42 +41,32 @@ class ArtifactSetRepo:
                 "CREATE INDEX IF NOT EXISTS idx_artifact_sets_name "
                 "ON artifact_sets(name)"
             )
-            conn.commit()
-        finally:
-            conn.close()
 
     # ---------- CRUD ----------
 
     @classmethod
     def find_all(cls) -> list[ArtifactSet]:
         """查询全部套装"""
-        conn = cls._get_conn()
-        try:
+        with get_db(cls.DB_NAME) as conn:
             rows = conn.execute(
                 "SELECT * FROM artifact_sets ORDER BY id DESC"
             ).fetchall()
             return [ArtifactSet.from_row(r) for r in rows]
-        finally:
-            conn.close()
 
     @classmethod
     def find_by_id(cls, set_id: int) -> ArtifactSet | None:
         """按 ID 查询套装"""
-        conn = cls._get_conn()
-        try:
+        with get_db(cls.DB_NAME) as conn:
             row = conn.execute(
                 "SELECT * FROM artifact_sets WHERE id = ?", (set_id,)
             ).fetchone()
             return ArtifactSet.from_row(row) if row else None
-        finally:
-            conn.close()
 
     @classmethod
     def upsert(cls, **kwargs: Any) -> None:
         """插入或更新套装（存在则更新，不存在则插入）"""
         now = DateTimeHelper.now_str()
-        conn = cls._get_conn()
-        try:
+        with get_db(cls.DB_NAME) as conn:
             conn.execute(
                 """
                 INSERT INTO artifact_sets
@@ -115,16 +99,10 @@ class ArtifactSetRepo:
                     "now": now,
                 },
             )
-            conn.commit()
-        finally:
-            conn.close()
 
     @classmethod
     def count(cls) -> int:
         """统计套装总数"""
-        conn = cls._get_conn()
-        try:
+        with get_db(cls.DB_NAME) as conn:
             row = conn.execute("SELECT COUNT(*) FROM artifact_sets").fetchone()
             return row[0] if row else 0
-        finally:
-            conn.close()

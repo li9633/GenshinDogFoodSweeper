@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPixmap, QWheelEvent
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -108,7 +108,10 @@ class CapturePreviewWidget(QWidget):
             "}"
         )
         self._image_label.setText("未开始预览\n点击「开始预览」查看游戏画面")
-        self._scroll_area.setWidget(self._image_label)
+
+        # 延迟 setWidget：全局 QSS 已应用时，立即 setWidget 会触发昂贵的样式重算
+        QTimer.singleShot(0, lambda: self._scroll_area.setWidget(self._image_label))
+
         layout.addWidget(self._scroll_area)
 
     # ---------- 缩放 ----------
