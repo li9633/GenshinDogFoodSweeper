@@ -6,7 +6,7 @@
 
 /* === 全局默认 === */
 * {
-    font-family: "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+    font-family: "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", sans-serif;
     font-size: 14px;
     color: #F0EDE5;
 }
@@ -27,14 +27,12 @@ QLabel {
 
 /* === 标题文字 === */
 QLabel[class="title"] {
-    font-family: "Noto Serif SC", "Source Han Serif SC", serif;
     font-size: 16px;
     font-weight: bold;
     color: #C9A96E;
 }
 
 QLabel[class="subtitle"] {
-    font-family: "Noto Serif SC", "Source Han Serif SC", serif;
     font-size: 14px;
     font-weight: 600;
     color: #C9A96E;
@@ -52,7 +50,6 @@ QPushButton {
     border-radius: 6px;
     background-color: #252640;
     color: #B8B5C0;
-    font-family: "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
     font-size: 14px;
     font-weight: 500;
 }
@@ -135,7 +132,6 @@ QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
     border-radius: 6px;
     background-color: #252640;
     color: #F0EDE5;
-    font-family: "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
     font-size: 14px;
     selection-background-color: #C9A96E;
     selection-color: #1A1B2E;
@@ -203,7 +199,6 @@ QCheckBox::indicator:hover {
 
 /* === 分组框 === */
 QGroupBox {
-    font-family: "Noto Serif SC", "Source Han Serif SC", serif;
     font-size: 14px;
     font-weight: 600;
     color: #C9A96E;
@@ -242,11 +237,6 @@ QStatusBar {
     border-top: 1px solid #3A3D5C;
     font-size: 12px;
     padding: 4px 8px;
-}
-
-QStatusBar QLabel {
-    color: #6B6E8A;
-    font-size: 12px;
 }
 
 /* === 滚动条 === */

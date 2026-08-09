@@ -24,7 +24,7 @@ _TEST_LEVELS: list[tuple[str, str]] = [
     ("SUCCESS", "成功 (绿)"),
     ("WARNING", "警告 (橙)"),
     ("ERROR", "错误 (红)"),
-    ("CRITICAL", "严重 (深红)"),
+    ("CRITICAL", "严重 (红底白字)"),
 ]
 
 

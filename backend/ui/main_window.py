@@ -129,13 +129,20 @@ class MainWindow(QMainWindow):
     def _do_show_status(self, level: str, message: str, duration: int):
         """实际执行 showMessage（保证在主线程），根据日志级别渲染颜色
 
-        使用 QPalette.WindowText 设置颜色，比 setStyleSheet 更可靠：
-        全局 QSS 中 QStatusBar QLabel {color} 优先级高于 widget 级样式表，
-        而 QPalette 直接作用于控件的绘制层，不受样式表层叠规则影响。
+        - 文字颜色：QPalette.WindowText（不受 QSS 覆盖）
+        - CRITICAL 背景：setStyleSheet（QPalette.Window 会被 QSS 覆盖，
+          必须用样式表才能覆盖全局 QSS 的 background-color）
         """
-        color = _LEVEL_COLORS.get(level.upper(), "#000000")
         palette = self.statusBar().palette()
-        palette.setColor(QPalette.ColorRole.WindowText, QColor(color))
+        if level.upper() == "CRITICAL":
+            self.statusBar().setStyleSheet(
+                "QStatusBar { background-color: #C0392B; }"
+            )
+            palette.setColor(QPalette.ColorRole.WindowText, QColor("#FFFFFF"))
+        else:
+            self.statusBar().setStyleSheet("")
+            color = _LEVEL_COLORS.get(level.upper(), "#000000")
+            palette.setColor(QPalette.ColorRole.WindowText, QColor(color))
         self.statusBar().setPalette(palette)
         self.statusBar().showMessage(message, duration)
 
