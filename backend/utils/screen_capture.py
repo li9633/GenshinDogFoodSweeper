@@ -342,7 +342,7 @@ class ScreenshotCapture:
             if window is None:
                 window = self.find_genshin_window()
             if window is None:
-                raise RuntimeError("未找到原神窗口，无法使用 WIN32 方法截图")
+                raise RuntimeError("未找到原神窗口，不要将游戏窗口最小化")
             img = self._capture_win32(window.hwnd)
         elif method == CaptureMethod.PYAUTOGUI:
             r = region or (0, 0, 1920, 1080)

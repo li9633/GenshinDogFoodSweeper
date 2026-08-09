@@ -44,11 +44,11 @@ from .widgets.capture_view import CapturePreviewWidget
 
 # 日志级别 → 状态栏文字颜色，对齐 loguru 默认配色
 _LEVEL_COLORS: dict[str, str] = {
-    "DEBUG": "#3498DB",     # 蓝 — loguru debug = cyan
-    "INFO": "#B8B5C0",      # 灰 — loguru info = default
-    "SUCCESS": "#27AE60",   # 绿 — loguru success = green
-    "WARNING": "#F39C12",   # 橙 — loguru warning = yellow
-    "ERROR": "#E74C3C",     # 红 — loguru error = red
+    "DEBUG": "#3498DB",  # 蓝 — loguru debug = cyan
+    "INFO": "#B8B5C0",  # 灰 — loguru info = default
+    "SUCCESS": "#27AE60",  # 绿 — loguru success = green
+    "WARNING": "#F39C12",  # 橙 — loguru warning = yellow
+    "ERROR": "#E74C3C",  # 红 — loguru error = red
     "CRITICAL": "#C0392B",  # 深红 — loguru critical = red on white
 }
 
@@ -108,9 +108,12 @@ class MainWindow(QMainWindow):
         self._connect_tray()
 
         # 托盘提示
-        QTimer.singleShot(500, lambda: self._tray.show_message(
-            "原神狗粮清扫器", "已在后台运行，右键托盘图标操作"
-        ))
+        QTimer.singleShot(
+            500,
+            lambda: self._tray.show_message(
+                "原神狗粮清扫器", "已在后台运行，右键托盘图标操作"
+            ),
+        )
 
     # ---------- 公开 API ----------
 
@@ -135,9 +138,7 @@ class MainWindow(QMainWindow):
         """
         palette = self.statusBar().palette()
         if level.upper() == "CRITICAL":
-            self.statusBar().setStyleSheet(
-                "QStatusBar { background-color: #C0392B; }"
-            )
+            self.statusBar().setStyleSheet("QStatusBar { background-color: #C0392B; }")
             palette.setColor(QPalette.ColorRole.WindowText, QColor("#FFFFFF"))
         else:
             self.statusBar().setStyleSheet("")
@@ -179,9 +180,7 @@ class MainWindow(QMainWindow):
             PageEntry("settings", "设置", self._create_settings_page),
         ]
         if EnvManager.is_debug():
-            pages.append(
-                PageEntry("debug", "调试", self._create_debug_page)
-            )
+            pages.append(PageEntry("debug", "调试", self._create_debug_page))
         return pages
 
     def _create_cleaner_page(self) -> CleanerPage:
@@ -194,9 +193,11 @@ class MainWindow(QMainWindow):
     def _create_debug_page(self) -> DebugPage:
         """创建调试页面并注册所有子面板"""
         from .pages.debug_panels.element_detection_panel import ElementDetectionPanel
+        from .pages.debug_panels.region_marker_panel import RegionMarkerPanel
         from .pages.debug_panels.status_bar_test_panel import StatusBarTestPanel
 
         page = DebugPage()
+        page.add_panel(RegionMarkerPanel(self._capture_widget))
         page.add_panel(self._capture_widget, stretch=1, title="截图预览")
         page.add_panel(ElementDetectionPanel(self._capture_widget))
         page.add_panel(StatusBarTestPanel())
@@ -217,7 +218,7 @@ class MainWindow(QMainWindow):
 
     def apply_theme(self, theme: str):
         """应用指定主题"""
-        self._is_dark = (theme == "dark")
+        self._is_dark = theme == "dark"
         self._apply_styles()
 
     # ---------- 托盘 ----------
@@ -230,6 +231,7 @@ class MainWindow(QMainWindow):
         self._tray.exit_requested.connect(self._on_exit)
 
     def _on_exit(self):
+        self._tray.cleanup()
         self.shutdown()
         self.app_exit_requested.emit()
 
@@ -238,6 +240,7 @@ class MainWindow(QMainWindow):
     def _start_backend(self):
         def run_server():
             import uvicorn
+
             try:
                 uvicorn.run(
                     "backend.server:app",
@@ -247,6 +250,7 @@ class MainWindow(QMainWindow):
                 )
             except (OSError, SystemExit) as e:
                 from utils.logger import log
+
                 log.error(f"服务器启动失败: {e}")
 
         self._server_thread = threading.Thread(target=run_server, daemon=True)
@@ -254,6 +258,7 @@ class MainWindow(QMainWindow):
         self.set_server_status(True, self.SERVER_PORT)
 
         from utils.logger import log
+
         log.info(f"后端服务已启动 → {self.PANEL_URL}")
 
     def _stop_backend(self):

@@ -11,4 +11,5 @@ REGISTRY: dict[str, str] = {
     "背包图标": "backpack.png",
     "丢弃按钮": "discard.png",
     "关闭按钮": "close.png",
+    "\"圣遗物文本\"": "artifact_text.png",
 }

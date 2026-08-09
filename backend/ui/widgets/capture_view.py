@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap, QWheelEvent
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -20,17 +20,10 @@ from PyQt6.QtWidgets import (
 
 
 class CapturePreviewWidget(QWidget):
-    """截图预览组件 — 实时显示窗口截图"""
-
-    capture_started = pyqtSignal()
-    capture_stopped = pyqtSignal()
+    """截图预览组件 — 纯图片预览器，支持缩放"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._refresh)
-        self._active = False
-        self._capture = None  # 延迟初始化 ScreenshotCapture
         self._zoom_factor: float = 1.0
         self._fit_to_view: bool = True
         self._current_pixmap: QPixmap | None = None
@@ -39,35 +32,18 @@ class CapturePreviewWidget(QWidget):
 
     # ---------- 公开方法 ----------
 
-    def start_preview(self, interval_ms: int = 500):
-        """开始定时刷新预览"""
-        if self._capture is None:
-            from backend.utils.screen_capture import ScreenshotCapture
+    def display_pixmap(self, pixmap: QPixmap, info_text: str = "") -> None:
+        """显示 pixmap（如带标注的截图）"""
+        self._current_pixmap = pixmap
+        self._update_display()
+        if info_text:
+            self._label_info.setText(info_text)
 
-            self._capture = ScreenshotCapture()
-        self._active = True
-        self._timer.start(interval_ms)
-        self._btn_toggle.setText("停止预览")
-        self.capture_started.emit()
-
-    def stop_preview(self):
-        """停止预览"""
-        self._active = False
-        self._timer.stop()
-        self._btn_toggle.setText("开始预览")
-        self.capture_stopped.emit()
-
-    def take_snapshot(self) -> QPixmap | None:
-        """单次截图，返回 QPixmap"""
-        if self._capture is None:
-            from backend.utils.screen_capture import ScreenshotCapture
-
-            self._capture = ScreenshotCapture()
-        try:
-            result = self._capture.capture()
-            return result.to_qpixmap()
-        except (RuntimeError, ImportError):
-            return None
+    def clear(self) -> None:
+        """清除当前显示的图片"""
+        self._current_pixmap = None
+        self._image_label.clear()
+        self._label_info.setText("等待截图…")
 
     # ---------- 内部 ----------
 
@@ -75,17 +51,7 @@ class CapturePreviewWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # 控制栏
         ctrl_layout = QHBoxLayout()
-
-        self._btn_toggle = QPushButton("开始预览")
-        self._btn_toggle.setProperty("class", "primary")
-        self._btn_toggle.clicked.connect(self._toggle)
-        ctrl_layout.addWidget(self._btn_toggle)
-
-        self._btn_snapshot = QPushButton("单次截图")
-        self._btn_snapshot.clicked.connect(self._on_snapshot)
-        ctrl_layout.addWidget(self._btn_snapshot)
 
         ctrl_layout.addStretch()
 
@@ -144,40 +110,6 @@ class CapturePreviewWidget(QWidget):
         self._image_label.setText("未开始预览\n点击「开始预览」查看游戏画面")
         self._scroll_area.setWidget(self._image_label)
         layout.addWidget(self._scroll_area)
-
-    def _toggle(self):
-        if self._active:
-            self.stop_preview()
-        else:
-            self.start_preview()
-
-    def _refresh(self):
-        """定时刷新预览画面"""
-        try:
-            result = self._capture.capture()
-            pixmap = result.to_qpixmap()
-            self._current_pixmap = pixmap
-            self._update_display()
-            self._label_info.setText(
-                f"{result.width}x{result.height} | {result.elapsed_ms:.0f}ms"
-            )
-        except (RuntimeError, ImportError) as e:
-            self._label_info.setText(f"截图失败: {e}")
-
-    def _on_snapshot(self):
-        """单次截图"""
-        pixmap = self.take_snapshot()
-        if pixmap:
-            self._current_pixmap = pixmap
-            self._update_display()
-            self._label_info.setText(f"{pixmap.width()}x{pixmap.height()} (单次)")
-
-    def display_pixmap(self, pixmap: QPixmap, info_text: str = "") -> None:
-        """显示自定义 pixmap（如带标注的截图），覆盖当前预览画面"""
-        self._current_pixmap = pixmap
-        self._update_display()
-        if info_text:
-            self._label_info.setText(info_text)
 
     # ---------- 缩放 ----------
 

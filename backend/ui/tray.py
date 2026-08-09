@@ -51,6 +51,14 @@ class TrayManager(QObject):
             title, message, QSystemTrayIcon.MessageIcon.Information, duration_ms
         )
 
+    def cleanup(self):
+        """
+        显式隐藏并销毁托盘图标。
+        应在 QApplication.aboutToQuit 信号中连接此方法。
+        """
+        self._tray.hide()
+        self._tray.deleteLater()
+
     # ---------- 内部 ----------
 
     def _set_icon(self):
@@ -92,7 +100,7 @@ class TrayManager(QObject):
 
         menu.addSeparator()
 
-        action_exit = QAction("❌ 退出")
+        action_exit = QAction("X 退出")
         action_exit.triggered.connect(self.exit_requested.emit)
         menu.addAction(action_exit)
 
