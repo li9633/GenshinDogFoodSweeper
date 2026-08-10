@@ -98,3 +98,21 @@ class ArtifactPieceRepo:
         with get_db(cls.DB_NAME) as conn:
             row = conn.execute("SELECT COUNT(*) FROM artifact_pieces").fetchone()
             return row[0] if row else 0
+
+    @classmethod
+    def find_all(cls) -> list[ArtifactPiece]:
+        """查询全部部位"""
+        with get_db(cls.DB_NAME) as conn:
+            rows = conn.execute(
+                "SELECT * FROM artifact_pieces ORDER BY id"
+            ).fetchall()
+            return [ArtifactPiece.from_row(r) for r in rows]
+
+    @classmethod
+    def find_all_names(cls) -> list[dict[str, Any]]:
+        """查询全部部位名称及所属套装 ID（用于模糊匹配）"""
+        with get_db(cls.DB_NAME) as conn:
+            rows = conn.execute(
+                "SELECT id, set_id, type, name FROM artifact_pieces ORDER BY id"
+            ).fetchall()
+            return [dict(r) for r in rows]

@@ -19,8 +19,8 @@ dependencies = [
     # 计算机视觉 + OCR
     "opencv-python-headless>=4.10",
     "numpy>=2.0",
-    "paddlepaddle>=3.2.1",
-    "paddleocr>=3.2.0",
+    "paddlepaddle>=3.0.0,<3.1.0",
+    "paddleocr>=3.0.0",
     "pillow>=10.0",
 
     # 自动化控制

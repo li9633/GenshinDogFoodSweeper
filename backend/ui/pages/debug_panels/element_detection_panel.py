@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.logger import log
 
 from backend.automation.template_manager import TemplateManager
 from backend.utils.screen_capture import ScreenshotCapture
@@ -193,11 +194,6 @@ class ElementDetectionPanel(QWidget):
         reg_row.addWidget(self._btn_register)
         layout.addLayout(reg_row)
 
-        self._label_result = QLabel("请添加检测条件后点击检测…")
-        self._label_result.setProperty("class", "hint")
-        self._label_result.setWordWrap(True)
-        layout.addWidget(self._label_result)
-
         scroll.setWidget(content)
         outer_layout.addWidget(scroll)
 
@@ -284,7 +280,7 @@ class ElementDetectionPanel(QWidget):
         for i in range(self._condition_list.count()):
             existing_key = self._condition_list.item(i).data(Qt.ItemDataRole.UserRole)[0]
             if existing_key == template_key:
-                self._label_result.setText(f"⚠ 模板 [{template_key}] 已在列表中")
+                log.warning(f"模板 [{template_key}] 已在列表中")
                 return
 
         region_text = f"区域:({region[0]},{region[1]},{region[2]}x{region[3]})" if region else "全屏"
@@ -293,27 +289,25 @@ class ElementDetectionPanel(QWidget):
         )
         item.setData(Qt.ItemDataRole.UserRole, (template_key, threshold, region))
         self._condition_list.addItem(item)
-        self._label_result.setText(
-            f"已添加 [{template_key}]，共 {self._condition_list.count()} 个条件"
-        )
+        log.info(f"已添加 [{template_key}]，共 {self._condition_list.count()} 个条件")
 
     def _on_remove_condition(self) -> None:
         for item in self._condition_list.selectedItems():
             self._condition_list.takeItem(self._condition_list.row(item))
-        self._label_result.setText(f"当前 {self._condition_list.count()} 个条件")
+        log.info(f"当前 {self._condition_list.count()} 个条件")
 
     def _on_clear_conditions(self) -> None:
         self._condition_list.clear()
-        self._label_result.setText("请添加检测条件后点击检测…")
+        log.info("已清除所有条件")
 
     # ---------- 检测逻辑 ----------
 
     def _on_detect(self) -> None:
         if self._condition_list.count() == 0:
-            self._label_result.setText("X 请先添加至少一个检测条件")
+            log.warning("请先添加至少一个检测条件")
             return
         if self._capture_widget is None:
-            self._label_result.setText("X 截图预览组件未初始化")
+            log.error("截图预览组件未初始化")
             return
 
         conditions: list[tuple[str, float, tuple[int, int, int, int] | None]] = []
@@ -394,13 +388,13 @@ class ElementDetectionPanel(QWidget):
 
             timing = f" ({elapsed:.0f}ms)"
             if all_passed:
-                self._label_result.setText(
-                    f"✓ 全部通过 ({passed_count}/{total}){timing} | "
+                log.info(
+                    f"全部通过 ({passed_count}/{total}){timing} | "
                     + " | ".join(detail_parts)
                 )
             else:
-                self._label_result.setText(
-                    f"✗ 未通过 ({passed_count}/{total}){timing} | "
+                log.warning(
+                    f"未通过 ({passed_count}/{total}){timing} | "
                     + " | ".join(detail_parts)
                 )
 
@@ -409,7 +403,7 @@ class ElementDetectionPanel(QWidget):
             self._capture_widget.display_pixmap(pixmap, f"检测: {status}")
 
         except RuntimeError as e:
-            self._label_result.setText(f"X 截图失败: {e}")
+            log.error(f"截图失败: {e}")
         finally:
             self._btn_detect.setEnabled(True)
             self._btn_detect.setText("检测定位")
@@ -422,12 +416,12 @@ class ElementDetectionPanel(QWidget):
 
     def _on_register_region(self) -> None:
         if not self._last_matches:
-            self._label_result.setText("X 请先执行检测定位")
+            log.warning("请先执行检测定位")
             return
 
         selected = self._condition_list.currentItem()
         if selected is None:
-            self._label_result.setText("X 请先在条件列表中选中一项")
+            log.warning("请先在条件列表中选中一项")
             return
 
         selected_key = selected.data(Qt.ItemDataRole.UserRole)[0]
@@ -436,7 +430,7 @@ class ElementDetectionPanel(QWidget):
             (m for m in self._last_matches if m[0] == selected_key), None
         )
         if match is None:
-            self._label_result.setText(f"X [{selected_key}] 本次未匹配成功")
+            log.warning(f"[{selected_key}] 本次未匹配成功")
             return
 
         _, x, y, w, h = match
@@ -449,7 +443,7 @@ class ElementDetectionPanel(QWidget):
 
         TemplateManager.save()
         self._edit_display_name.clear()
-        self._label_result.setText(f"✓ [{name}] 区域已注册: ({x},{y},{w}x{h})")
+        log.info(f"[{name}] 区域已注册: ({x},{y},{w}x{h})")
 
         self._refresh_template_list()
         if self._capture_widget is not None:

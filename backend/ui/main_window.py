@@ -199,6 +199,9 @@ class MainWindow(QMainWindow):
 
     def _create_debug_page(self) -> DebugPage:
         """创建调试页面并注册所有子面板"""
+        from .pages.debug_panels.artifact_recognition_panel import (
+            ArtifactRecognitionPanel,
+        )
         from .pages.debug_panels.element_detection_panel import ElementDetectionPanel
         from .pages.debug_panels.region_marker_panel import RegionMarkerPanel
         from .pages.debug_panels.status_bar_test_panel import StatusBarTestPanel
@@ -206,6 +209,7 @@ class MainWindow(QMainWindow):
         page = DebugPage()
         page.add_tab(RegionMarkerPanel(self._capture_widget), "区域标记", show_preview=True)
         page.add_tab(ElementDetectionPanel(self._capture_widget), "元素定位", show_preview=True)
+        page.add_tab(ArtifactRecognitionPanel(self._capture_widget), "圣遗物识别", show_preview=True)
         page.add_tab(StatusBarTestPanel(), "状态栏")
         page.set_preview(self._capture_widget)
         return page

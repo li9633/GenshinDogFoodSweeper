@@ -7,12 +7,13 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QWheelEvent
+from PyQt6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QMouseEvent, QPixmap, QWheelEvent
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QRubberBand,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -22,11 +23,16 @@ from PyQt6.QtWidgets import (
 class CapturePreviewWidget(QWidget):
     """截图预览组件 — 纯图片预览器，支持缩放"""
 
+    region_selected = pyqtSignal(int, int, int, int)  # x, y, w, h（原始图像坐标）
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._zoom_factor: float = 1.0
         self._fit_to_view: bool = True
         self._current_pixmap: QPixmap | None = None
+        self._selection_mode: bool = False
+        self._selection_start: QPoint | None = None
+        self._rubber_band: QRubberBand | None = None
 
         self._build_ui()
 
@@ -44,6 +50,32 @@ class CapturePreviewWidget(QWidget):
         self._current_pixmap = None
         self._image_label.clear()
         self._label_info.setText("等待截图…")
+
+    def set_selection_mode(self, enabled: bool) -> None:
+        """启用/禁用鼠标拖拽选区模式"""
+        self._selection_mode = enabled
+        if enabled:
+            self._image_label.setCursor(Qt.CursorShape.CrossCursor)
+            self._image_label.setMouseTracking(True)
+            self._image_label.installEventFilter(self)
+        else:
+            self._image_label.setCursor(Qt.CursorShape.ArrowCursor)
+            self._image_label.setMouseTracking(False)
+            self._image_label.removeEventFilter(self)
+            self._clear_selection()
+
+    def eventFilter(self, obj, event):
+        if obj is self._image_label and self._selection_mode:
+            if event.type() == QEvent.Type.MouseButtonPress:
+                self._on_mouse_press(event)
+                return True
+            elif event.type() == QEvent.Type.MouseMove:
+                self._on_mouse_move(event)
+                return True
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                self._on_mouse_release(event)
+                return True
+        return super().eventFilter(obj, event)
 
     # ---------- 内部 ----------
 
@@ -151,6 +183,49 @@ class CapturePreviewWidget(QWidget):
             self._label_zoom.setText(f"{int(self._zoom_factor * 100)}%")
         self._image_label.setPixmap(scaled)
         self._image_label.resize(scaled.size())
+
+    # ---------- 鼠标选区 ----------
+
+    def _on_mouse_press(self, event: QMouseEvent) -> None:
+        self._selection_start = event.pos()
+        if self._rubber_band is None:
+            self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self._image_label)
+            self._rubber_band.setStyleSheet("background: rgba(0, 255, 0, 60); border: 2px solid #00FF00;")
+        self._rubber_band.setGeometry(QRect(self._selection_start, self._selection_start))
+        self._rubber_band.show()
+
+    def _on_mouse_move(self, event: QMouseEvent) -> None:
+        if self._selection_start and self._rubber_band:
+            self._rubber_band.setGeometry(QRect(self._selection_start, event.pos()).normalized())
+
+    def _on_mouse_release(self, event: QMouseEvent) -> None:
+        if not self._selection_start or not self._rubber_band:
+            return
+        self._rubber_band.hide()
+        rect = QRect(self._selection_start, event.pos()).normalized()
+        self._selection_start = None
+        if rect.width() > 5 and rect.height() > 5:
+            original = self._map_to_original(rect)
+            self.region_selected.emit(original.x(), original.y(), original.width(), original.height())
+
+    def _map_to_original(self, rect: QRect) -> QRect:
+        """将 QLabel 上的选区坐标映射回原始图像坐标"""
+        if self._current_pixmap is None:
+            return rect
+        pixmap = self._image_label.pixmap()
+        if pixmap is None:
+            return rect
+        scale_x = self._current_pixmap.width() / pixmap.width()
+        scale_y = self._current_pixmap.height() / pixmap.height()
+        return QRect(
+            int(rect.x() * scale_x), int(rect.y() * scale_y),
+            int(rect.width() * scale_x), int(rect.height() * scale_y),
+        )
+
+    def _clear_selection(self) -> None:
+        if self._rubber_band:
+            self._rubber_band.hide()
+        self._selection_start = None
 
     def wheelEvent(self, event: QWheelEvent) -> None:
         if self._current_pixmap is not None and (
