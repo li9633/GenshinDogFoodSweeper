@@ -6,6 +6,7 @@ import copy
 import os
 import time
 from pathlib import Path
+from typing import ClassVar
 
 # 必须在任何 paddle 相关 import 之前设置，禁用 oneDNN+PIR 避免推理错误
 os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
@@ -14,7 +15,6 @@ os.environ["FLAGS_use_mkldnn"] = "0"
 os.environ["FLAGS_enable_pir_api"] = "False"
 
 import cv2
-import numpy as np
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QGroupBox,
@@ -36,7 +36,7 @@ from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
 class ArtifactRecognitionPanel(QWidget):
     """圣遗物识别调试 — 截图 → OCR → BBS 匹配"""
 
-    PIECE_TYPES = {"生之花", "死之羽", "时之沙", "空之杯", "理之冠"}
+    PIECE_TYPES: ClassVar[set[str]] = {"生之花", "死之羽", "时之沙", "空之杯", "理之冠"}
 
     def __init__(self, capture_widget: QWidget | None = None, parent=None):
         super().__init__(parent)
@@ -189,8 +189,8 @@ class ArtifactRecognitionPanel(QWidget):
                 # 保存 ROI 为临时文件（PaddleOCR 3.x 对文件路径更稳定）
                 roi_path = self._save_roi_temp(roi, name)
 
-                # OCR
-                ocr_result = ocr.ocr(str(roi_path))
+                # OCR（直接传 numpy 数组，跳过文件 I/O）
+                ocr_result = ocr.ocr(roi)
                 texts: list[str] = []
                 dt_count = 0
                 if ocr_result and ocr_result[0]:
@@ -263,7 +263,7 @@ class ArtifactRecognitionPanel(QWidget):
 
             log.info(f"识别完成 ({elapsed:.0f}ms)")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — 顶层兜底，确保 UI 不会崩溃
             log.error(f"识别失败: {e}")
             self._result_text.setText(f"错误: {e}")
         finally:
@@ -273,12 +273,19 @@ class ArtifactRecognitionPanel(QWidget):
     # ---------- OCR ----------
 
     def _get_ocr(self):
-        """懒加载 PaddleOCR 实例"""
+        """懒加载 PaddleOCR 实例（移动端模型 + 禁用文档预处理）"""
         if self._ocr is None:
             from paddleocr import PaddleOCR
 
             log.info("首次加载 OCR 引擎（3-5 秒）…")
-            self._ocr = PaddleOCR(lang="ch")
+            self._ocr = PaddleOCR(
+                lang="ch",
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
+                use_textline_orientation=False,
+                text_detection_model_name="PP-OCRv5_mobile_det",
+                text_recognition_model_name="PP-OCRv5_mobile_rec",
+            )
             log.info("OCR 引擎就绪")
         return self._ocr
 
@@ -290,7 +297,7 @@ class ArtifactRecognitionPanel(QWidget):
         try:
             from database.repository.artifact_set_repo import ArtifactSetRepo
             return ArtifactSetRepo.count() == 0
-        except Exception:
+        except Exception:  # noqa: BLE001 — DB 不可用时返回 True
             return True
 
     @staticmethod
@@ -306,12 +313,12 @@ class ArtifactRecognitionPanel(QWidget):
         # cv2.imencode 编码为 PNG 字节，再用 Python 原生写入（避免中文路径 + mkstemp 问题）
         ok, png_bytes = cv2.imencode(".png", roi_bgr)
         if not ok or png_bytes is None:
-            raise IOError(f"ROI [{name}] 编码 PNG 失败")
+            raise OSError(f"ROI [{name}] 编码 PNG 失败")
         safe_name = {"圣遗物名称": "set_name", "部位+主词条": "piece_main", "副词条区": "sub_stats"}.get(name, "roi")
         path = Path(tempfile.gettempdir()) / f"gsdogfood_{safe_name}.png"
         path.write_bytes(png_bytes.tobytes())
         if not path.exists() or path.stat().st_size == 0:
-            raise IOError(f"临时文件写入失败: {path}")
+            raise OSError(f"临时文件写入失败: {path}")
         return path
 
     @staticmethod
@@ -344,9 +351,8 @@ class ArtifactRecognitionPanel(QWidget):
                 result = process.extractOne(text, names, scorer=fuzz.ratio)
                 if result and result[1] >= 70:
                     return result[0], result[1] / 100.0
-        except Exception:
-            pass
-        return None
+        except Exception:  # noqa: BLE001 — 匹配失败时静默返回 None
+            return None
 
     @classmethod
     def _match_piece_type(cls, text: str) -> dict[str, str] | None:
@@ -378,9 +384,8 @@ class ArtifactRecognitionPanel(QWidget):
             for pt in piece_types:
                 if pt in text:
                     return {"type": pt, "name": ""}
-        except Exception:
-            pass
-        return None
+        except Exception:  # noqa: BLE001 — 匹配失败时静默返回 None
+            return None
 
     # ---------- 清除 ----------
 
