@@ -15,6 +15,7 @@ os.environ["FLAGS_use_mkldnn"] = "0"
 os.environ["FLAGS_enable_pir_api"] = "False"
 
 import cv2
+import numpy as np
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QGroupBox,
@@ -28,8 +29,10 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.artifact_parser import ArtifactTextParser
 from utils.logger import log
 
+from backend.automation.template_manager import TemplateManager
 from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
 
 
@@ -72,9 +75,11 @@ class ArtifactRecognitionPanel(QWidget):
 
         self._roi_spins: dict[str, tuple[QSpinBox, QSpinBox, QSpinBox, QSpinBox]] = {}
         defaults = [
+            ("圣遗物等级", (1338, 452, 71, 44)),
             ("圣遗物名称", (1329, 144, 262, 62)),
             ("部位+主词条", (1339, 214, 160, 174)),
             ("副词条区", (1347, 498, 276, 166)),
+            ("圣遗物锁定状态", (1679, 445, 51, 57)),
         ]
         for name, (dx, dy, dw, dh) in defaults:
             row = QHBoxLayout()
@@ -173,20 +178,35 @@ class ArtifactRecognitionPanel(QWidget):
                     "数据库中暂无圣遗物套装数据，将仅显示 OCR 识别结果，不进行匹配。\n\n"
                     "请前往[设置]页面，点击「圣遗物同步」拉取最新圣遗物数据。",
                 )
-                lines.append("⚠ 本地圣遗物模板为空，以下为 OCR 原始识别结果，未进行匹配\n")
+                lines.append(
+                    "⚠ 本地圣遗物模板为空，以下为 OCR 原始识别结果，未进行匹配\n"
+                )
 
             # 复制一份用于绘制 ROI 框
             display = copy.copy(self._current_result)
             display.image = self._current_result.image.copy()
 
+            # 收集 OCR 文本和匹配结果
+            ocr_texts: dict[str, list[str]] = {}
+            matched_set_name: str | None = None
+            matched_piece_type: str | None = None
+            matched_piece_name: str | None = None
+            lock_roi = None  # 锁定状态用模板匹配，单独处理
+
             for name, (sx, sy, sw, sh) in self._roi_spins.items():
                 x, y, w, h = sx.value(), sy.value(), sw.value(), sh.value()
-                roi = self._current_result.image[y:y + h, x:x + w]
+                roi = self._current_result.image[y : y + h, x : x + w]
                 if roi.size == 0:
                     lines.append(f"[{name}] 区域无效")
                     continue
 
-                # 保存 ROI 为临时文件（PaddleOCR 3.x 对文件路径更稳定）
+                # 锁定状态：跳过 OCR，后续用模板匹配
+                if name == "圣遗物锁定状态":
+                    lock_roi = roi
+                    display.draw_rect(x, y, w, h, color=(255, 165, 0), thickness=2, label=name)
+                    continue
+
+                # 保存 ROI 为临时文件（调试用）
                 roi_path = self._save_roi_temp(roi, name)
 
                 # OCR（直接传 numpy 数组，跳过文件 I/O）
@@ -195,21 +215,36 @@ class ArtifactRecognitionPanel(QWidget):
                 dt_count = 0
                 if ocr_result and ocr_result[0]:
                     result = ocr_result[0]
-                    log.info(f'[{name}] OCR result type: {type(result).__name__}, dir: {[a for a in dir(result) if not a.startswith("_")]}')
+                    log.info(
+                        f"[{name}] OCR result type: {type(result).__name__}, dir: {[a for a in dir(result) if not a.startswith('_')]}"
+                    )
                     # PaddleOCR 3.x: OCRResult 对象 或 dict
                     if isinstance(result, dict):
-                        texts = [t for t in result.get("rec_texts", []) if t and t.strip()]
+                        texts = [
+                            t for t in result.get("rec_texts", []) if t and t.strip()
+                        ]
                         dt_count = len(result.get("dt_polys", []))
                     elif hasattr(result, "rec_texts"):
                         texts = [t for t in result.rec_texts if t and t.strip()]
-                        dt_count = len(result.dt_polys) if hasattr(result, "dt_polys") and result.dt_polys else 0
+                        dt_count = (
+                            len(result.dt_polys)
+                            if hasattr(result, "dt_polys") and result.dt_polys
+                            else 0
+                        )
                     # PaddleOCR 2.x: list of [bbox, (text, score)]
                     elif isinstance(result, list):
                         dt_count = len(result)
                         for line_info in result:
-                            if isinstance(line_info, (list, tuple)) and len(line_info) >= 2:
+                            if (
+                                isinstance(line_info, (list, tuple))
+                                and len(line_info) >= 2
+                            ):
                                 rec = line_info[1]
-                                text = rec[0] if isinstance(rec, (list, tuple)) else str(rec)
+                                text = (
+                                    rec[0]
+                                    if isinstance(rec, (list, tuple))
+                                    else str(rec)
+                                )
                             else:
                                 text = str(line_info)
                             if text.strip():
@@ -218,13 +253,20 @@ class ArtifactRecognitionPanel(QWidget):
                         log.warning(f"[{name}] 未知 OCR 结果类型: {type(result)}")
 
                 combined = " | ".join(texts) if texts else "(无文本)"
+                ocr_texts[name] = texts
                 lines.append(f"[{name}] OCR: {combined}")
                 if texts:
-                    lines.append(f"  → 检测到 {dt_count} 个文本块，识别出 {len(texts)} 个")
+                    lines.append(
+                        f"  → 检测到 {dt_count} 个文本块，识别出 {len(texts)} 个"
+                    )
                 elif dt_count > 0:
-                    lines.append(f"  → 检测到 {dt_count} 个文本块，但识别失败（可能是字体/颜色问题）")
+                    lines.append(
+                        f"  → 检测到 {dt_count} 个文本块，但识别失败（可能是字体/颜色问题）"
+                    )
                 else:
-                    lines.append(f"  → 未检测到任何文本（坐标可能不对，请检查 {roi_path.name}）")
+                    lines.append(
+                        f"  → 未检测到任何文本（坐标可能不对，请检查 {roi_path.name}）"
+                    )
 
                 # BBS 匹配（数据库为空时跳过）
                 if db_empty:
@@ -232,13 +274,18 @@ class ArtifactRecognitionPanel(QWidget):
                 elif name == "圣遗物名称" and texts:
                     match = self._match_set_name(texts[0])
                     if match:
-                        lines.append(f"  → 匹配套装: {match[0]} (置信度: {match[1]:.0%})")
+                        matched_set_name = match[0]
+                        lines.append(
+                            f"  → 匹配套装: {match[0]} (置信度: {match[1]:.0%})"
+                        )
                     else:
                         lines.append("  → 未匹配到套装")
                 elif name == "部位+主词条" and texts:
                     for t in texts:
                         piece = self._match_piece_type(t)
                         if piece:
+                            matched_piece_type = piece["type"]
+                            matched_piece_name = piece["name"]
                             detail = piece["type"]
                             if piece["name"]:
                                 detail += f" ({piece['name']})"
@@ -250,6 +297,61 @@ class ArtifactRecognitionPanel(QWidget):
                 # 在预览图上画 ROI 框
                 color = (0, 255, 0) if "→ 匹配" in "\n".join(lines) else (255, 165, 0)
                 display.draw_rect(x, y, w, h, color=color, thickness=2, label=name)
+
+            # --- 锁定状态：模板匹配 ---
+            lock_status: bool | None = None
+            if lock_roi is not None:
+                lock_status = self._match_lock_status(lock_roi)
+                if lock_status is True:
+                    lines.append("[圣遗物锁定状态] 🔒 已锁定")
+                elif lock_status is False:
+                    lines.append("[圣遗物锁定状态] 🔓 未锁定")
+                else:
+                    lines.append("[圣遗物锁定状态] 未能识别（模板匹配失败）")
+
+            # --- 结构化解析 ---
+            name_ocr = " | ".join(ocr_texts.get("圣遗物名称", []))
+            main_ocr = " | ".join(ocr_texts.get("部位+主词条", []))
+            sub_ocr = " | ".join(ocr_texts.get("副词条区", []))
+            level_ocr = " | ".join(ocr_texts.get("圣遗物等级", []))
+            lock_ocr = "锁定" if lock_status is True else ("解锁" if lock_status is False else "")
+
+            artifact = ArtifactTextParser.parse(
+                set_name=matched_set_name,
+                piece_type=matched_piece_type,
+                piece_name=matched_piece_name,
+                name_ocr=name_ocr,
+                main_ocr=main_ocr,
+                sub_ocr=sub_ocr,
+                level_ocr=level_ocr,
+                lock_ocr=lock_ocr,
+            )
+
+            # 追加结构化结果
+            lines.append("\n" + "─" * 40)
+            lines.append("【结构化解析结果】")
+            lines.append(f"  套装: {artifact.set_name or '未识别'}")
+            if artifact.level is not None:
+                lines.append(f"  等级: +{artifact.level}")
+            if artifact.is_locked is not None:
+                lines.append(f"  锁定: {'是' if artifact.is_locked else '否'}")
+            if artifact.piece_type:
+                detail = artifact.piece_type
+                if artifact.piece_name:
+                    detail += f" ({artifact.piece_name})"
+                lines.append(f"  部位: {detail}")
+            if artifact.main_stat:
+                ms = artifact.main_stat
+                pct = "%" if ms.is_percentage else ""
+                lines.append(f"  主词条: {ms.name} +{ms.value}{pct}")
+            if artifact.sub_stats:
+                lines.append("  副词条:")
+                for ss in artifact.sub_stats:
+                    pct = "%" if ss.is_percentage else ""
+                    lock = " (待激活)" if ss.is_locked else ""
+                    lines.append(f"    • {ss.name} +{ss.value}{pct}{lock}")
+            else:
+                lines.append("  副词条: 未解析到")
 
             elapsed = (time.perf_counter() - t0) * 1000
             lines.append(f"\n总耗时: {elapsed:.0f}ms")
@@ -296,6 +398,7 @@ class ArtifactRecognitionPanel(QWidget):
         """检查本地圣遗物数据库是否为空"""
         try:
             from database.repository.artifact_set_repo import ArtifactSetRepo
+
             return ArtifactSetRepo.count() == 0
         except Exception:  # noqa: BLE001 — DB 不可用时返回 True
             return True
@@ -304,6 +407,7 @@ class ArtifactRecognitionPanel(QWidget):
     def _save_roi_temp(roi, name: str) -> Path:
         """将 ROI numpy 数组保存为临时 PNG 文件，方便 OCR 和肉眼检查"""
         import tempfile
+
         if roi is None or roi.size == 0:
             raise ValueError(f"ROI [{name}] 为空，请检查坐标是否在截图范围内")
         h, w = roi.shape[:2]
@@ -314,7 +418,13 @@ class ArtifactRecognitionPanel(QWidget):
         ok, png_bytes = cv2.imencode(".png", roi_bgr)
         if not ok or png_bytes is None:
             raise OSError(f"ROI [{name}] 编码 PNG 失败")
-        safe_name = {"圣遗物名称": "set_name", "部位+主词条": "piece_main", "副词条区": "sub_stats"}.get(name, "roi")
+        safe_name = {
+            "圣遗物名称": "set_name",
+            "部位+主词条": "piece_main",
+            "副词条区": "sub_stats",
+            "圣遗物等级": "level",
+            "圣遗物锁定状态": "lock",
+        }.get(name, "roi")
         path = Path(tempfile.gettempdir()) / f"gsdogfood_{safe_name}.png"
         path.write_bytes(png_bytes.tobytes())
         if not path.exists() or path.stat().st_size == 0:
@@ -386,6 +496,47 @@ class ArtifactRecognitionPanel(QWidget):
                     return {"type": pt, "name": ""}
         except Exception:  # noqa: BLE001 — 匹配失败时静默返回 None
             return None
+
+    # ---------- 锁定状态模板匹配 ----------
+
+    @staticmethod
+    def _match_lock_status(roi: np.ndarray) -> bool | None:
+        """用模板匹配检测锁定状态：对比锁/解锁模板，返回 True/False/None"""
+        locked_path = TemplateManager.get_path("圣遗物状态已锁定")
+        unlocked_path = TemplateManager.get_path("圣遗物状态已解锁")
+        if locked_path is None or unlocked_path is None:
+            return None
+
+        roi_gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+
+        def _match(template_path: Path) -> float:
+            tmpl = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
+            if tmpl is None:
+                return -1.0
+            # 多尺度匹配
+            best = -1.0
+            for scale in (0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3):
+                new_w = int(tmpl.shape[1] * scale)
+                new_h = int(tmpl.shape[0] * scale)
+                if new_w > roi_gray.shape[1] or new_h > roi_gray.shape[0] or new_w < 5 or new_h < 5:
+                    continue
+                scaled = cv2.resize(tmpl, (new_w, new_h))
+                result = cv2.matchTemplate(roi_gray, scaled, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, _ = cv2.minMaxLoc(result)
+                if max_val > best:
+                    best = float(max_val)
+            return best
+
+        locked_score = _match(locked_path)
+        unlocked_score = _match(unlocked_path)
+
+        if locked_score < 0 and unlocked_score < 0:
+            return None
+        if locked_score > unlocked_score and locked_score > 0.6:
+            return True
+        if unlocked_score > locked_score and unlocked_score > 0.6:
+            return False
+        return None
 
     # ---------- 清除 ----------
 
