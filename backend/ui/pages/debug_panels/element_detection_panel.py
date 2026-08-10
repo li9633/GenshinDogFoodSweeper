@@ -7,6 +7,7 @@ import time
 import cv2
 import numpy as np
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -19,6 +20,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -28,11 +30,11 @@ from backend.automation.template_manager import TemplateManager
 from backend.utils.screen_capture import ScreenshotCapture
 
 
-class ElementDetectionPanel(QGroupBox):
+class ElementDetectionPanel(QWidget):
     """元素定位检测 — 模板匹配 + 可视化标记"""
 
     def __init__(self, capture_widget: QWidget | None = None, parent=None):
-        super().__init__("元素定位检测", parent)
+        super().__init__(parent)
         self._capture_widget = capture_widget
         self._last_matches: list[tuple[str, int, int, int, int]] = []
         self._build_ui()
@@ -41,28 +43,45 @@ class ElementDetectionPanel(QGroupBox):
     # ---------- UI ----------
 
     def _build_ui(self) -> None:
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+
+        content = QWidget()
         layout = QVBoxLayout()
-        self.setLayout(layout)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+        content.setLayout(layout)
 
         add_group = QGroupBox("添加检测条件")
         add_layout = QVBoxLayout()
+        add_layout.setContentsMargins(4, 4, 4, 4)
+        add_layout.setSpacing(3)
         add_group.setLayout(add_layout)
 
         row1 = QHBoxLayout()
-        row1.addWidget(QLabel("搜索:"))
+        row1.setSpacing(3)
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText("输入关键词筛选模板…")
+        self._search_input.setPlaceholderText("搜索模板…")
         self._search_input.textChanged.connect(self._on_search_changed)
         row1.addWidget(self._search_input)
-        self._btn_refresh = QPushButton("刷新")
+        self._btn_refresh = QPushButton("⟳")
+        self._btn_refresh.setFixedWidth(30)
+        self._btn_refresh.setToolTip("刷新模板列表")
         self._btn_refresh.clicked.connect(self._on_refresh)
         row1.addWidget(self._btn_refresh)
         add_layout.addLayout(row1)
 
         row2 = QHBoxLayout()
+        row2.setSpacing(3)
         row2.addWidget(QLabel("模板:"))
         self._combo_template = QComboBox()
-        self._combo_template.setMinimumWidth(150)
+        self._combo_template.setMinimumWidth(120)
         self._combo_template.currentIndexChanged.connect(self._on_template_changed)
         row2.addWidget(self._combo_template, stretch=1)
         row2.addWidget(QLabel("阈值:"))
@@ -71,51 +90,83 @@ class ElementDetectionPanel(QGroupBox):
         self._spin_threshold.setSingleStep(0.05)
         self._spin_threshold.setValue(0.80)
         self._spin_threshold.setDecimals(2)
+        self._spin_threshold.setMinimumWidth(55)
         row2.addWidget(self._spin_threshold)
         self._btn_add = QPushButton("+ 添加")
         self._btn_add.clicked.connect(self._on_add_condition)
         row2.addWidget(self._btn_add)
         add_layout.addLayout(row2)
 
-        region_row = QHBoxLayout()
+        preview_region_row = QHBoxLayout()
+        preview_region_row.setSpacing(4)
+
+        self._preview_label = QLabel()
+        self._preview_label.setFixedSize(100, 80)
+        self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._preview_label.setStyleSheet(
+            "QLabel { border: 1px solid #555; background: #2b2b2b; color: #888; }"
+        )
+        self._preview_label.setText("无预览")
+        preview_region_row.addWidget(self._preview_label)
+
+        region_col = QVBoxLayout()
+        region_col.setSpacing(2)
+
+        region_spin_row = QHBoxLayout()
+        region_spin_row.setSpacing(2)
         self._chk_region = QCheckBox("限定区域")
-        region_row.addWidget(self._chk_region)
-        region_row.addWidget(QLabel("X:"))
+        region_spin_row.addWidget(self._chk_region)
+        region_spin_row.addWidget(QLabel("X:"))
         self._spin_rx = QSpinBox()
         self._spin_rx.setRange(0, 9999)
-        region_row.addWidget(self._spin_rx)
-        region_row.addWidget(QLabel("Y:"))
+        self._spin_rx.setMinimumWidth(50)
+        region_spin_row.addWidget(self._spin_rx)
+        region_spin_row.addWidget(QLabel("Y:"))
         self._spin_ry = QSpinBox()
         self._spin_ry.setRange(0, 9999)
-        region_row.addWidget(self._spin_ry)
-        region_row.addWidget(QLabel("宽:"))
+        self._spin_ry.setMinimumWidth(50)
+        region_spin_row.addWidget(self._spin_ry)
+        region_spin_row.addWidget(QLabel("W:"))
         self._spin_rw = QSpinBox()
         self._spin_rw.setRange(1, 9999)
         self._spin_rw.setValue(200)
-        region_row.addWidget(self._spin_rw)
-        region_row.addWidget(QLabel("高:"))
+        self._spin_rw.setMinimumWidth(50)
+        region_spin_row.addWidget(self._spin_rw)
+        region_spin_row.addWidget(QLabel("H:"))
         self._spin_rh = QSpinBox()
         self._spin_rh.setRange(1, 9999)
         self._spin_rh.setValue(100)
-        region_row.addWidget(self._spin_rh)
+        self._spin_rh.setMinimumWidth(50)
+        region_spin_row.addWidget(self._spin_rh)
+        region_spin_row.addStretch()
+        region_col.addLayout(region_spin_row)
+
+        region_btn_row = QHBoxLayout()
+        region_btn_row.setSpacing(3)
         self._btn_paste = QPushButton("粘贴")
         self._btn_paste.clicked.connect(self._on_paste_region)
-        region_row.addWidget(self._btn_paste)
-        region_row.addStretch()
-        add_layout.addLayout(region_row)
+        region_btn_row.addWidget(self._btn_paste)
+        region_btn_row.addStretch()
+        region_col.addLayout(region_btn_row)
+
+        preview_region_row.addLayout(region_col, stretch=1)
+        add_layout.addLayout(preview_region_row)
 
         layout.addWidget(add_group)
 
         list_group = QGroupBox("检测条件列表（全部匹配才算通过）")
         list_layout = QVBoxLayout()
+        list_layout.setContentsMargins(4, 4, 4, 4)
+        list_layout.setSpacing(3)
         list_group.setLayout(list_layout)
 
         self._condition_list = QListWidget()
-        self._condition_list.setMaximumHeight(120)
+        self._condition_list.setMaximumHeight(100)
         self._condition_list.currentItemChanged.connect(self._on_condition_selected)
         list_layout.addWidget(self._condition_list)
 
         btn_row = QHBoxLayout()
+        btn_row.setSpacing(3)
         self._btn_remove = QPushButton("移除选中")
         self._btn_remove.clicked.connect(self._on_remove_condition)
         btn_row.addWidget(self._btn_remove)
@@ -133,9 +184,9 @@ class ElementDetectionPanel(QGroupBox):
         layout.addWidget(self._btn_detect)
 
         reg_row = QHBoxLayout()
-        reg_row.addWidget(QLabel("显示名称:"))
+        reg_row.setSpacing(3)
         self._edit_display_name = QLineEdit()
-        self._edit_display_name.setPlaceholderText("留空则使用文件名")
+        self._edit_display_name.setPlaceholderText("注册名称（留空用文件名）")
         reg_row.addWidget(self._edit_display_name)
         self._btn_register = QPushButton("注册区域")
         self._btn_register.clicked.connect(self._on_register_region)
@@ -144,7 +195,11 @@ class ElementDetectionPanel(QGroupBox):
 
         self._label_result = QLabel("请添加检测条件后点击检测…")
         self._label_result.setProperty("class", "hint")
+        self._label_result.setWordWrap(True)
         layout.addWidget(self._label_result)
+
+        scroll.setWidget(content)
+        outer_layout.addWidget(scroll)
 
     # ---------- 模板列表 ----------
 
@@ -168,6 +223,7 @@ class ElementDetectionPanel(QGroupBox):
     def _on_template_changed(self, _idx: int) -> None:
         key = self._combo_template.currentData()
         if not key:
+            self._update_preview(None)
             return
         region = TemplateManager.get_region(key)
         if region:
@@ -178,6 +234,27 @@ class ElementDetectionPanel(QGroupBox):
             self._chk_region.setChecked(True)
         else:
             self._chk_region.setChecked(False)
+        self._update_preview(key)
+
+    def _update_preview(self, key: str | None) -> None:
+        if key is None:
+            self._preview_label.setText("无预览")
+            return
+        path = TemplateManager.get_path(key)
+        if path is None:
+            self._preview_label.setText("无文件")
+            return
+        pixmap = QPixmap(str(path))
+        if pixmap.isNull():
+            self._preview_label.setText("加载失败")
+            return
+        pw, ph = self._preview_label.width(), self._preview_label.height()
+        scaled = pixmap.scaled(
+            pw - 6, ph - 6,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self._preview_label.setPixmap(scaled)
 
     def _on_paste_region(self) -> None:
         text = QApplication.clipboard().text().strip()
