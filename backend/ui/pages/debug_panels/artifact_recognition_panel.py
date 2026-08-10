@@ -97,6 +97,7 @@ class ArtifactRecognitionPanel(QWidget):
         self._roi_spins: dict[str, tuple[QSpinBox, QSpinBox, QSpinBox, QSpinBox]] = {}
         defaults = [
             ("圣遗物等级", (1338, 452, 71, 44)),
+            ("圣遗物星级", (1742, 159, 39, 40)),
             ("圣遗物名称", (1329, 144, 262, 62)),
             ("部位+主词条", (1339, 214, 160, 174)),
             ("副词条区", (1347, 498, 276, 166)),
@@ -168,13 +169,10 @@ class ArtifactRecognitionPanel(QWidget):
         # ---- 操作按钮 ----
         btn_row = QHBoxLayout()
         btn_row.setSpacing(3)
-        self._btn_capture = QPushButton("截图")
-        self._btn_capture.clicked.connect(self._on_capture)
+        self._btn_capture = QPushButton("截图并识别")
+        self._btn_capture.setProperty("class", "primary")
+        self._btn_capture.clicked.connect(self._on_capture_and_recognize)
         btn_row.addWidget(self._btn_capture)
-        self._btn_recognize = QPushButton("识别")
-        self._btn_recognize.setProperty("class", "primary")
-        self._btn_recognize.clicked.connect(self._on_recognize)
-        btn_row.addWidget(self._btn_recognize)
         self._btn_clear = QPushButton("清除")
         self._btn_clear.clicked.connect(self._on_clear)
         btn_row.addWidget(self._btn_clear)
@@ -183,6 +181,29 @@ class ArtifactRecognitionPanel(QWidget):
 
         scroll.setWidget(content)
         outer_layout.addWidget(scroll)
+
+    # ---------- 截图并识别 ----------
+
+    def _on_capture_and_recognize(self) -> None:
+        self._btn_capture.setEnabled(False)
+        self._btn_capture.setText("截图中…")
+        try:
+            cap = ScreenshotCapture()
+            self._current_result = cap.capture()
+            if self._capture_widget:
+                self._capture_widget.display_pixmap(
+                    self._current_result.to_qpixmap(), "截图完成"
+                )
+        except RuntimeError as e:
+            log.error(f"截图失败: {e}")
+            self._btn_capture.setEnabled(True)
+            self._btn_capture.setText("截图并识别")
+            return
+
+        self._btn_capture.setText("识别中…")
+        self._do_recognize()
+        self._btn_capture.setEnabled(True)
+        self._btn_capture.setText("截图并识别")
 
     # ---------- 截图 ----------
 
@@ -212,9 +233,9 @@ class ArtifactRecognitionPanel(QWidget):
 
         self._btn_recognize.setEnabled(False)
         self._btn_recognize.setText("识别中…")
-        self._ocr_result_text.clear()
-        self._structured_result_text.clear()
+        self._do_recognize()
 
+    def _do_recognize(self) -> None:
         try:
             t0 = time.perf_counter()
             ocr = self._get_ocr()
@@ -243,6 +264,8 @@ class ArtifactRecognitionPanel(QWidget):
             matched_set_id: int | None = None
             matched_piece_type: str | None = None
             matched_piece_name: str | None = None
+            matched_rarity: int | None = None
+            matched_set_rarities: list[str] = []
             piece_from_set_match = False  # 部位是否已由套装匹配确定
 
             for name, (sx, sy, sw, sh) in self._roi_spins.items():
@@ -357,6 +380,45 @@ class ArtifactRecognitionPanel(QWidget):
                 color = (0, 255, 0) if "→ 匹配" in "\n".join(lines) else (255, 165, 0)
                 display.draw_rect(x, y, w, h, color=color, thickness=2, label=name)
 
+            # --- 星级识别：颜色采样 ---
+            if not db_empty and matched_set_id is not None:
+                from database.repository.artifact_set_repo import ArtifactSetRepo
+
+                set_obj = ArtifactSetRepo.find_by_id(matched_set_id)
+                if set_obj:
+                    matched_set_rarities = set_obj.rarity
+            if "圣遗物星级" in self._roi_spins:
+                sx, sy, sw, sh = self._roi_spins["圣遗物星级"]
+                x, y, w, h = sx.value(), sy.value(), sw.value(), sh.value()
+                roi = self._current_result.image[y : y + h, x : x + w]
+                if roi.size > 0:
+                    from ui.pages.debug_panels.region_marker_panel import (
+                        RegionMarkerPanel,
+                    )
+
+                    rgb = RegionMarkerPanel._sample_roi_color(
+                        self._current_result.image, x, y, w, h
+                    )
+                    detected = RegionMarkerPanel.classify_rarity(rgb)
+                    if detected is not None:
+                        # 与数据库套装星级范围交叉验证
+                        if matched_set_rarities:
+                            detected_str = str(detected)
+                            if detected_str in matched_set_rarities:
+                                matched_rarity = detected
+                                lines.append(
+                                    f"[星级] {detected}★ (套装允许: {matched_set_rarities})"
+                                )
+                            else:
+                                lines.append(
+                                    f"[星级] {detected}★ (与套装允许 {matched_set_rarities} 不符，已忽略)"
+                                )
+                        else:
+                            matched_rarity = detected
+                            lines.append(f"[星级] {detected}★")
+                    else:
+                        lines.append(f"[星级] 颜色采样失败: RGB{rgb}")
+
             # --- 锁定状态：模板匹配（使用 templates.json 中各模板专属 region）---
             lock_status: bool | None = None
             if self._current_result is not None:
@@ -414,6 +476,8 @@ class ArtifactRecognitionPanel(QWidget):
                 if artifact.piece_name:
                     detail += f" ({artifact.piece_name})"
                 structured_lines.append(f"  部位: {detail}")
+            if matched_rarity is not None:
+                structured_lines.append(f"  星级: {matched_rarity}★")
             if artifact.main_stat:
                 ms = artifact.main_stat
                 pct = "%" if ms.is_percentage else ""
@@ -443,9 +507,6 @@ class ArtifactRecognitionPanel(QWidget):
         except Exception as e:  # noqa: BLE001 — 顶层兜底，确保 UI 不会崩溃
             log.error(f"识别失败: {e}")
             self._ocr_result_text.setText(f"错误: {e}")
-        finally:
-            self._btn_recognize.setEnabled(True)
-            self._btn_recognize.setText("识别")
 
     # ---------- OCR ----------
 

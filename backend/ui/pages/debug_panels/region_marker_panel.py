@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import cv2
+import numpy as np
 from PyQt6.QtWidgets import (
     QApplication,
     QGroupBox,
@@ -90,6 +91,20 @@ class RegionMarkerPanel(QGroupBox):
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
 
+        # 颜色提取行
+        color_layout = QHBoxLayout()
+        self._btn_color = QPushButton("提取颜色")
+        self._btn_color.setProperty("class", "primary")
+        self._btn_color.clicked.connect(self._on_extract_color)
+        color_layout.addWidget(self._btn_color)
+        self._color_swatch = QLabel()
+        self._color_swatch.setFixedSize(24, 24)
+        self._color_swatch.setStyleSheet("border: 1px solid #555; border-radius: 2px;")
+        color_layout.addWidget(self._color_swatch)
+        self._color_info = QLabel("点击按钮提取区域颜色")
+        color_layout.addWidget(self._color_info, stretch=1)
+        layout.addLayout(color_layout)
+
     def _on_mark(self) -> None:
         if self._capture_widget is None:
             log.error("截图预览组件未初始化")
@@ -156,6 +171,82 @@ class RegionMarkerPanel(QGroupBox):
             self._capture_widget.clear()
         log.info("已清除")
 
+    # ---------- 颜色提取 ----------
+
+    @staticmethod
+    def _sample_roi_color(image, x: int, y: int, w: int, h: int) -> tuple[int, int, int]:
+        """
+        提取 ROI 区域的主色调（RGB）。
+
+        采样策略：取 ROI 中心 65% 区域，降采样后用 K-Means 聚类找主色，
+        避免边缘干扰和文字噪声。
+        """
+        roi = image[y:y + h, x:x + w]
+        if roi.size == 0:
+            return (0, 0, 0)
+        ch, cw = int(h * 0.65), int(w * 0.65)
+        cy, cx = (h - ch) // 2, (w - cw) // 2
+        center = roi[cy:cy + ch, cx:cx + cw]
+        pixels = center[::2, ::2].reshape(-1, 3).astype(np.float32)
+        if len(pixels) < 3:
+            return (0, 0, 0)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+        _, labels, centers = cv2.kmeans(
+            pixels, 3, None, criteria, 3, cv2.KMEANS_PP_CENTERS
+        )
+        label_counts = np.bincount(labels.flatten())
+        dominant = centers[np.argmax(label_counts)]
+        return tuple(round(c) for c in dominant)
+
+    # 各星级实测背景色（RGB）
+    RARITY_COLORS: tuple[tuple[int, int, int], ...] = (
+        (113, 118, 138),  # 1★ #71768A
+        (42, 143, 114),   # 2★ #2A8F72
+        (81, 127, 203),   # 3★ #517FCB
+        (161, 86, 224),   # 4★ #A156E0
+        (188, 105, 50),   # 5★ #BC6932
+    )
+
+    @classmethod
+    def classify_rarity(cls, rgb: tuple[int, int, int]) -> int | None:
+        """根据实测背景色用 RGB 欧氏距离判定星级（1~5），距离过远返回 None。"""
+        best_star = None
+        best_dist = float("inf")
+        for i, ref in enumerate(cls.RARITY_COLORS):
+            dist = sum((a - b) ** 2 for a, b in zip(rgb, ref)) ** 0.5
+            if dist < best_dist:
+                best_dist = dist
+                best_star = i + 1
+        return best_star if best_dist < 80 else None
+
+    def _on_extract_color(self) -> None:
+        """截图并提取当前 ROI 区域的主色调"""
+        x, y = self._spin_x.value(), self._spin_y.value()
+        w, h = self._spin_w.value(), self._spin_h.value()
+
+        self._btn_color.setEnabled(False)
+        self._btn_color.setText("提取中…")
+        try:
+            cap = ScreenshotCapture()
+            result = cap.capture()
+            rgb = self._sample_roi_color(result.image, x, y, w, h)
+            r, g, b = rgb
+            hsv = cv2.cvtColor(np.uint8([[[r, g, b]]]), cv2.COLOR_RGB2HSV)[0][0]
+            self._color_swatch.setStyleSheet(
+                f"background-color: rgb({r},{g},{b}); border: 1px solid #555; border-radius: 2px;"
+            )
+            self._color_info.setText(
+                f"RGB({r}, {g}, {b})  "
+                f"HSV({hsv[0]}°, {hsv[1] / 255:.0%}, {hsv[2] / 255:.0%})"
+            )
+            log.info(f"颜色提取: RGB({r},{g},{b}) HSV({hsv[0]},{hsv[1]},{hsv[2]})")
+        except RuntimeError as e:
+            log.error(f"截图失败: {e}")
+        finally:
+            self._btn_color.setEnabled(True)
+            self._btn_color.setText("提取颜色")
+
+    # ---------- 清除 ----------
     # ---------- 选区模式 ----------
 
     def _connect_selection(self) -> None:
