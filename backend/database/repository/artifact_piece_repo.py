@@ -8,7 +8,6 @@ from typing import Any
 
 from database.connection import get_db
 from models.artifact_piece import ArtifactPiece
-from utils.datetime_helper import DateTimeHelper
 
 
 class ArtifactPieceRepo:
@@ -30,9 +29,6 @@ class ArtifactPieceRepo:
                     name        TEXT    NOT NULL,
                     icon        TEXT    NOT NULL DEFAULT '',
                     description TEXT    NOT NULL DEFAULT '',
-                    story       TEXT    NOT NULL DEFAULT '',
-                    created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
-                    updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
                     FOREIGN KEY (set_id) REFERENCES artifact_sets(id) ON DELETE CASCADE
                 )
             """)
@@ -66,12 +62,11 @@ class ArtifactPieceRepo:
         """批量插入部位"""
         if not pieces:
             return
-        now = DateTimeHelper.now_str()
         with get_db(cls.DB_NAME) as conn:
             conn.executemany(
                 "INSERT INTO artifact_pieces "
-                "(set_id, type, name, icon, description, story, created_at, updated_at) "
-                "VALUES (:set_id, :type, :name, :icon, :description, :story, :now, :now)",
+                "(set_id, type, name, icon, description) "
+                "VALUES (:set_id, :type, :name, :icon, :description)",
                 [
                     {
                         "set_id": p["setId"],
@@ -79,8 +74,6 @@ class ArtifactPieceRepo:
                         "name": p["name"],
                         "icon": p.get("icon", ""),
                         "description": p.get("description", ""),
-                        "story": p.get("story", ""),
-                        "now": now,
                     }
                     for p in pieces
                 ],

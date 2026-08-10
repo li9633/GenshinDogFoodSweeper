@@ -20,7 +20,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from utils.datetime_helper import DateTimeHelper
+from utils.logger import log
 from utils.settings_manager import settings
+
+from backend.automation.ocr_model_manager import OcrModelManager
 
 
 class _SyncWorker(QThread):
@@ -40,7 +43,7 @@ class _SyncWorker(QThread):
             total_slots = sum(len(item.get("slots", [])) for item in data)
             total_expected = 0
             for item in data:
-                effects = item.get("setEffects", {})
+                effects = item.get("set_effects", {})
                 if "1pc" in effects and "2pc" not in effects and "4pc" not in effects:
                     total_expected += 1
                 else:
@@ -61,6 +64,8 @@ class SettingsPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._sync_worker: _SyncWorker | None = None
+        self._model_manager = OcrModelManager()
+        self._download_worker = None
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -115,6 +120,35 @@ class SettingsPage(QWidget):
         group_sync.setLayout(sync_layout)
         layout.addWidget(group_sync)
 
+        # --- OCR 模型 ---
+        group_model = QGroupBox("OCR 模型")
+        model_layout = QVBoxLayout()
+        model_layout.setSpacing(8)
+
+        btn_row2 = QHBoxLayout()
+        self._btn_download_models = QPushButton("下载模型")
+        self._btn_download_models.setProperty("class", "primary")
+        self._btn_download_models.clicked.connect(self._on_download_models)
+        btn_row2.addWidget(self._btn_download_models)
+        btn_row2.addStretch()
+        model_layout.addLayout(btn_row2)
+
+        self._model_progress = QProgressBar()
+        self._model_progress.setRange(0, 0)
+        self._model_progress.setVisible(False)
+        model_layout.addWidget(self._model_progress)
+
+        self._label_model_status = QLabel()
+        self._label_model_status.setProperty("class", "hint")
+        model_layout.addWidget(self._label_model_status)
+
+        self._label_model_version = QLabel()
+        self._label_model_version.setProperty("class", "hint")
+        model_layout.addWidget(self._label_model_version)
+
+        group_model.setLayout(model_layout)
+        layout.addWidget(group_model)
+
         layout.addStretch()
 
         self._load_settings()
@@ -126,10 +160,12 @@ class SettingsPage(QWidget):
         theme = settings.get_theme()
         self._combo_theme.setCurrentIndex(0 if theme == "dark" else 1)
         self._refresh_sync_status()
+        self._refresh_model_status()
 
     def showEvent(self, event: QShowEvent) -> None:
         """页面显示时刷新同步时间，保证"上次同步"始终准确"""
         self._refresh_sync_status()
+        self._refresh_model_status()
         super().showEvent(event)
 
     def _on_theme_changed(self) -> None:
@@ -205,3 +241,46 @@ class SettingsPage(QWidget):
         self._progress.setVisible(False)
         self._label_sync_time.setText(f"同步失败: {error}")
         self.sync_finished.emit()
+
+    # ---------- OCR 模型下载 ----------
+
+    def _refresh_model_status(self) -> None:
+        """刷新模型状态显示"""
+        if self._model_manager.is_ready():
+            self._label_model_status.setText("[√]模型就绪")
+            self._btn_download_models.setEnabled(True)
+            self._btn_download_models.setText("重新下载")
+        else:
+            missing = self._model_manager.get_missing_models()
+            self._label_model_status.setText(f"[!] 缺少模型: {', '.join(missing)}")
+            self._btn_download_models.setEnabled(True)
+            self._btn_download_models.setText("下载模型")
+        self._label_model_version.setText(self._model_manager.get_version_summary())
+
+    def _on_download_models(self) -> None:
+        """开始下载模型"""
+        self._btn_download_models.setEnabled(False)
+        self._btn_download_models.setText("下载中…")
+        self._model_progress.setVisible(True)
+        self._model_progress.setRange(0, 0)
+        self._label_model_status.setText("正在清空旧模型…")
+
+        self._download_worker = self._model_manager.create_download_worker()
+        self._download_worker.progress.connect(self._on_download_progress)
+        self._download_worker.finished_download.connect(self._on_download_finished)
+        self._download_worker.start()
+
+    def _on_download_progress(self, current: int, total: int, status: str) -> None:
+        if self._model_progress.maximum() != total:
+            self._model_progress.setRange(0, total)
+        self._model_progress.setValue(current)
+        self._label_model_status.setText(f"正在下载… {current}/{total}")
+        log.info(status)
+
+    def _on_download_finished(self, success: bool, message: str) -> None:
+        self._model_progress.setVisible(False)
+        self._refresh_model_status()
+        if success:
+            log.info(message)
+        else:
+            log.error(message)

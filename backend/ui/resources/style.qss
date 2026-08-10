@@ -70,6 +70,23 @@ QPushButton:disabled {
     color: #6B6E8A;
 }
 
+/* 折叠面板标题（el-collapse 风格） */
+QPushButton[class="collapse-header"] {
+    padding: 8px 12px;
+    border: 1px solid #3A3D5C;
+    border-radius: 6px;
+    background-color: #252640;
+    color: #F0EDE5;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+}
+QPushButton[class="collapse-header"]:hover {
+    background-color: #2E3055;
+    border-color: #5A5E8A;
+    color: #C9A96E;
+}
+
 /* 主按钮（金色） */
 QPushButton[class="primary"] {
     background-color: #C9A96E;

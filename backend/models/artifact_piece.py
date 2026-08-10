@@ -12,15 +12,12 @@ class ArtifactPiece:
     """圣遗物部位实体 — 一个实体对应 artifact_pieces 表"""
 
     __slots__ = (
-        "created_at",
         "description",
         "icon",
         "id",
         "name",
         "set_id",
-        "story",
         "type",
-        "updated_at",
     )
 
     def __init__(
@@ -31,9 +28,6 @@ class ArtifactPiece:
         name: str = "",
         icon: str = "",
         description: str = "",
-        story: str = "",
-        created_at: str | None = None,
-        updated_at: str | None = None,
     ):
         self.id = id
         self.set_id = set_id
@@ -41,9 +35,6 @@ class ArtifactPiece:
         self.name = name
         self.icon = icon
         self.description = description
-        self.story = story
-        self.created_at = created_at
-        self.updated_at = updated_at
 
     # ---------- 序列化 ----------
 
@@ -57,9 +48,6 @@ class ArtifactPiece:
             name=row["name"],
             icon=row["icon"],
             description=row["description"],
-            story=row["story"],
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -71,7 +59,4 @@ class ArtifactPiece:
             "name": self.name,
             "icon": self.icon,
             "description": self.description,
-            "story": self.story,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
         }

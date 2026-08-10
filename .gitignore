@@ -48,3 +48,6 @@ $RECYCLE.BIN/
 *.log
 
 temp/
+
+#OCR模型文件
+engines/

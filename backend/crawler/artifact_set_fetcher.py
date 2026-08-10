@@ -84,7 +84,7 @@ class ArtifactSetFetcher:
             expected_count: 期望部位数（1件套=1，2/4件套=5）
 
         返回:
-            部位列表，每项包含 type/name/icon/description/story
+            部位列表，每项包含 type/name/icon/description
         """
         url = SLOT_DETAIL_API_URL.format(entry_page_id=entry_page_id)
         resp = requests.get(url, headers=API_HEADERS, timeout=30)
@@ -154,7 +154,7 @@ class ArtifactSetFetcher:
                 if not set_id:
                     continue
                 # 根据套装效果推断期望部位数：1件套=1，2/4件套=5
-                effects = item.get("setEffects", {})
+                effects = item.get("set_effects", {})
                 if "1pc" in effects and "2pc" not in effects and "4pc" not in effects:
                     expected = 1
                 else:
@@ -169,7 +169,7 @@ class ArtifactSetFetcher:
             for i, future in enumerate(as_completed(futures), 1):
                 item = futures[future]
                 set_id = item.get("id", 0)
-                effects = item.get("setEffects", {})
+                effects = item.get("set_effects", {})
                 if "1pc" in effects and "2pc" not in effects and "4pc" not in effects:
                     expected = 1
                 else:
@@ -251,14 +251,12 @@ class ArtifactSetFetcher:
 
             name_values = comp_data.get("name", {}).get("value", [])
             desc_values = comp_data.get("desc", {}).get("value", [])
-            story_values = comp_data.get("story", {}).get("value", [])
 
             slots.append({
                 "type": slot_type,
                 "name": cls._strip_html(name_values[0]) if name_values else "",
                 "icon": comp_data.get("icon_url", ""),
                 "description": cls._strip_html(desc_values[0]) if desc_values else "",
-                "story": cls._strip_html(story_values[0]) if story_values else "",
             })
 
         return slots
@@ -368,7 +366,7 @@ class ArtifactSetFetcher:
         except (json.JSONDecodeError, TypeError):
             filter_items = []
 
-        rarity, tags, sources = cls._parse_filter_items(filter_items)
+        rarity = cls._parse_rarity(filter_items)
 
         # 解析 table（套装效果）
         table_data = c_218.get("table", {})
@@ -381,44 +379,20 @@ class ArtifactSetFetcher:
             "icon": item.get("icon", ""),
             "summary": item.get("summary", ""),
             "rarity": rarity,
-            "setEffects": set_effects,
-            "tags": tags,
-            "sources": sources,
+            "set_effects": set_effects,
         }
 
     @classmethod
-    def _parse_filter_items(
-        cls, filter_items: list[str]
-    ) -> tuple[list[str], list[str], list[str]]:
-        """
-        从 filter 条目中分离星级、标签、获取方式。
-
-        参数:
-            filter_items: filter 文本数组，如 ["星级/五星", "套装效果/攻击力", "获取方式/秘境"]
-
-        返回:
-            (rarity, tags, sources) 三元组
-        """
+    def _parse_rarity(cls, filter_items: list[str]) -> list[str]:
+        """从 filter 条目中提取星级。"""
         rarity: list[str] = []
-        tags: list[str] = []
-        sources: list[str] = []
-
         for item in filter_items:
             if item.startswith("星级/"):
                 star_name = item[len("星级/") :]
                 mapped = cls.RARITY_MAP.get(star_name)
                 if mapped:
                     rarity.append(mapped)
-            elif item.startswith("套装效果/"):
-                tag = item[len("套装效果/") :]
-                if tag:
-                    tags.append(tag)
-            elif item.startswith("获取方式/"):
-                source = item[len("获取方式/") :]
-                if source:
-                    sources.append(source)
-
-        return rarity, tags, sources
+        return rarity
 
     @classmethod
     def _parse_set_effects(cls, table_list: list[dict[str, str]]) -> dict[str, str]:
@@ -520,7 +494,7 @@ class ArtifactSetFetcher:
         for item in data:
             set_id = item.get("id", 0)
             if set_id:
-                effects = item.get("setEffects", {})
+                effects = item.get("set_effects", {})
                 if "1pc" in effects and "2pc" not in effects and "4pc" not in effects:
                     expected = 1
                 else:

@@ -26,4 +26,5 @@ class ArtifactInfo:
     sub_stats: list[ArtifactStat] = field(default_factory=list)
     level: int | None = None
     is_locked: bool | None = None
+    set_effects: dict[str, str] | None = None
     raw_texts: dict[str, str] = field(default_factory=dict)

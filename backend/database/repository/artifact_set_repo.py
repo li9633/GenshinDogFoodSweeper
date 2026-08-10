@@ -9,7 +9,6 @@ from typing import Any
 
 from database.connection import get_db
 from models.artifact_set import ArtifactSet
-from utils.datetime_helper import DateTimeHelper
 
 
 class ArtifactSetRepo:
@@ -30,11 +29,7 @@ class ArtifactSetRepo:
                     icon        TEXT    NOT NULL DEFAULT '',
                     summary     TEXT    NOT NULL DEFAULT '',
                     rarity      TEXT    NOT NULL DEFAULT '[]',
-                    set_effects TEXT    NOT NULL DEFAULT '{}',
-                    tags        TEXT    NOT NULL DEFAULT '[]',
-                    sources     TEXT    NOT NULL DEFAULT '[]',
-                    created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
-                    updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+                    set_effects TEXT    NOT NULL DEFAULT '{}'
                 )
             """)
             conn.execute(
@@ -65,23 +60,19 @@ class ArtifactSetRepo:
     @classmethod
     def upsert(cls, **kwargs: Any) -> None:
         """插入或更新套装（存在则更新，不存在则插入）"""
-        now = DateTimeHelper.now_str()
         with get_db(cls.DB_NAME) as conn:
             conn.execute(
                 """
                 INSERT INTO artifact_sets
-                    (id, name, icon, summary, rarity, set_effects, tags, sources, created_at, updated_at)
+                    (id, name, icon, summary, rarity, set_effects)
                 VALUES
-                    (:id, :name, :icon, :summary, :rarity, :set_effects, :tags, :sources, :now, :now)
+                    (:id, :name, :icon, :summary, :rarity, :set_effects)
                 ON CONFLICT(id) DO UPDATE SET
                     name        = excluded.name,
                     icon        = excluded.icon,
                     summary     = excluded.summary,
                     rarity      = excluded.rarity,
-                    set_effects = excluded.set_effects,
-                    tags        = excluded.tags,
-                    sources     = excluded.sources,
-                    updated_at  = excluded.updated_at
+                    set_effects = excluded.set_effects
                 """,
                 {
                     "id": kwargs["id"],
@@ -90,13 +81,9 @@ class ArtifactSetRepo:
                     "summary": kwargs.get("summary", ""),
                     "rarity": json.dumps(kwargs.get("rarity", []), ensure_ascii=False),
                     "set_effects": json.dumps(
-                        kwargs.get("set_effects", {}), ensure_ascii=False
+                        kwargs.get("set_effects", kwargs.get("setEffects", {})),
+                        ensure_ascii=False,
                     ),
-                    "tags": json.dumps(kwargs.get("tags", []), ensure_ascii=False),
-                    "sources": json.dumps(
-                        kwargs.get("sources", []), ensure_ascii=False
-                    ),
-                    "now": now,
                 },
             )
 

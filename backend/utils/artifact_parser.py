@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from models.artifact import ArtifactInfo, ArtifactStat
+from utils.logger import log
 
 # ========== 加载词条模板 ==========
 
@@ -56,6 +57,7 @@ class ArtifactTextParser:
         sub_ocr: str,
         level_ocr: str = "",
         lock_ocr: str = "",
+        set_id: int | None = None,
     ) -> ArtifactInfo:
         """从 OCR 文本解析圣遗物完整信息"""
         info = ArtifactInfo(
@@ -70,6 +72,8 @@ class ArtifactTextParser:
                 "圣遗物锁定状态": lock_ocr,
             },
         )
+        if set_id is not None:
+            info.set_effects = cls._lookup_set_effects(set_id)
         if piece_type and main_ocr:
             info.main_stat = cls._parse_main_stat(main_ocr, piece_type)
         if sub_ocr:
@@ -138,6 +142,27 @@ class ArtifactTextParser:
             info.sub_stats = list(seen.values())
 
         return info
+
+    # ---------- 套装效果 ----------
+
+    @staticmethod
+    def _lookup_set_effects(set_id: int) -> dict[str, str] | None:
+        """按 set_id 查询套装效果，返回 {'2pc': '...', '4pc': '...'} 或 None"""
+        try:
+            from database.repository.artifact_set_repo import ArtifactSetRepo
+
+            set_obj = ArtifactSetRepo.find_by_id(set_id)
+            if set_obj is None:
+                log.warning(f"[套装效果] set_id={set_id} 未找到套装")
+                return None
+            if not set_obj.set_effects:
+                log.warning(f"[套装效果] {set_obj.name} (id={set_id}) 无套装效果数据")
+                return None
+            log.info(f"[套装效果] {set_obj.name} (id={set_id}) → {set_obj.set_effects}")
+            return set_obj.set_effects
+        except Exception:  # noqa: BLE001
+            log.warning(f"[套装效果] set_id={set_id} 查询失败")
+            return None
 
     # ---------- 主词条 ----------
 
