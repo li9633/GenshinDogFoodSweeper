@@ -48,6 +48,3 @@ $RECYCLE.BIN/
 *.log
 
 temp/
-
-# 资源文件
-resources/
