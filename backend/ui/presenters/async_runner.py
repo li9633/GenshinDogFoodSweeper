@@ -27,7 +27,7 @@ class AsyncRunner(QThread):
             log.debug("[AsyncTask] _fn() 执行完成，准备 emit result_ready")
             self.result_ready.emit(result)
             log.debug("[AsyncTask] result_ready 已 emit")
-        except Exception:  # noqa: BLE001 — 后台线程兜底，异常通过 error 信号回传
+        except Exception:
             tb = traceback.format_exc()
             log.error(f"[AsyncTask] _fn() 抛出异常:\n{tb}")
             self.task_error.emit(tb)

@@ -12,27 +12,6 @@ Rectangle {
     property bool roiExpanded: false
     property bool roiEditable: false
 
-    // ROI 名称列表（与 Repeater model 顺序一致）
-    property var roiNames: [
-        "圣遗物等级", "圣遗物星级", "圣遗物名称", "部位+主词条", "副词条区"
-    ]
-
-    function collectRoiJson() {
-        var data = []
-        for (var i = 0; i < roiRepeater.count; i++) {
-            var row = roiRepeater.itemAt(i)
-            if (!row) continue
-            data.push({
-                "name": roiNames[i],
-                "x": row.children[2].value,
-                "y": row.children[4].value,
-                "w": row.children[6].value,
-                "h": row.children[8].value
-            })
-        }
-        return JSON.stringify(data)
-    }
-
     ScrollView {
         id: scrollView
         anchors.fill: parent
@@ -86,13 +65,7 @@ Rectangle {
 
                 Repeater {
                     id: roiRepeater
-                    model: [
-                        { name: "圣遗物等级", dx: 1338, dy: 452, dw: 71,  dh: 44 },
-                        { name: "圣遗物星级", dx: 1742, dy: 159, dw: 39,  dh: 40 },
-                        { name: "圣遗物名称", dx: 1329, dy: 144, dw: 262, dh: 62 },
-                        { name: "部位+主词条", dx: 1339, dy: 214, dw: 160, dh: 174 },
-                        { name: "副词条区",   dx: 1347, dy: 498, dw: 276, dh: 166 }
-                    ]
+                    model: ArtifactRecognition.roiDefinitions
 
                     RowLayout {
                         spacing: 2
@@ -237,7 +210,7 @@ Rectangle {
                         verticalAlignment: Text.AlignVCenter
                     }
                     background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
-                    onClicked: ArtifactRecognition.recognize(collectRoiJson())
+                    onClicked: ArtifactRecognition.recognize()
                 }
 
                 Button {
@@ -274,7 +247,6 @@ Rectangle {
         function onRecognitionFinished(ocrText, structuredText, imagePath, dbEmpty) {
             ocrResultText.text = ocrText
             structuredResultText.text = structuredText
-            console.log("[ArtifactRecognition] 识别完成, 耗时图: " + imagePath)
             if (dbEmpty) {
                 dbEmptyDialog.open()
             }
@@ -282,7 +254,6 @@ Rectangle {
 
         function onErrorOccurred(msg) {
             ocrResultText.text = "错误: " + msg
-            console.log("[ArtifactRecognition] " + msg)
         }
     }
 

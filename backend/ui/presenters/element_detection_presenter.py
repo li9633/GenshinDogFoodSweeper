@@ -33,6 +33,50 @@ class DetectionResult:
     result: CaptureResult
 
 
+@dataclass
+class TemplateInfo:
+    """模板信息 DTO"""
+    name: str
+    fileName: str
+    displayText: str
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "fileName": self.fileName,
+            "displayText": self.displayText,
+        }
+
+
+@dataclass
+class Condition:
+    """检测条件 DTO"""
+    key: str
+    templateName: str
+    fileName: str
+    threshold: float
+    thresholdText: str
+    rx: int
+    ry: int
+    rw: int
+    rh: int
+    regionText: str
+
+    def to_dict(self) -> dict:
+        return {
+            "key": self.key,
+            "templateName": self.templateName,
+            "fileName": self.fileName,
+            "threshold": self.threshold,
+            "thresholdText": self.thresholdText,
+            "rx": self.rx,
+            "ry": self.ry,
+            "rw": self.rw,
+            "rh": self.rh,
+            "regionText": self.regionText,
+        }
+
+
 class ElementDetectionPresenter(QObject):
     """元素检测 Presenter — QML 可绑定"""
 
@@ -46,13 +90,15 @@ class ElementDetectionPresenter(QObject):
     regionRegistered = Signal(str, int, int, int, int)
     # name, x, y, w, h
     errorOccurred = Signal(str)
+    detectingChanged = Signal()
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._template_list: list[dict] = []
+        self._template_list: list[TemplateInfo] = []
         self._template_file_map: dict[str, str] = {}
-        self._conditions: list[dict] = []
+        self._conditions: list[Condition] = []
         self._last_matches: list[tuple[str, int, int, int, int]] = []
+        self._detecting: bool = False
         self._refresh_templates()
 
     # ========== 模板列表 ==========
@@ -60,7 +106,7 @@ class ElementDetectionPresenter(QObject):
     def _refresh_templates(self, keyword: str = "") -> None:
         d = TemplateManager.search(keyword) if keyword else TemplateManager.list_all()
         self._template_list = [
-            {"name": name, "fileName": Path(path).name, "displayText": f"{name}({Path(path).name})"}
+            TemplateInfo(name=name, fileName=Path(path).name, displayText=f"{name}({Path(path).name})")
             for name, path in d.items()
         ]
         self._template_file_map = {name: Path(path).name for name, path in d.items()}
@@ -68,11 +114,11 @@ class ElementDetectionPresenter(QObject):
 
     @Property(list, notify=templatesChanged)
     def templateList(self) -> list[dict]:
-        return self._template_list
+        return [t.to_dict() for t in self._template_list]
 
     @Property("QStringList", notify=templatesChanged)
     def templateNames(self) -> list[str]:
-        return [t["name"] for t in self._template_list]
+        return [t.name for t in self._template_list]
 
     def getTemplateFileName(self, name: str) -> str:
         return self._template_file_map.get(name, name + ".png")
@@ -102,29 +148,29 @@ class ElementDetectionPresenter(QObject):
 
     @Property(list, notify=conditionsChanged)
     def conditions(self) -> list[dict]:
-        return self._conditions
+        return [c.to_dict() for c in self._conditions]
 
     @Slot(str, float, int, int, int, int)
     def addCondition(
         self, key: str, threshold: float, rx: int, ry: int, rw: int, rh: int
     ) -> None:
         for c in self._conditions:
-            if c["key"] == key:
+            if c.key == key:
                 self.errorOccurred.emit(f"模板 '{key}' 已存在")
                 return
         has_region = rw > 0 and rh > 0
-        self._conditions.append({
-            "key": key,
-            "templateName": key,
-            "fileName": self._template_file_map.get(key, key + ".png"),
-            "threshold": threshold,
-            "thresholdText": f"{int(threshold * 100)}%",
-            "rx": rx,
-            "ry": ry,
-            "rw": rw,
-            "rh": rh,
-            "regionText": f"区域:({rx},{ry},{rw}x{rh})" if has_region else "全屏",
-        })
+        self._conditions.append(Condition(
+            key=key,
+            templateName=key,
+            fileName=self._template_file_map.get(key, key + ".png"),
+            threshold=threshold,
+            thresholdText=f"{int(threshold * 100)}%",
+            rx=rx,
+            ry=ry,
+            rw=rw,
+            rh=rh,
+            regionText=f"区域:({rx},{ry},{rw}x{rh})" if has_region else "全屏",
+        ))
         self.conditionsChanged.emit()
 
     @Slot(int)
@@ -139,9 +185,13 @@ class ElementDetectionPresenter(QObject):
         self._last_matches.clear()
         self.conditionsChanged.emit()
 
-    @Property(int)
+    @Property(int, notify=conditionsChanged)
     def conditionCount(self) -> int:
         return len(self._conditions)
+
+    @Property(bool, notify=detectingChanged)
+    def detecting(self) -> bool:
+        return self._detecting
 
     # ========== 检测 ==========
 
@@ -151,15 +201,18 @@ class ElementDetectionPresenter(QObject):
             self.errorOccurred.emit("请先添加检测条件")
             return
 
+        self._detecting = True
+        self.detectingChanged.emit()
+
         try:
             conds: list[tuple[str, float, tuple | None]] = []
             for c in self._conditions:
                 region = (
-                    (c["rx"], c["ry"], c["rw"], c["rh"])
-                    if c["rw"] > 0 and c["rh"] > 0
+                    (c.rx, c.ry, c.rw, c.rh)
+                    if c.rw > 0 and c.rh > 0
                     else None
                 )
-                conds.append((c["key"], c["threshold"], region))
+                conds.append((c.key, c.threshold, region))
 
             t0 = time.perf_counter()
             cap = ScreenshotCapture()
@@ -183,7 +236,7 @@ class ElementDetectionPresenter(QObject):
                     all_passed = False
                     continue
 
-                orig_th, orig_tw = template.shape
+                _orig_th, _orig_tw = template.shape
 
                 if region:
                     rx, ry, rw, rh = region
@@ -240,11 +293,14 @@ class ElementDetectionPresenter(QObject):
             else:
                 log.warning(summary + " | " + " | ".join(detail_parts))
 
-            self.detectionFinished.emit(all_passed, detail_text, "detection")
+            self.detectionFinished.emit(all_passed, detail_text, "element")
 
         except Exception as exc:
             self.errorOccurred.emit(str(exc))
-            log.error(f"检测失败: {exc}")
+            log.error(f"元素检测失败: {exc}")
+        finally:
+            self._detecting = False
+            self.detectingChanged.emit()
 
     # ========== 注册 ==========
 

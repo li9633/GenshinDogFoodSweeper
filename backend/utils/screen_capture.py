@@ -394,7 +394,7 @@ class ScreenshotCapture:
                 save_dc.BitBlt(
                     (0, 0), (width, height), mfc_dc, (0, 0), win32con.SRCCOPY
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:
             save_dc.BitBlt((0, 0), (width, height), mfc_dc, (0, 0), win32con.SRCCOPY)
 
         bitmap_bits = bitmap.GetBitmapBits(True)

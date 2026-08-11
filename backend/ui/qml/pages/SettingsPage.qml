@@ -78,12 +78,9 @@ Rectangle {
                     ComboBox {
                         id: themeCombo
                         model: ["深色", "浅色"]
-                        currentIndex: SettingsPresenter.currentTheme === "dark" ? 0 : 1
+                        currentIndex: SettingsPresenter.themeIndex
                         onCurrentIndexChanged: {
-                            var theme = currentIndex === 0 ? "dark" : "light"
-                            if (SettingsPresenter.currentTheme !== theme) {
-                                SettingsPresenter.setTheme(theme)
-                            }
+                            SettingsPresenter.setTheme(currentIndex === 0 ? "dark" : "light")
                         }
 
                         background: Rectangle {
@@ -340,11 +337,6 @@ Rectangle {
         function onSyncFailed(error) {
             syncing = false
             syncProgressText = ""
-        }
-
-        function onStatusMessage(msg, duration, level) {
-            // 状态栏消息由 MainWindow 层统一处理
-            console.log("[Settings] " + level + ": " + msg)
         }
 
         function onModelDownloadProgress(current, total, status) {

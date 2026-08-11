@@ -9,8 +9,6 @@ Rectangle {
     Layout.fillWidth: true
     Layout.fillHeight: true
 
-    property bool detecting: false
-
     ScrollView {
         id: scrollView
         anchors.fill: parent
@@ -321,8 +319,8 @@ Rectangle {
             // ---- 检测定位按钮 ----
             Button {
                 id: btnDetect
-                text: detecting ? "检测中…" : "检测定位"
-                enabled: ElementDetection.conditionCount > 0 && !detecting
+                text: ElementDetection.detecting ? "检测中…" : "检测定位"
+                enabled: ElementDetection.conditionCount > 0 && !ElementDetection.detecting
                 Layout.fillWidth: true
                 implicitHeight: 34
                 contentItem: Text {
@@ -336,7 +334,6 @@ Rectangle {
                 }
                 background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
                 onClicked: {
-                    detecting = true
                     ElementDetection.detect()
                 }
             }
@@ -412,20 +409,15 @@ Rectangle {
         }
 
         function onDetectionFinished(allPassed, detailText, resultPath) {
-            detecting = false
             detectionResult.text = detailText
-            console.log("[ElementDetection] " + detailText)
         }
 
         function onRegionRegistered(name, x, y, w, h) {
             registerNameInput.text = ""
-            console.log("[ElementDetection] 区域已注册: " + name + " (" + x + "," + y + "," + w + "x" + h + ")")
         }
 
         function onErrorOccurred(msg) {
-            detecting = false
             detectionResult.text = "错误: " + msg
-            console.log("[ElementDetection] " + msg)
         }
     }
 

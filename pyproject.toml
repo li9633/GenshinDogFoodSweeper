@@ -50,3 +50,7 @@ packages = ["backend"]
 dev = [
     "pyinstaller>=6.0",
 ]
+
+[tool.ruff]
+# 项目统一使用 except Exception 并在内部 log + emit 信号，不使用盲异常
+lint.ignore = ["BLE001"]

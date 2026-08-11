@@ -41,7 +41,7 @@ def create_db_sink():
         # 1. 持久化到 DB
         try:
             LogRepo.insert(level, msg, module)
-        except Exception:  # noqa: S110, BLE001
+        except Exception:  # noqa: S110
             pass
 
         # 2. 回调状态栏（sink 在 log.info() 调用线程同步执行）

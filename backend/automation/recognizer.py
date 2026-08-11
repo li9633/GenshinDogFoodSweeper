@@ -38,7 +38,7 @@ class ArtifactRecognizer:
             from database.repository.artifact_set_repo import ArtifactSetRepo
 
             return ArtifactSetRepo.count() == 0
-        except Exception:  # noqa: BLE001 — DB 不可用时返回 True
+        except Exception:
             return True
 
     # ---------- 星级分类 ----------
@@ -105,7 +105,7 @@ class ArtifactRecognizer:
                 if result and result[1] >= 70:
                     set_obj = next(s for s in sets if s.name == result[0])
                     return result[0], set_obj.id, None, None, result[1] / 100.0
-        except Exception:  # noqa: BLE001 — 匹配失败时静默返回 None
+        except Exception:
             return None
 
     @classmethod
@@ -152,7 +152,7 @@ class ArtifactRecognizer:
             for pt, pn in piece_types:
                 if pt in text:
                     return {"type": pt, "name": pn}
-        except Exception:  # noqa: BLE001 — 匹配失败时静默返回 None
+        except Exception:
             return None
 
     # ---------- 锁定状态 ----------

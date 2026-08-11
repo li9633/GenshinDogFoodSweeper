@@ -116,7 +116,7 @@ class ArtifactSetFetcher:
                 if len(slots) >= expected_count:
                     return slots
                 raise ValueError(f"API returned {len(slots)} slots, expected {expected_count}")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 if attempt < max_retries:
                     delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
                     log.warning(f"拉取失败: {set_name} (id={entry_page_id})，"
@@ -193,7 +193,7 @@ class ArtifactSetFetcher:
                         })
                     if progress_callback:
                         progress_callback(i, total, item["name"])
-                except Exception:  # noqa: BLE001
+                except Exception:
                     log.error(f"跳过: {item['name']} (id={set_id})")
                     if progress_callback:
                         progress_callback(i, total, f"失败: {item['name']}")

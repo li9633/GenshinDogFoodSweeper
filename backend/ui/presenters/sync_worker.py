@@ -28,5 +28,5 @@ class SyncWorker(QThread):
                 else:
                     total_expected += 5
             self.finished_sync.emit(len(data), total_slots, total_expected)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             self.failed.emit(str(e))

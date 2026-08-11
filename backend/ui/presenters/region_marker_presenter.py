@@ -5,18 +5,16 @@
 
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
-
 import cv2
 import numpy as np
 from PySide6.QtCore import Property, QObject, Signal, Slot
-from .image_provider import PreviewImageProvider
 from utils.logger import log
 
 from backend.automation.color_sampler import sample_roi_color
 from backend.automation.template_manager import TemplateManager
 from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
+
+from .image_provider import PreviewImageProvider
 
 
 class RegionMarkerPresenter(QObject):
@@ -31,6 +29,9 @@ class RegionMarkerPresenter(QObject):
     coordsChanged = Signal()
     selectionModeChanged = Signal()
     clearPreview = Signal()
+    markingChanged = Signal()
+    extractingChanged = Signal()
+    copyToClipboard = Signal(str)
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -39,7 +40,17 @@ class RegionMarkerPresenter(QObject):
         self._w = 100
         self._h = 100
         self._selection_mode = False
+        self._marking = False
+        self._extracting = False
         self._last_capture: CaptureResult | None = None
+
+    @Property(bool, notify=markingChanged)
+    def marking(self) -> bool:
+        return self._marking
+
+    @Property(bool, notify=extractingChanged)
+    def extracting(self) -> bool:
+        return self._extracting
 
     @Property(bool, notify=selectionModeChanged)
     def selectionMode(self) -> bool:
@@ -95,6 +106,8 @@ class RegionMarkerPresenter(QObject):
 
     @Slot(int, int, int, int)
     def setCoords(self, x: int, y: int, w: int, h: int) -> None:
+        if (x, y, w, h) == (self._x, self._y, self._w, self._h):
+            return
         self._x = x
         self._y = y
         self._w = w
@@ -110,6 +123,8 @@ class RegionMarkerPresenter(QObject):
     @Slot()
     def mark(self) -> None:
         """截图并标记区域"""
+        self._marking = True
+        self.markingChanged.emit()
         try:
             result = _capture()
             self._last_capture = result
@@ -120,6 +135,9 @@ class RegionMarkerPresenter(QObject):
         except Exception as exc:
             self.errorOccurred.emit(str(exc))
             log.error(f"截图失败: {exc}")
+        finally:
+            self._marking = False
+            self.markingChanged.emit()
 
     @Slot(str)
     def saveTemplate(self, filename: str) -> None:
@@ -138,6 +156,8 @@ class RegionMarkerPresenter(QObject):
     @Slot()
     def extractColor(self) -> None:
         """提取区域主色调"""
+        self._extracting = True
+        self.extractingChanged.emit()
         try:
             result = _capture()
             self._last_capture = result
@@ -154,11 +174,14 @@ class RegionMarkerPresenter(QObject):
         except Exception as exc:
             self.errorOccurred.emit(str(exc))
             log.error(f"颜色提取失败: {exc}")
+        finally:
+            self._extracting = False
+            self.extractingChanged.emit()
 
     @Slot()
     def copyCoords(self) -> None:
-        """复制坐标到剪贴板（通过 QML 端 Clipboard 处理）"""
-        pass
+        """复制坐标到剪贴板"""
+        self.copyToClipboard.emit(self.coordsText)
 
     @Slot()
     def clear(self) -> None:
@@ -208,11 +231,3 @@ def _extract_color(result: CaptureResult, x: int, y: int, w: int, h: int) -> dic
         "s_hsv": int(hsv[1]),
         "v_hsv": int(hsv[2]),
     }
-
-
-def _save_to_temp(result: CaptureResult) -> str:
-    """将截图保存为临时 PNG 文件，返回文件路径（供 QML Image 使用）"""
-    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    img_bgr = cv2.cvtColor(result.image, cv2.COLOR_RGB2BGR)
-    cv2.imwrite(tmp.name, img_bgr)
-    return str(Path(tmp.name).as_posix())

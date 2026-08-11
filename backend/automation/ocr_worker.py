@@ -91,12 +91,12 @@ class OcrWorker(QThread):
                 try:
                     result = fn(self._ocr)
                     self.task_done.emit(result, callback_data)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     tb = traceback.format_exc()
                     log.error(f"[OcrWorker] 任务执行失败:\n{tb}")
                     self.task_error.emit(tb, callback_data)
 
-        except Exception:  # noqa: BLE001
+        except Exception:
             tb = traceback.format_exc()
             log.error(f"[OcrWorker] 初始化失败:\n{tb}")
             self.task_error.emit(tb, None)

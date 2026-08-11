@@ -180,7 +180,7 @@ class ArtifactRecognitionPanel(QWidget):
             )
             worker = OcrWorker.instance()
             worker.submit(task_fn, callback_data=capture)
-        except Exception:  # noqa: BLE001
+        except Exception:
             import traceback
 
             self._on_recognize_error(traceback.format_exc())

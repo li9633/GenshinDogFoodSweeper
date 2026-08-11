@@ -6,17 +6,40 @@
 from __future__ import annotations
 
 import copy
-import json
 import time
+from dataclasses import dataclass
 
-import numpy as np
 from PySide6.QtCore import Property, QObject, Signal, Slot
+from utils.logger import log
 
 from backend.automation.ocr_engine import OcrEngine
 from backend.automation.recognizer import ArtifactRecognizer
 from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
 
 from .image_provider import PreviewImageProvider
+
+
+@dataclass
+class RoiDefinition:
+    """单个 ROI 区域定义 DTO"""
+    name: str
+    dx: int
+    dy: int
+    dw: int
+    dh: int
+
+    def to_dict(self) -> dict:
+        return {"name": self.name, "dx": self.dx, "dy": self.dy, "dw": self.dw, "dh": self.dh}
+
+
+# 默认 ROI 区域定义（相对于游戏窗口）
+_DEFAULT_ROI_DEFINITIONS = [
+    RoiDefinition("圣遗物等级", 1338, 452, 71, 44),
+    RoiDefinition("圣遗物星级", 1742, 159, 39, 40),
+    RoiDefinition("圣遗物名称", 1329, 144, 262, 62),
+    RoiDefinition("部位+主词条", 1339, 214, 160, 174),
+    RoiDefinition("副词条区", 1347, 498, 276, 166),
+]
 
 
 class ArtifactRecognitionPresenter(QObject):
@@ -30,6 +53,7 @@ class ArtifactRecognitionPresenter(QObject):
     clearPreview = Signal()
     textChanged = Signal()
     recognizingChanged = Signal()
+    roiDefinitionsChanged = Signal()
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -38,6 +62,10 @@ class ArtifactRecognitionPresenter(QObject):
         self._ocr_text = ""
         self._structured_text = ""
         self._recognizing = False
+        self._roi_definitions: list[RoiDefinition] = [
+            RoiDefinition(r.name, r.dx, r.dy, r.dw, r.dh)
+            for r in _DEFAULT_ROI_DEFINITIONS
+        ]
 
     @Property(str, notify=textChanged)
     def ocrText(self) -> str:
@@ -51,23 +79,32 @@ class ArtifactRecognitionPresenter(QObject):
     def recognizing(self) -> bool:
         return self._recognizing
 
+    @Property(list, notify=roiDefinitionsChanged)
+    def roiDefinitions(self) -> list[dict]:
+        return [r.to_dict() for r in self._roi_definitions]
+
+    @Slot(int, int, int, int, int)
+    def updateRoi(self, index: int, x: int, y: int, w: int, h: int) -> None:
+        if 0 <= index < len(self._roi_definitions):
+            r = self._roi_definitions[index]
+            r.dx = x
+            r.dy = y
+            r.dw = w
+            r.dh = h
+
     # ========== 识别 ==========
 
-    @Slot(str)
-    def recognize(self, roi_json: str) -> None:
+    @Slot()
+    def recognize(self) -> None:
         """截图 → OCR → 识别，结果通过信号返回"""
         self._recognizing = True
         self.recognizingChanged.emit()
         self.recognitionStarted.emit()
 
         try:
-            roi_list = json.loads(roi_json)
-            roi_spins: dict[str, tuple[int, int, int, int]] = {}
-            for item in roi_list:
-                roi_spins[item["name"]] = (
-                    int(item["x"]), int(item["y"]),
-                    int(item["w"]), int(item["h"]),
-                )
+            roi_spins: dict[str, tuple[int, int, int, int]] = {
+                r.name: (r.dx, r.dy, r.dw, r.dh) for r in self._roi_definitions
+            }
 
             cap = ScreenshotCapture()
             self._current_result = cap.capture()
@@ -98,6 +135,7 @@ class ArtifactRecognitionPresenter(QObject):
             )
 
         except Exception as exc:
+            log.error(f"圣遗物识别失败: {exc}")
             self.errorOccurred.emit(str(exc))
         finally:
             self._recognizing = False

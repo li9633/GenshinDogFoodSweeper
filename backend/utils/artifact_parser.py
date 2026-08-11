@@ -160,7 +160,7 @@ class ArtifactTextParser:
                 return None
             log.info(f"[套装效果] {set_obj.name} (id={set_id}) → {set_obj.set_effects}")
             return set_obj.set_effects
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.warning(f"[套装效果] set_id={set_id} 查询失败")
             return None
 

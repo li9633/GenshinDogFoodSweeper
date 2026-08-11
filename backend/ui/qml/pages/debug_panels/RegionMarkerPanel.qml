@@ -9,14 +9,6 @@ Rectangle {
     Layout.fillWidth: true
     Layout.fillHeight: true
 
-    property bool marking: false
-    property bool extracting: false
-
-    // 坐标变更 → 同步到 Presenter
-    function syncCoords() {
-        RegionMarker.setCoords(spinX.value, spinY.value, spinW.value, spinH.value)
-    }
-
     ScrollView {
         id: scrollView
         anchors.fill: parent
@@ -32,16 +24,16 @@ Rectangle {
                 spacing: 6
 
                 Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                SpinBox { id: spinX; Layout.preferredWidth: 70; from: 0; to: 9999; value: 0; onValueChanged: syncCoords() }
+                SpinBox { id: spinX; Layout.preferredWidth: 70; from: 0; to: 9999; value: RegionMarker.regionX; onValueChanged: RegionMarker.setCoords(value, spinY.value, spinW.value, spinH.value) }
 
                 Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                SpinBox { id: spinY; Layout.preferredWidth: 70; from: 0; to: 9999; value: 0; onValueChanged: syncCoords() }
+                SpinBox { id: spinY; Layout.preferredWidth: 70; from: 0; to: 9999; value: RegionMarker.regionY; onValueChanged: RegionMarker.setCoords(spinX.value, value, spinW.value, spinH.value) }
 
                 Text { text: "宽:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                SpinBox { id: spinW; Layout.preferredWidth: 70; from: 1; to: 9999; value: 100; onValueChanged: syncCoords() }
+                SpinBox { id: spinW; Layout.preferredWidth: 70; from: 1; to: 9999; value: RegionMarker.regionW; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, value, spinH.value) }
 
                 Text { text: "高:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                SpinBox { id: spinH; Layout.preferredWidth: 70; from: 1; to: 9999; value: 100; onValueChanged: syncCoords() }
+                SpinBox { id: spinH; Layout.preferredWidth: 70; from: 1; to: 9999; value: RegionMarker.regionH; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, spinW.value, value) }
             }
 
             // ---- 保存模板 ----
@@ -76,7 +68,6 @@ Rectangle {
                     background: Rectangle { color: Theme.accent; radius: Theme.radius }
                     onClicked: {
                         if (filenameInput.text.trim() === "") {
-                            console.log("[RegionMarker] 请输入文件名")
                             return
                         }
                         RegionMarker.saveTemplate(filenameInput.text)
@@ -90,8 +81,8 @@ Rectangle {
 
                 Button {
                     id: btnMark
-                    text: marking ? "截图中…" : "截图并标记"
-                    enabled: !marking
+                    text: RegionMarker.marking ? "截图中…" : "截图并标记"
+                    enabled: !RegionMarker.marking
                     implicitHeight: 30
                     contentItem: Text {
                         text: parent.text
@@ -145,9 +136,6 @@ Rectangle {
                     background: Rectangle { color: Theme.bgTrack; radius: Theme.radius }
                     onClicked: {
                         RegionMarker.copyCoords()
-                        var coords = spinX.value + "," + spinY.value + "," + spinW.value + "," + spinH.value
-                        Clipboard.setText(coords)
-                        console.log("[RegionMarker] 已复制坐标: " + coords)
                     }
                 }
 
@@ -175,8 +163,8 @@ Rectangle {
 
                 Button {
                     id: btnColor
-                    text: extracting ? "提取中…" : "提取颜色"
-                    enabled: !extracting
+                    text: RegionMarker.extracting ? "提取中…" : "提取颜色"
+                    enabled: !RegionMarker.extracting
                     implicitHeight: 30
                     contentItem: Text {
                         text: parent.text
@@ -220,13 +208,7 @@ Rectangle {
     Connections {
         target: RegionMarker
 
-        function onCaptureFinished(path, x, y, w, h) {
-            marking = false
-            console.log("[RegionMarker] 截图完成: " + path + " (" + x + "," + y + "," + w + "x" + h + ")")
-        }
-
         function onColorExtracted(r, g, b, h, s, v) {
-            extracting = false
             colorSwatch.color = Qt.rgba(r / 255, g / 255, b / 255, 1)
         }
 
@@ -235,24 +217,19 @@ Rectangle {
         }
 
         function onTemplateSaved(filename) {
-            console.log("[RegionMarker] 模板已保存: " + filename)
             filenameInput.text = ""
         }
 
-        function onErrorOccurred(msg) {
-            marking = false
-            extracting = false
-            console.log("[RegionMarker] 错误: " + msg)
-        }
-
-        function onCoordsChanged() {
-            spinX.value = RegionMarker.regionX
-            spinY.value = RegionMarker.regionY
-            spinW.value = RegionMarker.regionW
-            spinH.value = RegionMarker.regionH
+        function onCopyToClipboard(text) {
+            Clipboard.setText(text)
         }
     }
 
     // 初始化坐标
-    Component.onCompleted: syncCoords()
+    Component.onCompleted: {
+        spinX.value = RegionMarker.regionX
+        spinY.value = RegionMarker.regionY
+        spinW.value = RegionMarker.regionW
+        spinH.value = RegionMarker.regionH
+    }
 }

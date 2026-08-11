@@ -107,7 +107,7 @@ class _DownloadWorker(QThread):
                 downloaded.append(name)
                 self.progress.emit(i + 1, total, f"{name} 下载完成")
                 log.info(f"OCR 模型 {name} 下载完成 → {target_dir}")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 failed.append(name)
                 log.error(f"OCR 模型 {name} 下载失败: {e}")
 

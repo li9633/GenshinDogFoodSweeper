@@ -54,6 +54,10 @@ class SettingsPresenter(QObject):
     def currentTheme(self) -> str:
         return settings.get_theme()
 
+    @Property(int, notify=themeChanged)
+    def themeIndex(self) -> int:
+        return 0 if settings.get_theme() == "dark" else 1
+
     @Slot(str)
     def setTheme(self, theme: str) -> None:
         if theme == self.currentTheme:
