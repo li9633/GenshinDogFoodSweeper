@@ -376,31 +376,32 @@ QToolTip {
     font-size: 12px;
 }
 
-/* === 导航栏 (el-menu 风格) === */
-QWidget[class="nav"] {
+/* === 导航栏树形菜单 === */
+QTreeWidget[class="nav-tree"] {
     background-color: #111224;
     border: none;
+    outline: none;
 }
 
-QPushButton[class="nav-btn"] {
-    padding: 12px 20px;
+QTreeWidget[class="nav-tree"]::item {
+    padding: 10px 20px;
     border: none;
-    border-left: 3px solid transparent;
-    border-radius: 0;
-    background: transparent;
     color: #8B8EA8;
     font-size: 14px;
-    text-align: left;
+    min-height: 28px;
 }
 
-QPushButton[class="nav-btn"]:hover {
+QTreeWidget[class="nav-tree"]::item:hover {
     background-color: rgba(201, 169, 110, 0.06);
     color: #E8D5A3;
 }
 
-QPushButton[class="nav-btn"][active="true"] {
-    border-left: 3px solid #C9A96E;
+QTreeWidget[class="nav-tree"]::item:selected {
     background-color: rgba(201, 169, 110, 0.10);
     color: #C9A96E;
     font-weight: 600;
+}
+
+QTreeWidget[class="nav-tree"]::branch {
+    background-color: #111224;
 }

@@ -6,7 +6,9 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from collections.abc import Callable
+
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QShowEvent
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -28,15 +30,17 @@ from backend.ui.presenters.sync_worker import SyncWorker
 
 
 class SettingsPage(QWidget):
-    """设置页面 — 主题变更通过 theme_changed 信号通知 MainWindow"""
+    """设置页面 — 通过构造函数回调与外部通信，无需 MainWindow 手动连接信号"""
 
-    theme_changed = pyqtSignal(str)
-    sync_started = pyqtSignal()
-    sync_finished = pyqtSignal()
-    sync_progress = pyqtSignal(int, int, str)  # 转发给 MainWindow → 状态栏
-
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        on_theme_changed: Callable[[str], None] | None = None,
+        on_status: Callable[[str, int, str], None] | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
+        self._on_theme_changed = on_theme_changed or (lambda _: None)
+        self._on_status = on_status or (lambda m, d=0, l="INFO": None)
         self._sync_worker: SyncWorker | None = None
         self._model_manager = OcrModelManager()
         self._download_worker = None
@@ -56,7 +60,7 @@ class SettingsPage(QWidget):
         self._combo_theme = QComboBox()
         self._combo_theme.addItems(["深色", "浅色"])
         self._combo_theme.setToolTip("切换应用主题")
-        self._combo_theme.currentIndexChanged.connect(self._on_theme_changed)
+        self._combo_theme.currentIndexChanged.connect(self._on_theme_changed_internal)
         form.addRow("主题:", self._combo_theme)
 
         group_appearance.setLayout(form)
@@ -142,11 +146,11 @@ class SettingsPage(QWidget):
         self._refresh_model_status()
         super().showEvent(event)
 
-    def _on_theme_changed(self) -> None:
-        """主题切换 → 持久化 → 通知 MainWindow 刷新样式"""
+    def _on_theme_changed_internal(self) -> None:
+        """主题切换 → 持久化 → 通知外部"""
         theme = "dark" if self._combo_theme.currentIndex() == 0 else "light"
         settings.set_theme(theme)
-        self.theme_changed.emit(theme)
+        self._on_theme_changed(theme)
 
     # ---------- 数据同步 ----------
 
@@ -178,11 +182,10 @@ class SettingsPage(QWidget):
         self._btn_sync.setEnabled(False)
         self._progress.setVisible(True)
         self._label_sync_time.setText("正在同步…")
-        self.sync_started.emit()
+        self._on_status("正在同步圣遗物数据…", 0, "INFO")
 
         self._sync_worker = SyncWorker()
         self._sync_worker.progress.connect(self._on_progress)
-        self._sync_worker.progress.connect(self.sync_progress.emit)
         self._sync_worker.finished_sync.connect(self._on_sync_finished)
         self._sync_worker.failed.connect(self._on_sync_failed)
         self._sync_worker.start()
@@ -193,6 +196,7 @@ class SettingsPage(QWidget):
             self._progress.setRange(0, total)
         self._progress.setValue(current)
         self._label_sync_time.setText(f"正在同步… {current}/{total}")
+        self._on_status(f"正在同步: {current}/{total}  {name}", 0, "INFO")
 
     def _on_sync_finished(self, sets_count: int, slots_count: int, expected_count: int) -> None:
         """同步完成"""
@@ -207,14 +211,14 @@ class SettingsPage(QWidget):
         self._btn_sync.setEnabled(True)
         self._progress.setVisible(False)
         self._refresh_sync_status()
-        self.sync_finished.emit()
+        self._on_status("同步完成", 3000, "SUCCESS")
 
     def _on_sync_failed(self, error: str) -> None:
         """同步失败"""
         self._btn_sync.setEnabled(True)
         self._progress.setVisible(False)
         self._label_sync_time.setText(f"同步失败: {error}")
-        self.sync_finished.emit()
+        self._on_status(f"同步失败: {error}", 5000, "ERROR")
 
     # ---------- OCR 模型下载 ----------
 

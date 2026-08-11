@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import webbrowser
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -24,7 +24,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -34,23 +33,31 @@ from utils.log_bridge import set_status_callback
 
 from backend.api.launcher import ApiLauncher
 
+from .managers.page_navigator import PageNavigator
 from .managers.status_bar_manager import StatusBarManager
 from .managers.theme_manager import ThemeManager
-from .pages.cleaner_page import CleanerPage
 from .pages.debug_page import DebugPage
+from .pages.dogfood_page import DogfoodPage
+from .pages.locker_page import LockerPage
 from .pages.rules_page import RulesPage
+from .pages.scanner_page import ScannerPage
 from .pages.settings_page import SettingsPage
 from .tray import TrayManager
 from .widgets.capture_view import CapturePreviewWidget
+from .widgets.sidebar import NavItem, Sidebar
 
 
-@dataclass(frozen=True)
-class PageEntry:
-    """页面注册项 — 单一数据源，同时驱动导航按钮和页面懒加载"""
+@dataclass
+class MenuItem:
+    """菜单项 — 单一数据源，同时驱动 Sidebar（层级）和 PageNavigator（扁平）
+
+    factory 为 None → 父节点（仅展开/折叠）；非 None → 叶子节点（点击切换页面）。
+    """
 
     key: str
     label: str
-    factory: Callable[[], QWidget]
+    children: list[MenuItem] = field(default_factory=list)
+    factory: Callable[[], QWidget] | None = None
 
 
 class MainWindow(QMainWindow):
@@ -75,14 +82,12 @@ class MainWindow(QMainWindow):
 
         self._capture_widget = CapturePreviewWidget()
 
-        self._nav_buttons: dict[str, QPushButton] = {}
-        self._page_factories: dict[str, Callable[[], QWidget]] = {}
-        self._pages: dict[str, QWidget] = {}
-        self._stack: QStackedWidget | None = None
+        self._navigator: PageNavigator | None = None
+        self._sidebar: Sidebar | None = None
 
         self._build_shell()
 
-        QTimer.singleShot(0, lambda: self._switch_page("cleaner"))
+        QTimer.singleShot(0, lambda: self._navigator.switch_to("dogfood"))
 
         set_status_callback(
             lambda level, msg, dur: self._status_bar.show(msg, dur, level)
@@ -121,13 +126,11 @@ class MainWindow(QMainWindow):
 
     # ---------- 公开 API ----------
 
-    def register_page(self, key: str, factory: Callable[[], QWidget]):
-        """注册页面工厂函数（首次访问时懒加载）"""
-        self._page_factories[key] = factory
-
     def get_page(self, key: str) -> QWidget | None:
         """获取已加载的页面实例（未加载返回 None）"""
-        return self._pages.get(key)
+        if self._navigator is None:
+            return None
+        return self._navigator.get_page(key)
 
     def show_status(self, message: str, duration: int = 0, level: str = "INFO"):
         self._status_bar.show(message, duration, level)
@@ -162,35 +165,25 @@ class MainWindow(QMainWindow):
 
     # ---------- 页面注册表 ----------
 
-    def _page_registry(self) -> list[PageEntry]:
-        """页面注册表 — 单一数据源，同时驱动导航栏和懒加载"""
-        pages = [
-            PageEntry("cleaner", "清理器", self._create_cleaner_page),
-            PageEntry("rules", "规则预设", lambda: RulesPage()),
-            PageEntry("settings", "设置", self._create_settings_page),
+    def _page_registry(self) -> list[MenuItem]:
+        """菜单注册表 — 唯一数据源，同时驱动 Sidebar 层级和 PageNavigator 注册"""
+        items = [
+            MenuItem("launcher", "启动", children=[
+                MenuItem("dogfood", "狗粮清理器", factory=lambda: DogfoodPage()),
+                MenuItem("scanner", "圣遗物扫描器", factory=lambda: ScannerPage()),
+                MenuItem("locker", "圣遗物锁定器", factory=lambda: LockerPage()),
+            ]),
+            MenuItem("rules", "规则预设", factory=lambda: RulesPage()),
+            MenuItem("settings", "设置", factory=lambda: SettingsPage(
+                on_theme_changed=self._theme.apply,
+                on_status=self.show_status,
+            )),
         ]
         if EnvManager.is_debug():
-            pages.append(PageEntry("debug", "调试", lambda: DebugPage(self._capture_widget)))
-        return pages
+            items.append(MenuItem("debug", "调试", factory=lambda: DebugPage(self._capture_widget)))
+        return items
 
-    def _create_cleaner_page(self) -> CleanerPage:
-        """创建清理器页面并连接扫描信号"""
-        page = CleanerPage()
-        page.scan_requested.connect(self._on_start_scan)
-        page.stop_requested.connect(self._on_stop_scan)
-        return page
-
-    def _create_settings_page(self) -> SettingsPage:
-        page = SettingsPage()
-        page.theme_changed.connect(self._theme.apply)
-        page.sync_started.connect(lambda: self.show_status("正在同步圣遗物数据…", 0))
-        page.sync_progress.connect(
-            lambda c, t, n: self.show_status(f"正在同步: {c}/{t}  {n}", 0)
-        )
-        page.sync_finished.connect(lambda: self.show_status("同步完成", 3000))
-        return page
-
-    # ---------- 托盘 ----------
+    # ---------- 设置 & 面板 ----------
 
     def _connect_tray(self):
         self._tray.scan_requested.connect(self._on_start_scan)
@@ -211,7 +204,6 @@ class MainWindow(QMainWindow):
         self._scanning = True
         self._tray.set_scanning(True)
         self.set_scanning(True)
-        self._update_cleaner_buttons(True)
         self._tray.show_message("扫描", "已开始扫描圣遗物…")
 
     def _on_stop_scan(self):
@@ -219,13 +211,7 @@ class MainWindow(QMainWindow):
         self._scanning = False
         self._tray.set_scanning(False)
         self.set_scanning(False)
-        self._update_cleaner_buttons(False)
         self._tray.show_message("扫描", "扫描已停止")
-
-    def _update_cleaner_buttons(self, active: bool):
-        page = self.get_page("cleaner")
-        if page is not None:
-            page.set_scanning(active)
 
     # ---------- 设置 & 面板 ----------
 
@@ -252,8 +238,16 @@ class MainWindow(QMainWindow):
         root.setSpacing(0)
 
         # --- 左侧导航栏 ---
-        nav = self._build_nav()
-        root.addWidget(nav)
+        items = self._page_registry()
+
+        # 转换为 NavItem 层级给 Sidebar
+        def _to_nav_items(menu_items: list[MenuItem]) -> list[NavItem]:
+            return [
+                NavItem(key=item.key, label=item.label, children=_to_nav_items(item.children))
+                for item in menu_items
+            ]
+        self._sidebar = Sidebar(_to_nav_items(items))
+        root.addWidget(self._sidebar)
 
         line = QFrame()
         line.setFrameShape(QFrame.Shape.VLine)
@@ -279,33 +273,20 @@ class MainWindow(QMainWindow):
 
         root.addLayout(content, stretch=1)
 
+        self._navigator = PageNavigator(self._stack, self._sidebar)
+
+        # 注册所有叶子页面到 PageNavigator
+        def _register_recursive(menu_items: list[MenuItem]) -> None:
+            for item in menu_items:
+                if item.factory is not None:
+                    self._navigator.register(item.key, item.factory)
+                _register_recursive(item.children)
+        _register_recursive(items)
+        self._sidebar.page_selected.connect(self._navigator.switch_to)
+
         self._status_bar = StatusBarManager(self)
 
-    def _build_nav(self) -> QWidget:
-        """
-        构建左侧导航栏（el-menu 风格）
-        - 深色侧边栏背景，与内容区形成对比
-        - 菜单项无边框、无圆角、左对齐
-        - 激活项左侧金色指示条 + 背景高亮
-        """
-        nav = QWidget()
-        nav.setFixedWidth(160)
-        nav.setProperty("class", "nav")
-        layout = QVBoxLayout(nav)
-        layout.setContentsMargins(0, 12, 0, 12)
-        layout.setSpacing(0)
-
-        for entry in self._page_registry():
-            btn = QPushButton(f"  {entry.label}")
-            btn.setProperty("class", "nav-btn")
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.clicked.connect(lambda checked, k=entry.key: self._switch_page(k))
-            self._nav_buttons[entry.key] = btn
-            self.register_page(entry.key, entry.factory)
-            layout.addWidget(btn)
-
-        layout.addStretch()
-        return nav
+    # ---------- 导航 / 懒加载 ----------
 
     def _build_toolbar(self) -> QHBoxLayout:
         """构建顶部工具栏（全局）"""
@@ -321,33 +302,8 @@ class MainWindow(QMainWindow):
     # ---------- 导航 / 懒加载 ----------
 
     def _switch_page(self, key: str):
-        """
-        切换页面，首次访问时懒加载。
-
-        流程:
-          1. 检查 _pages 缓存
-          2. 未命中则调用工厂函数创建
-          3. 添加到 QStackedWidget（临时隐藏避免布局重算）
-          4. 切换显示
-        """
-        if key not in self._pages:
-            factory = self._page_factories.get(key)
-            if factory is None:
-                return
-            page = factory()
-            self._pages[key] = page
-
-            self._stack.setUpdatesEnabled(False)
-            self._stack.addWidget(page)
-            self._stack.setUpdatesEnabled(True)
-
-        self._stack.setCurrentWidget(self._pages[key])
-
-        app_style = QApplication.style()
-        for k, btn in self._nav_buttons.items():
-            btn.setProperty("active", k == key)
-            app_style.unpolish(btn)
-            app_style.polish(btn)
+        if self._navigator is not None:
+            self._navigator.switch_to(key)
 
     def toggle_theme(self):
         self._theme.toggle()
