@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 from utils.logger import log
 
+from backend.ui.presenters.async_runner import run_async
 from backend.ui.presenters.region_marker_presenter import RegionMarkerPresenter
 
 
@@ -112,18 +113,29 @@ class RegionMarkerPanel(QGroupBox):
         x, y, w, h = self._coords()
         self._btn_mark.setEnabled(False)
         self._btn_mark.setText("截图中…")
+        QApplication.processEvents()
 
-        try:
-            result = self._presenter.capture()
-            result = self._presenter.mark_region(result, x, y, w, h)
-            pixmap = result.to_qpixmap()
-            self._capture_widget.display_pixmap(pixmap, f"区域: ({x}, {y}) {w}x{h}")
-            log.info(f"已标记区域 ({x}, {y}, {w}, {h})")
-        except RuntimeError as e:
-            log.error(f"截图失败: {e}")
-        finally:
-            self._btn_mark.setEnabled(True)
-            self._btn_mark.setText("截图并标记")
+        run_async(
+            lambda: self._presenter.mark_region(
+                self._presenter.capture(), x, y, w, h
+            ),
+            on_result=lambda r: self._on_mark_result(r, x, y, w, h),
+            on_error=self._on_mark_error,
+            parent=self,
+        )
+
+    def _on_mark_result(self, result, x, y, w, h) -> None:
+        self._capture_widget.display_pixmap(
+            result.to_qpixmap(), f"区域: ({x}, {y}) {w}x{h}"
+        )
+        log.info(f"已标记区域 ({x}, {y}, {w}, {h})")
+        self._btn_mark.setEnabled(True)
+        self._btn_mark.setText("截图并标记")
+
+    def _on_mark_error(self, error: str) -> None:
+        log.error(f"截图失败: {error}")
+        self._btn_mark.setEnabled(True)
+        self._btn_mark.setText("截图并标记")
 
     def _on_copy(self) -> None:
         x, y, w, h = self._coords()
@@ -136,11 +148,13 @@ class RegionMarkerPanel(QGroupBox):
             log.warning("请输入文件名")
             return
         x, y, w, h = self._coords()
-        try:
-            result = self._presenter.capture()
-            self._presenter.save_template(result, filename, x, y, w, h)
-        except RuntimeError as e:
-            log.error(f"截图失败: {e}")
+        run_async(
+            lambda: self._presenter.save_template(
+                self._presenter.capture(), filename, x, y, w, h
+            ),
+            on_error=lambda e: log.error(f"截图失败: {e}"),
+            parent=self,
+        )
 
     def _on_clear(self) -> None:
         if self._capture_widget is not None:
@@ -151,25 +165,37 @@ class RegionMarkerPanel(QGroupBox):
         x, y, w, h = self._coords()
         self._btn_color.setEnabled(False)
         self._btn_color.setText("提取中…")
-        try:
-            result = self._presenter.capture()
-            c = self._presenter.extract_color(result, x, y, w, h)
-            self._color_swatch.setStyleSheet(
-                f"background-color: rgb({c['r']},{c['g']},{c['b']}); "
-                f"border: 1px solid #555; border-radius: 2px;"
-            )
-            self._color_info.setText(
-                f"RGB({c['r']}, {c['g']}, {c['b']})  "
-                f"HSV({c['h_hsv']}°, {c['s_hsv'] / 255:.0%}, {c['v_hsv'] / 255:.0%})"
-            )
-            log.info(
-                f"颜色提取: RGB({c['r']},{c['g']},{c['b']}) HSV({c['h_hsv']},{c['s_hsv']},{c['v_hsv']})"
-            )
-        except RuntimeError as e:
-            log.error(f"截图失败: {e}")
-        finally:
-            self._btn_color.setEnabled(True)
-            self._btn_color.setText("提取颜色")
+        QApplication.processEvents()
+
+        run_async(
+            lambda: self._presenter.extract_color(
+                self._presenter.capture(), x, y, w, h
+            ),
+            on_result=self._on_color_result,
+            on_error=self._on_color_error,
+            parent=self,
+        )
+
+    def _on_color_result(self, c: dict) -> None:
+        self._color_swatch.setStyleSheet(
+            f"background-color: rgb({c['r']},{c['g']},{c['b']}); "
+            f"border: 1px solid #555; border-radius: 2px;"
+        )
+        self._color_info.setText(
+            f"RGB({c['r']}, {c['g']}, {c['b']})  "
+            f"HSV({c['h_hsv']}°, {c['s_hsv'] / 255:.0%}, {c['v_hsv'] / 255:.0%})"
+        )
+        log.info(
+            f"颜色提取: RGB({c['r']},{c['g']},{c['b']}) "
+            f"HSV({c['h_hsv']},{c['s_hsv']},{c['v_hsv']})"
+        )
+        self._btn_color.setEnabled(True)
+        self._btn_color.setText("提取颜色")
+
+    def _on_color_error(self, error: str) -> None:
+        log.error(f"截图失败: {error}")
+        self._btn_color.setEnabled(True)
+        self._btn_color.setText("提取颜色")
 
     # ---------- 选区模式 ----------
 

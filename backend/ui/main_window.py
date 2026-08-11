@@ -98,6 +98,27 @@ class MainWindow(QMainWindow):
             ),
         )
 
+        # 后台线程预热 OCR 引擎，避免首次识别时 UI 卡住
+        QTimer.singleShot(2000, self._start_ocr_worker)
+
+    def _start_ocr_worker(self) -> None:
+        from backend.automation.ocr_worker import OcrWorker
+
+        self._status_bar.show("OCR 引擎预热中…", 0, "INFO")
+        QApplication.processEvents()
+
+        worker = OcrWorker.instance()
+        worker.ready.connect(
+            lambda: self._status_bar.show("OCR 引擎就绪", 3000, "INFO")
+        )
+        worker.task_error.connect(
+            lambda msg, _: (
+                self._status_bar.show(f"OCR 错误: {msg}", 5000, "ERROR")
+                if msg and "模型未下载" not in msg
+                else None
+            )
+        )
+
     # ---------- 公开 API ----------
 
     def register_page(self, key: str, factory: Callable[[], QWidget]):
@@ -125,6 +146,8 @@ class MainWindow(QMainWindow):
         self._backend.start()
 
     def shutdown(self):
+        from backend.automation.ocr_worker import OcrWorker
+        OcrWorker.destroy_instance()
         self._backend.stop()
 
     # ---------- 事件 ----------

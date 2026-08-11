@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 from utils.logger import log
 
+from backend.ui.presenters.async_runner import run_async
 from backend.ui.presenters.element_detection_presenter import (
     ElementDetectionPresenter,
 )
@@ -314,23 +315,31 @@ class ElementDetectionPanel(QWidget):
 
         self._btn_detect.setEnabled(False)
         self._btn_detect.setText("检测中…")
+        QApplication.processEvents()
 
-        try:
-            result = self._presenter.detect(self._get_existing_conditions())
-            self._last_matches = result.last_matches
+        run_async(
+            lambda: self._presenter.detect(self._get_existing_conditions()),
+            on_result=self._on_detect_result,
+            on_error=self._on_detect_error,
+            parent=self,
+        )
 
-            pixmap = result.result.to_qpixmap()
-            status = (
-                "✓ 全部通过"
-                if result.all_passed
-                else f"✗ {result.passed_count}/{result.total}"
-            )
-            self._capture_widget.display_pixmap(pixmap, f"检测: {status}")
-        except RuntimeError as e:
-            log.error(f"截图失败: {e}")
-        finally:
-            self._btn_detect.setEnabled(True)
-            self._btn_detect.setText("检测定位")
+    def _on_detect_result(self, result) -> None:
+        self._last_matches = result.last_matches
+        pixmap = result.result.to_qpixmap()
+        status = (
+            "✓ 全部通过"
+            if result.all_passed
+            else f"✗ {result.passed_count}/{result.total}"
+        )
+        self._capture_widget.display_pixmap(pixmap, f"检测: {status}")
+        self._btn_detect.setEnabled(True)
+        self._btn_detect.setText("检测定位")
+
+    def _on_detect_error(self, error: str) -> None:
+        log.error(f"检测失败: {error}")
+        self._btn_detect.setEnabled(True)
+        self._btn_detect.setText("检测定位")
 
     def _on_condition_selected(
         self, current: QListWidgetItem | None, _prev: QListWidgetItem | None
@@ -353,15 +362,30 @@ class ElementDetectionPanel(QWidget):
         selected_key = selected.data(Qt.ItemDataRole.UserRole)[0]
         display_name = self._edit_display_name.text().strip()
 
-        result = self._presenter.register_region(
-            selected_key, self._last_matches, display_name
-        )
-        if result is None:
-            return
+        self._btn_register.setEnabled(False)
+        self._btn_register.setText("注册中…")
+        QApplication.processEvents()
 
+        run_async(
+            lambda: self._presenter.register_region(
+                selected_key, self._last_matches, display_name
+            ),
+            on_result=self._on_register_result,
+            on_error=self._on_register_error,
+            parent=self,
+        )
+
+    def _on_register_result(self, result) -> None:
         self._edit_display_name.clear()
         self._refresh_template_list()
         if self._capture_widget is not None:
             self._capture_widget.clear()
         self._search_input.clear()
         self._last_matches.clear()
+        self._btn_register.setEnabled(True)
+        self._btn_register.setText("注册区域")
+
+    def _on_register_error(self, error: str) -> None:
+        log.error(f"注册失败: {error}")
+        self._btn_register.setEnabled(True)
+        self._btn_register.setText("注册区域")
