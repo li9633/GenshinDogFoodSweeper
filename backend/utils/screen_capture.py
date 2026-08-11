@@ -55,7 +55,7 @@ except ImportError:
 
 _HAS_PYQT6 = False
 try:
-    from PyQt6.QtGui import QImage, QPixmap
+    from PySide6.QtGui import QImage, QPixmap
 
     _HAS_PYQT6 = True
 except ImportError:

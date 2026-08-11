@@ -17,8 +17,8 @@ import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtWidgets import (
     QApplication,
     QFrame,
     QHBoxLayout,
@@ -63,7 +63,7 @@ class MenuItem:
 class MainWindow(QMainWindow):
     """主窗口 — 应用协调器"""
 
-    app_exit_requested = pyqtSignal()
+    app_exit_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)

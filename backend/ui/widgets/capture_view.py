@@ -7,9 +7,9 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QMouseEvent, QPixmap, QWheelEvent
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, Signal
+from PySide6.QtGui import QMouseEvent, QPixmap, QWheelEvent
+from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 class CapturePreviewWidget(QWidget):
     """截图预览组件 — 纯图片预览器，支持缩放"""
 
-    region_selected = pyqtSignal(int, int, int, int)  # x, y, w, h（原始图像坐标）
+    region_selected = Signal(int, int, int, int)  # x, y, w, h（原始图像坐标）
 
     def __init__(self, parent=None):
         super().__init__(parent)

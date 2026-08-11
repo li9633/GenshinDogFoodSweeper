@@ -6,15 +6,15 @@ import traceback
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PySide6.QtCore import QObject, QThread, Signal
 from utils.logger import log
 
 
-class AsyncTask(QThread):
-    """后台线程，执行 callable 后通过信号返回结果"""
+class AsyncRunner(QThread):
+    """在后台线程执行可调用对象，通过信号返回结果"""
 
-    result_ready = pyqtSignal(object)
-    task_error = pyqtSignal(str)
+    result_ready = Signal(object)
+    task_error = Signal(str)
 
     def __init__(self, fn: Callable[[], Any], parent: QObject | None = None):
         super().__init__(parent)
@@ -41,7 +41,7 @@ def run_async(
     parent: QObject | None = None,
 ) -> QThread:
     """在后台线程执行 fn()，通过回调返回结果"""
-    task = AsyncTask(fn, parent)
+    task = AsyncRunner(fn, parent)
 
     if on_result:
         task.result_ready.connect(on_result)

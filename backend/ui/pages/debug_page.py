@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QTabWidget,
     QVBoxLayout,
     QWidget,

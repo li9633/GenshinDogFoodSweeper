@@ -30,7 +30,7 @@ dependencies = [
     "pywin32>=308 ; sys_platform == 'win32'",
 
     # GUI
-    "pyqt6>=6.7",
+    "pyside6>=6.7",
     "pystray>=0.19",
 
     # 工具库

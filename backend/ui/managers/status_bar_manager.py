@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QMainWindow, QStatusBar
+from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QMainWindow, QStatusBar
 
 # 日志级别 → 状态栏文字颜色，对齐 loguru 默认配色
 _LEVEL_COLORS: dict[str, str] = {
@@ -20,7 +20,7 @@ _LEVEL_COLORS: dict[str, str] = {
 class StatusBarManager(QObject):
     """管理状态栏的颜色编码显示，支持跨线程安全调用"""
 
-    _signal = pyqtSignal(str, str, int)
+    _signal = Signal(str, str, int)
 
     def __init__(self, window: QMainWindow):
         super().__init__()

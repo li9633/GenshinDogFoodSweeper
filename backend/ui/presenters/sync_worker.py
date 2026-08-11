@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 
 class SyncWorker(QThread):
-    """后台线程：执行圣遗物数据同步"""
+    """Artifact 同步工作线程"""
 
-    finished_sync = pyqtSignal(int, int, int)
-    progress = pyqtSignal(int, int, str)
-    failed = pyqtSignal(str)
+    finished_sync = Signal(int, int, int)
+    progress = Signal(int, int, str)
+    failed = Signal(str)
 
     def run(self) -> None:
         from crawler.artifact_set_fetcher import ArtifactSetFetcher

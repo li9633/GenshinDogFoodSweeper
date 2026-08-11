@@ -6,20 +6,20 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtGui import QAction, QIcon
-from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QAction, QIcon
+from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 
 class TrayManager(QObject):
     """系统托盘管理器"""
 
     # 信号：通知外部（App 层）用户操作
-    scan_requested = pyqtSignal()  # 开始扫描
-    stop_requested = pyqtSignal()  # 停止扫描
-    panel_requested = pyqtSignal()  # 打开 Web 面板
-    settings_requested = pyqtSignal()  # 打开设置
-    exit_requested = pyqtSignal()  # 退出程序
+    scan_requested = Signal()  # 开始扫描
+    stop_requested = Signal()  # 停止扫描
+    panel_requested = Signal()  # 打开 Web 面板
+    settings_requested = Signal()  # 打开设置
+    exit_requested = Signal()  # 退出程序
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -68,7 +68,7 @@ class TrayManager(QObject):
             self._tray.setIcon(QIcon(icon_path))
         else:
             # 使用 Qt 内置图标作为兜底
-            from PyQt6.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             self._tray.setIcon(
                 QApplication.style().standardIcon(

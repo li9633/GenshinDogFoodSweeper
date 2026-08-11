@@ -18,7 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 from utils.logger import log
 
 
@@ -32,9 +32,9 @@ class OcrWorker(QThread):
 
     _instance: ClassVar[OcrWorker | None] = None
 
-    ready = pyqtSignal()  # OCR 模型就绪
-    task_done = pyqtSignal(object, object)  # (result, callback_data)
-    task_error = pyqtSignal(str, object)  # (error_message, callback_data)
+    ready = Signal()  # OCR 模型就绪
+    task_done = Signal(object, object)  # (result, callback_data)
+    task_error = Signal(str, object)  # (error_message, callback_data)
 
     def __init__(self, engines_dir: Path | None = None):
         super().__init__()

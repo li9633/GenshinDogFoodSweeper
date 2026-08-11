@@ -11,8 +11,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from database.init_db import create_tables
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
 from ui.app import GenshinApp
 from utils.logger import setup_logging
 
@@ -47,7 +47,7 @@ def main():
     genshin_app = GenshinApp(app)
 
     # 强制立即绘制窗口，避免等到 exec() 才显示
-    from PyQt6.QtWidgets import QApplication as QA
+    from PySide6.QtWidgets import QApplication as QA
     QA.processEvents()
 
     genshin_app.run()

@@ -9,7 +9,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 from utils.logger import log
 
 # 抑制 modelscope 下载时的 INFO 日志（进度条噪音）
@@ -35,8 +35,8 @@ _MODELSCOPE_REVISION = "master"
 class _DownloadWorker(QThread):
     """后台线程：下载 OCR 模型"""
 
-    progress = pyqtSignal(int, int, str)  # (current, total, status_text)
-    finished_download = pyqtSignal(bool, str)  # (success, message)
+    progress = Signal(int, int, str)  # (current, total, status_text)
+    finished_download = Signal(bool, str)  # (success, message)
 
     def __init__(self, engines_dir: Path, parent=None):
         super().__init__(parent)

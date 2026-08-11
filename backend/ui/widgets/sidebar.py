@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QTreeWidget,
     QTreeWidgetItem,
@@ -43,7 +43,7 @@ class Sidebar(QWidget):
         page_selected(key): 用户点击叶子节点时触发
     """
 
-    page_selected = pyqtSignal(str)
+    page_selected = Signal(str)
 
     def __init__(
         self,
