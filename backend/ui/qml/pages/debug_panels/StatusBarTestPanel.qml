@@ -39,7 +39,7 @@ Rectangle {
                     radius: Theme.radius
                 }
                 onClicked: {
-                    console.log("[调试] 状态栏颜色测试 — " + modelData.level)
+                    StatusBarTest.testLog(modelData.level)
                 }
             }
         }

@@ -12,6 +12,27 @@ Rectangle {
     property bool roiExpanded: false
     property bool roiEditable: false
 
+    // ROI 名称列表（与 Repeater model 顺序一致）
+    property var roiNames: [
+        "圣遗物等级", "圣遗物星级", "圣遗物名称", "部位+主词条", "副词条区"
+    ]
+
+    function collectRoiJson() {
+        var data = []
+        for (var i = 0; i < roiRepeater.count; i++) {
+            var row = roiRepeater.itemAt(i)
+            if (!row) continue
+            data.push({
+                "name": roiNames[i],
+                "x": row.children[2].value,
+                "y": row.children[4].value,
+                "w": row.children[6].value,
+                "h": row.children[8].value
+            })
+        }
+        return JSON.stringify(data)
+    }
+
     ScrollView {
         id: scrollView
         anchors.fill: parent
@@ -64,6 +85,7 @@ Rectangle {
                 }
 
                 Repeater {
+                    id: roiRepeater
                     model: [
                         { name: "圣遗物等级", dx: 1338, dy: 452, dw: 71,  dh: 44 },
                         { name: "圣遗物星级", dx: 1742, dy: 159, dw: 39,  dh: 40 },
@@ -201,7 +223,8 @@ Rectangle {
 
                 Button {
                     id: btnCapture
-                    text: "截图并识别"
+                    text: ArtifactRecognition.recognizing ? "识别中…" : "截图并识别"
+                    enabled: !ArtifactRecognition.recognizing
                     implicitHeight: 34
                     Layout.fillWidth: true
                     contentItem: Text {
@@ -209,11 +232,12 @@ Rectangle {
                         font.family: Theme.fontFamily
                         font.pixelSize: 13
                         font.bold: true
-                        color: Theme.bgPrimary
+                        color: parent.enabled ? Theme.bgPrimary : Theme.textMuted
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
-                    background: Rectangle { color: Theme.accent; radius: Theme.radius }
+                    background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
+                    onClicked: ArtifactRecognition.recognize(collectRoiJson())
                 }
 
                 Button {
@@ -229,8 +253,33 @@ Rectangle {
                         verticalAlignment: Text.AlignVCenter
                     }
                     background: Rectangle { color: Theme.bgTrack; radius: Theme.radius }
+                    onClicked: {
+                        ArtifactRecognition.clear()
+                        ocrResultText.text = ""
+                        structuredResultText.text = ""
+                    }
                 }
             }
+
+            Item { Layout.fillHeight: true }
+        }
+    }
+
+    // ============================================================
+    // Presenter 信号连接
+    // ============================================================
+    Connections {
+        target: ArtifactRecognition
+
+        function onRecognitionFinished(ocrText, structuredText, imagePath) {
+            ocrResultText.text = ocrText
+            structuredResultText.text = structuredText
+            console.log("[ArtifactRecognition] 识别完成, 耗时图: " + imagePath)
+        }
+
+        function onErrorOccurred(msg) {
+            ocrResultText.text = "错误: " + msg
+            console.log("[ArtifactRecognition] " + msg)
         }
     }
 }

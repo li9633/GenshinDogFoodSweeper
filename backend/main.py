@@ -14,6 +14,7 @@ os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
 # 确保项目根目录在 sys.path 中
 sys.path.insert(0, str(Path(__file__).parent))
 
+from ui.presenters.image_provider import PreviewImageProvider
 from database.init_db import create_tables
 from PySide6.QtCore import Qt
 from PySide6.QtQml import QQmlApplicationEngine
@@ -49,9 +50,12 @@ def main():
 
     # -- QML 引擎 --
     engine = QQmlApplicationEngine()
+    engine.addImageProvider("preview", PreviewImageProvider())
+    print("[OK] PreviewImageProvider 注册成功", file=sys.stderr)
 
     # 将 Python 后端对象暴露给 QML
     import traceback
+
     from utils.env_manager import EnvManager
     _env_manager = EnvManager()
     engine.rootContext().setContextProperty("EnvManager", _env_manager)
@@ -65,6 +69,42 @@ def main():
     except Exception as exc: 
         traceback.print_exc()
         print(f"[FAIL] SettingsPresenter 初始化失败: {exc}", file=sys.stderr)
+
+    try:
+        from ui.presenters.region_marker_presenter import RegionMarkerPresenter
+        region_marker = RegionMarkerPresenter()
+        engine.rootContext().setContextProperty("RegionMarker", region_marker)
+        print("[OK] RegionMarker 注册成功", file=sys.stderr)
+    except Exception as exc:
+        traceback.print_exc()
+        print(f"[FAIL] RegionMarker 初始化失败: {exc}", file=sys.stderr)
+
+    try:
+        from ui.presenters.element_detection_presenter import ElementDetectionPresenter
+        element_detection = ElementDetectionPresenter()
+        engine.rootContext().setContextProperty("ElementDetection", element_detection)
+        print("[OK] ElementDetection 注册成功", file=sys.stderr)
+    except Exception as exc:
+        traceback.print_exc()
+        print(f"[FAIL] ElementDetection 初始化失败: {exc}", file=sys.stderr)
+
+    try:
+        from ui.presenters.artifact_recognition_presenter import ArtifactRecognitionPresenter
+        artifact_recognition = ArtifactRecognitionPresenter()
+        engine.rootContext().setContextProperty("ArtifactRecognition", artifact_recognition)
+        print("[OK] ArtifactRecognition 注册成功", file=sys.stderr)
+    except Exception as exc:
+        traceback.print_exc()
+        print(f"[FAIL] ArtifactRecognition 初始化失败: {exc}", file=sys.stderr)
+
+    try:
+        from ui.pages.debug_panels.status_bar_test_panel import StatusBarTestPresenter
+        status_bar_test = StatusBarTestPresenter()
+        engine.rootContext().setContextProperty("StatusBarTest", status_bar_test)
+        print("[OK] StatusBarTest 注册成功", file=sys.stderr)
+    except Exception as exc:
+        traceback.print_exc()
+        print(f"[FAIL] StatusBarTest 初始化失败: {exc}", file=sys.stderr)
 
     qml_dir = Path(__file__).parent / "ui" / "qml"
     engine.addImportPath(str(qml_dir))

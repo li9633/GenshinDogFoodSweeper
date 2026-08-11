@@ -144,15 +144,15 @@ Rectangle {
 
             Item {
                 id: imageContainer
-                width: Math.max(flickable.width, imageItem.implicitWidth)
-                height: Math.max(flickable.height, imageItem.implicitHeight)
+                width: fitToView ? flickable.width : Math.max(flickable.width, imageItem.width)
+                height: fitToView ? flickable.height : Math.max(flickable.height, imageItem.height)
 
                 Image {
                     id: imageItem
                     anchors.centerIn: parent
                     source: root.source
                     visible: root.source !== null && root.source.toString() !== ""
-                    fillMode: Image.PreserveAspectFit
+                    fillMode: fitToView ? Image.PreserveAspectFit : Image.Pad
                     width: fitToView ? flickable.width : implicitWidth * zoomFactor
                     height: fitToView ? flickable.height : implicitHeight * zoomFactor
 

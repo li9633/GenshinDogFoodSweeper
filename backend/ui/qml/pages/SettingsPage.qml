@@ -8,10 +8,21 @@ Rectangle {
     color: Theme.bgPrimary
 
     // ============================================================
-    // 内部状态（仅 UI 控制，业务数据直接绑定 SettingsBackend）
+    // 内部状态（仅 UI 控制，业务数据直接绑定 SettingsPresenter）
     // ============================================================
     property bool syncing: false
     property bool downloading: false
+    property string syncProgressText: ""
+    property string modelProgressText: ""
+
+    // 页面可见时刷新数据（等价于 Python 版 showEvent）
+    onVisibleChanged: {
+        if (visible) {
+            // 触发 Property 重新求值，刷新同步时间和模型状态
+            syncProgressText = ""
+            modelProgressText = ""
+        }
+    }
 
     // ============================================================
     // 滚动区域
@@ -179,7 +190,7 @@ Rectangle {
 
                     // 状态文字（同步中显示进度，完成后 show 最新数据）
                     Text {
-                        text: syncing ? "正在同步…" : SettingsPresenter.syncTime
+                        text: syncing ? ("正在同步… " + syncProgressText) : SettingsPresenter.syncTime
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
                         color: Theme.textSecondary
@@ -283,7 +294,7 @@ Rectangle {
 
                     // 状态文字（下载中显示进度，完成后 show 最新数据）
                     Text {
-                        text: downloading ? "正在下载…" : SettingsPresenter.modelStatus
+                        text: downloading ? ("正在下载… " + modelProgressText) : SettingsPresenter.modelStatus
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
                         color: Theme.textSecondary
@@ -309,19 +320,31 @@ Rectangle {
     Connections {
         target: SettingsPresenter
 
+        function onThemeChanged(theme) {
+            themeCombo.currentIndex = (theme === "dark") ? 0 : 1
+        }
+
         function onSyncProgress(current, total, name) {
             syncProgress.indeterminate = false
             syncProgress.from = 0
             syncProgress.to = total
             syncProgress.value = current
+            syncProgressText = current + "/" + total
         }
 
         function onSyncFinished(sets, slots, expected) {
             syncing = false
+            syncProgressText = ""
         }
 
         function onSyncFailed(error) {
             syncing = false
+            syncProgressText = ""
+        }
+
+        function onStatusMessage(msg, duration, level) {
+            // 状态栏消息由 MainWindow 层统一处理
+            console.log("[Settings] " + level + ": " + msg)
         }
 
         function onModelDownloadProgress(current, total, status) {
@@ -329,10 +352,12 @@ Rectangle {
             modelProgress.from = 0
             modelProgress.to = total
             modelProgress.value = current
+            modelProgressText = current + "/" + total
         }
 
         function onModelDownloadFinished(success, message) {
             downloading = false
+            modelProgressText = ""
         }
     }
 }

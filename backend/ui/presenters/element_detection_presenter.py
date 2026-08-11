@@ -1,17 +1,22 @@
-"""元素检测 Presenter — 模板匹配 + 注册，纯业务逻辑"""
+"""元素检测 Presenter — QObject 封装，供 QML 绑定
+
+模板列表查询、检测条件管理、多尺度模板匹配、区域注册。
+"""
 
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 import cv2
+from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.logger import log
 
 from backend.automation.template_manager import TemplateManager
 from backend.automation.template_matcher import multi_scale_match
 from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
+
+from .image_provider import PreviewImageProvider
 
 
 @dataclass
@@ -27,151 +32,209 @@ class DetectionResult:
     result: CaptureResult
 
 
-class ElementDetectionPresenter:
-    """元素检测业务逻辑"""
+class ElementDetectionPresenter(QObject):
+    """元素检测 Presenter — QML 可绑定"""
 
-    # ---------- 模板列表 ----------
+    # -- 信号 --
+    templatesChanged = Signal()
+    templateSelected = Signal(str, str, int, int, int, int, bool)
+    # key, previewPath, rx, ry, rw, rh, hasRegion
+    detectionFinished = Signal(bool, str, str)
+    # allPassed, detailText, resultImagePath
+    regionRegistered = Signal(str, int, int, int, int)
+    # name, x, y, w, h
+    errorOccurred = Signal(str)
 
-    @staticmethod
-    def list_templates(keyword: str = "") -> dict[str, str]:
-        return (
-            TemplateManager.search(keyword) if keyword else TemplateManager.list_all()
-        )
+    def __init__(self, parent: QObject | None = None):
+        super().__init__(parent)
+        self._template_list: list[str] = []
+        self._conditions: list[dict] = []
+        self._last_matches: list[tuple[str, int, int, int, int]] = []
+        self._refresh_templates()
 
-    @staticmethod
-    def reload_templates() -> None:
+    # ========== 模板列表 ==========
+
+    def _refresh_templates(self, keyword: str = "") -> None:
+        d = TemplateManager.search(keyword) if keyword else TemplateManager.list_all()
+        self._template_list = list(d.keys())
+        self.templatesChanged.emit()
+
+    @Property("QStringList", notify=templatesChanged)
+    def templateList(self) -> list[str]:
+        return self._template_list
+
+    @Slot(str)
+    def searchTemplates(self, keyword: str) -> None:
+        self._refresh_templates(keyword.strip())
+
+    @Slot()
+    def reloadTemplates(self) -> None:
         TemplateManager.reload()
+        self._refresh_templates()
 
-    @staticmethod
-    def get_template_region(key: str) -> tuple[int, int, int, int] | None:
-        return TemplateManager.get_region(key)
+    @Slot(str)
+    def selectTemplate(self, key: str) -> None:
+        """用户选中模板 → 加载预览图 + 区域信息"""
+        region = TemplateManager.get_region(key)
+        path = TemplateManager.get_path(key)
+        preview_path = str(path) if path else ""
+        if region:
+            rx, ry, rw, rh = region
+            self.templateSelected.emit(key, preview_path, rx, ry, rw, rh, True)
+        else:
+            self.templateSelected.emit(key, preview_path, 0, 0, 0, 0, False)
 
-    @staticmethod
-    def get_template_path(key: str) -> Path | None:
-        return TemplateManager.get_path(key)
+    # ========== 条件管理 ==========
 
-    # ---------- 条件管理 ----------
+    @Slot(str, float, int, int, int, int)
+    def addCondition(
+        self, key: str, threshold: float, rx: int, ry: int, rw: int, rh: int
+    ) -> None:
+        for c in self._conditions:
+            if c["key"] == key:
+                self.errorOccurred.emit(f"模板 '{key}' 已存在")
+                return
+        has_region = rw > 0 and rh > 0
+        self._conditions.append({
+            "key": key,
+            "threshold": threshold,
+            "rx": rx,
+            "ry": ry,
+            "rw": rw,
+            "rh": rh,
+        })
 
-    @staticmethod
-    def check_duplicate(
-        existing_conditions: list[tuple[str, float, tuple | None]], template_key: str
-    ) -> bool:
-        for cond in existing_conditions:
-            if cond[0] == template_key:
-                return True
-        return False
+    @Slot(int)
+    def removeCondition(self, index: int) -> None:
+        if 0 <= index < len(self._conditions):
+            self._conditions.pop(index)
 
-    # ---------- 检测 ----------
+    @Slot()
+    def clearConditions(self) -> None:
+        self._conditions.clear()
+        self._last_matches.clear()
 
-    def detect(
-        self,
-        conditions: list[tuple[str, float, tuple[int, int, int, int] | None]],
-    ) -> DetectionResult:
-        t0 = time.perf_counter()
-        cap = ScreenshotCapture()
-        result = cap.capture()
-        full_gray = cv2.cvtColor(result.image, cv2.COLOR_RGB2GRAY)
+    @Property(int)
+    def conditionCount(self) -> int:
+        return len(self._conditions)
 
-        all_passed = True
-        detail_parts: list[str] = []
-        last_matches: list[tuple[str, int, int, int, int]] = []
+    # ========== 检测 ==========
 
-        for template_key, threshold, region in conditions:
-            template_path = TemplateManager.get_path(template_key)
-            if template_path is None:
-                detail_parts.append(f"{template_key}: 文件不存在")
-                all_passed = False
-                continue
+    @Slot()
+    def detect(self) -> None:
+        if not self._conditions:
+            self.errorOccurred.emit("请先添加检测条件")
+            return
 
-            template = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
-            if template is None:
-                detail_parts.append(f"{template_key}: 加载失败")
-                all_passed = False
-                continue
+        try:
+            conds: list[tuple[str, float, tuple | None]] = []
+            for c in self._conditions:
+                region = (
+                    (c["rx"], c["ry"], c["rw"], c["rh"])
+                    if c["rw"] > 0 and c["rh"] > 0
+                    else None
+                )
+                conds.append((c["key"], c["threshold"], region))
 
-            orig_th, orig_tw = template.shape
+            t0 = time.perf_counter()
+            cap = ScreenshotCapture()
+            result = cap.capture()
+            full_gray = cv2.cvtColor(result.image, cv2.COLOR_RGB2GRAY)
 
-            if region:
-                rx, ry, rw, rh = region
-                search_area = full_gray[ry : ry + rh, rx : rx + rw]
-                if search_area.size == 0:
-                    detail_parts.append(f"{template_key}: 搜索区域无效")
+            all_passed = True
+            detail_parts: list[str] = []
+            last_matches: list[tuple[str, int, int, int, int]] = []
+
+            for template_key, threshold, region in conds:
+                template_path = TemplateManager.get_path(template_key)
+                if template_path is None:
+                    detail_parts.append(f"✗ {template_key}: 文件不存在")
                     all_passed = False
                     continue
+
+                template = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
+                if template is None:
+                    detail_parts.append(f"✗ {template_key}: 加载失败")
+                    all_passed = False
+                    continue
+
+                orig_th, orig_tw = template.shape
+
+                if region:
+                    rx, ry, rw, rh = region
+                    search_area = full_gray[ry : ry + rh, rx : rx + rw]
+                    if search_area.size == 0:
+                        detail_parts.append(f"✗ {template_key}: 搜索区域无效")
+                        all_passed = False
+                        continue
+                else:
+                    rx, ry = 0, 0
+                    search_area = full_gray
+
+                best_score, best_loc, best_scale, best_size = multi_scale_match(
+                    search_area, template
+                )
+
+                passed = best_score >= threshold
+                if not passed:
+                    all_passed = False
+
+                color = (0, 255, 0) if passed else (255, 0, 0)
+                tw, th = best_size
+                result.draw_rect(
+                    best_loc[0] + rx,
+                    best_loc[1] + ry,
+                    tw,
+                    th,
+                    color=color,
+                    thickness=3,
+                    label=f"{template_key} {best_score:.2f}",
+                )
+                detail_parts.append(
+                    f"{'✓' if passed else '✗'} {template_key}: {best_score:.3f}"
+                    f"@{best_scale:.2f}x ({tw}x{th})"
+                )
+                last_matches.append(
+                    (template_key, best_loc[0] + rx, best_loc[1] + ry, tw, th)
+                )
+
+            elapsed = (time.perf_counter() - t0) * 1000
+            passed_count = sum(1 for p in detail_parts if p.startswith("✓"))
+            total = len(conds)
+
+            self._last_matches = last_matches
+
+            # 保存结果图（内存缓存，零 IO）
+            PreviewImageProvider.put("detection", result.image)
+
+            summary = f"{'✓ 全部通过' if all_passed else '✗ 未通过'} ({passed_count}/{total}, {elapsed:.0f}ms)"
+            detail_text = summary + "\n" + "\n".join(detail_parts)
+
+            if all_passed:
+                log.info(summary + " | " + " | ".join(detail_parts))
             else:
-                rx, ry = 0, 0
-                search_area = full_gray
+                log.warning(summary + " | " + " | ".join(detail_parts))
 
-            best_score, best_loc, best_scale, best_size = multi_scale_match(
-                search_area, template
-            )
+            self.detectionFinished.emit(all_passed, detail_text, "detection")
 
-            passed = best_score >= threshold
-            if not passed:
-                all_passed = False
+        except Exception as exc:
+            self.errorOccurred.emit(str(exc))
+            log.error(f"检测失败: {exc}")
 
-            color = (0, 255, 0) if passed else (255, 0, 0)
-            tw, th = best_size
-            size_info = (
-                f"{tw}x{th}" if best_scale >= 1.0 else f"{tw}x{th}/{orig_tw}x{orig_th}"
-            )
-            result.draw_rect(
-                best_loc[0] + rx,
-                best_loc[1] + ry,
-                tw,
-                th,
-                color=color,
-                thickness=3,
-                label=f"{template_key} {best_score:.2f}",
-            )
-            detail_parts.append(
-                f"{'✓' if passed else '✗'}{template_key}: {best_score:.3f}"
-                f"@{best_scale:.2f}x ({size_info}) → ({best_loc[0] + rx},{best_loc[1] + ry})"
-            )
-            last_matches.append(
-                (template_key, best_loc[0] + rx, best_loc[1] + ry, tw, th)
-            )
+    # ========== 注册 ==========
 
-        elapsed = (time.perf_counter() - t0) * 1000
-        passed_count = sum(1 for p in detail_parts if p.startswith("✓"))
-        total = len(conditions)
-
-        timing = f" ({elapsed:.0f}ms)"
-        if all_passed:
-            log.info(
-                f"全部通过 ({passed_count}/{total}){timing} | "
-                + " | ".join(detail_parts)
-            )
-        else:
-            log.warning(
-                f"未通过 ({passed_count}/{total}){timing} | " + " | ".join(detail_parts)
-            )
-
-        return DetectionResult(
-            all_passed=all_passed,
-            passed_count=passed_count,
-            total=total,
-            elapsed_ms=elapsed,
-            detail_parts=detail_parts,
-            last_matches=last_matches,
-            result=result,
+    @Slot(str, str)
+    def registerRegion(self, selected_key: str, display_name: str) -> None:
+        """将最近一次匹配结果注册为模板区域"""
+        match = next(
+            (m for m in self._last_matches if m[0] == selected_key), None
         )
-
-    # ---------- 注册 ----------
-
-    @staticmethod
-    def register_region(
-        selected_key: str,
-        last_matches: list[tuple[str, int, int, int, int]],
-        display_name: str,
-    ) -> tuple[str, int, int, int, int] | None:
-        match = next((m for m in last_matches if m[0] == selected_key), None)
         if match is None:
-            log.warning(f"[{selected_key}] 本次未匹配成功")
-            return None
+            self.errorOccurred.emit(f"[{selected_key}] 本次未匹配成功")
+            return
 
         _, x, y, w, h = match
-        name = display_name if display_name else selected_key
+        name = display_name.strip() if display_name.strip() else selected_key
 
         entry = TemplateManager._find_entry(selected_key)
         filename = (
@@ -182,4 +245,4 @@ class ElementDetectionPresenter:
         TemplateManager.register(name, filename, (x, y, w, h))
         TemplateManager.save()
         log.info(f"[{name}] 区域已注册: ({x},{y},{w}x{h})")
-        return name, x, y, w, h
+        self.regionRegistered.emit(name, x, y, w, h)

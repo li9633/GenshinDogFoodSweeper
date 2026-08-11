@@ -112,6 +112,53 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: tabBar.currentIndex !== 3
+            selectionMode: RegionMarker.selectionMode
+
+            onRegionSelected: function(x, y, w, h) {
+                RegionMarker.setCoords(x, y, w, h)
+            }
+        }
+    }
+
+    // ============================================================
+    // 各面板 Presenter 信号 → CapturePreview
+    // ============================================================
+    Connections {
+        target: RegionMarker
+
+        function onCaptureFinished(key, x, y, w, h) {
+            preview.source = "image://preview/" + key
+            preview.infoText = "标记区域 (" + x + "," + y + "," + w + "x" + h + ")"
+            tabBar.currentIndex = 0
+        }
+         function onClearPreview() {
+            preview.source = ""
+            preview.infoText = "等待截图…"
+        }
+    }
+
+    Connections {
+        target: ElementDetection
+
+        function onDetectionFinished(allPassed, detailText, key) {
+            preview.source = "image://preview/" + key
+            preview.infoText = allPassed ? "✓ 全部通过" : "✗ 未通过"
+            tabBar.currentIndex = 1
+        }
+    }
+
+    Connections {
+        target: ArtifactRecognition
+
+        function onRecognitionFinished(ocrText, structuredText, key) {
+            preview.source = "image://preview/" + key
+            preview.infoText = "识别完成"
+            tabBar.currentIndex = 2
+        }
+
+        function onClearPreview() {
+            preview.source = ""
+            preview.infoText = "等待截图…"
         }
     }
 }

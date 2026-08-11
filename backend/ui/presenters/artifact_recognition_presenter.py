@@ -1,94 +1,118 @@
-"""圣遗物识别 Presenter — 截图 → 调用 Recognizer → 格式化展示"""
+"""圣遗物识别 Presenter — QObject 封装，供 QML 绑定
+
+截图 → OCR → Recognizer → 格式化展示。
+"""
 
 from __future__ import annotations
 
 import copy
+import json
 import time
 
 import numpy as np
+from PySide6.QtCore import Property, QObject, Signal, Slot
 
 from backend.automation.ocr_engine import OcrEngine
 from backend.automation.recognizer import ArtifactRecognizer
 from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
 
+from .image_provider import PreviewImageProvider
 
-class ArtifactRecognitionPresenter:
-    """圣遗物识别业务逻辑，不依赖任何 Qt Widget"""
 
-    def __init__(self):
+class ArtifactRecognitionPresenter(QObject):
+    """圣遗物识别 Presenter — QML 可绑定"""
+
+    # -- 信号 --
+    recognitionStarted = Signal()
+    recognitionFinished = Signal(str, str, str)
+    # ocrText, structuredText, imagePath
+    errorOccurred = Signal(str)
+    clearPreview = Signal()
+    textChanged = Signal()
+    recognizingChanged = Signal()
+
+    def __init__(self, parent: QObject | None = None):
+        super().__init__(parent)
         self._ocr_engine = OcrEngine()
         self._current_result: CaptureResult | None = None
+        self._ocr_text = ""
+        self._structured_text = ""
+        self._recognizing = False
 
-    # ---------- 截图 ----------
+    @Property(str, notify=textChanged)
+    def ocrText(self) -> str:
+        return self._ocr_text
 
-    def capture(self) -> CaptureResult:
-        cap = ScreenshotCapture()
-        self._current_result = cap.capture()
-        return self._current_result
+    @Property(str, notify=textChanged)
+    def structuredText(self) -> str:
+        return self._structured_text
 
-    # ---------- 识别 ----------
+    @Property(bool, notify=recognizingChanged)
+    def recognizing(self) -> bool:
+        return self._recognizing
 
-    def recognize(self, roi_spins: dict[str, tuple[int, int, int, int]]) -> dict:
-        """同步识别（主线程 OCR），返回 {ocr_lines, structured_lines, display_result}"""
-        t0 = time.perf_counter()
-        ocr = self._ocr_engine.get()
-        db_empty = ArtifactRecognizer.is_db_empty()
+    # ========== 识别 ==========
 
-        display = copy.copy(self._current_result)
-        display.image = self._current_result.image.copy()
+    @Slot(str)
+    def recognize(self, roi_json: str) -> None:
+        """截图 → OCR → 识别，结果通过信号返回"""
+        self._recognizing = True
+        self.recognizingChanged.emit()
+        self.recognitionStarted.emit()
 
-        artifact = ArtifactRecognizer.recognize(
-            self._current_result.image, roi_spins, ocr
-        )
-        return self._build_display_result(artifact, roi_spins, display, t0, db_empty)
+        try:
+            roi_list = json.loads(roi_json)
+            roi_spins: dict[str, tuple[int, int, int, int]] = {}
+            for item in roi_list:
+                roi_spins[item["name"]] = (
+                    int(item["x"]), int(item["y"]),
+                    int(item["w"]), int(item["h"]),
+                )
 
-    # ---------- 异步识别（供 OcrWorker 线程调用） ----------
+            cap = ScreenshotCapture()
+            self._current_result = cap.capture()
 
-    @staticmethod
-    def create_recognition_task(
-        image: np.ndarray,
-        roi_spins: dict[str, tuple[int, int, int, int]],
-    ):
-        """创建一个可在 OcrWorker 线程中执行的任务函数。
+            t0 = time.perf_counter()
+            ocr = self._ocr_engine.get()
+            db_empty = ArtifactRecognizer.is_db_empty()
 
-        Panel 只需调用此方法获取任务函数，无需了解 recognize_from_image 的签名。
-        """
-        def task(ocr):
-            return ArtifactRecognitionPresenter.recognize_from_image(
-                image, roi_spins, ocr
+            display = copy.copy(self._current_result)
+            display.image = self._current_result.image.copy()
+
+            artifact = ArtifactRecognizer.recognize(
+                self._current_result.image, roi_spins, ocr
+            )
+            result = self._build_display_result(
+                artifact, roi_spins, display, t0, db_empty
             )
 
-        return task
+            self._ocr_text = "\n".join(result["ocr_lines"])
+            self._structured_text = "\n".join(result["structured_lines"])
+            self.textChanged.emit()
 
-    @staticmethod
-    def recognize_from_image(
-        image: np.ndarray,
-        roi_configs: dict[str, tuple[int, int, int, int]],
-        ocr,
-    ) -> dict:
-        """纯计算方法：对给定图像执行完整识别流程，可在 OcrWorker 线程中调用。"""
-        import time
+            # 保存结果图（内存缓存，零 IO）
+            PreviewImageProvider.put("artifact", result["display_result"].image)
 
-        from backend.automation.recognizer import ArtifactRecognizer
-        from backend.utils.screen_capture import CaptureMethod, CaptureResult
+            self.recognitionFinished.emit(
+                self._ocr_text, self._structured_text, "artifact"
+            )
 
-        t0 = time.perf_counter()
-        db_empty = ArtifactRecognizer.is_db_empty()
+        except Exception as exc:
+            self.errorOccurred.emit(str(exc))
+        finally:
+            self._recognizing = False
+            self.recognizingChanged.emit()
 
-        display = CaptureResult(
-            image=image.copy(),
-            width=image.shape[1],
-            height=image.shape[0],
-            method=CaptureMethod.WIN32,
-            elapsed_ms=0.0,
-        )
+    @Slot()
+    def clear(self) -> None:
+        self._ocr_text = ""
+        self._structured_text = ""
+        self._current_result = None
+        self.textChanged.emit()
+        PreviewImageProvider.clear("artifact")
+        self.clearPreview.emit()
 
-        artifact = ArtifactRecognizer.recognize(image, roi_configs, ocr)
-        return ArtifactRecognitionPresenter._build_display_result(
-            artifact, roi_configs, display, t0, db_empty
-        )
-
-    # ---------- 展示结果构建 ----------
+    # ========== 展示结果构建 ==========
 
     @staticmethod
     def _build_display_result(
@@ -98,14 +122,12 @@ class ArtifactRecognitionPresenter:
         t0: float,
         db_empty: bool,
     ) -> dict:
-        """根据识别结果生成 OCR 日志、绘制 ROI 矩形、格式化结构化输出。"""
         lines: list[str] = []
         if db_empty:
             lines.append(
                 "[!] 本地圣遗物模板为空，以下为 OCR 原始识别结果，未进行匹配\n"
             )
 
-        # 生成 OCR 调试日志
         for name in roi_spins:
             if name == "圣遗物星级":
                 if artifact.rarity is not None:
@@ -117,7 +139,6 @@ class ArtifactRecognitionPresenter:
                 combined = raw if raw else "(无文本)"
                 lines.append(f"[{name}] OCR: {combined}")
 
-        # 锁定状态
         if artifact.is_locked is True:
             lines.append("[圣遗物锁定状态] 已锁定")
         elif artifact.is_locked is False:
@@ -125,7 +146,6 @@ class ArtifactRecognitionPresenter:
         else:
             lines.append("[圣遗物锁定状态] 未能识别")
 
-        # 绘制 ROI 矩形
         has_match = bool(artifact.set_name or artifact.piece_type)
         for name, (x, y, w, h) in roi_spins.items():
             color = (0, 255, 0) if has_match else (255, 165, 0)
@@ -142,8 +162,6 @@ class ArtifactRecognitionPresenter:
             "elapsed_ms": elapsed,
             "db_empty": db_empty,
         }
-
-    # ---------- 展示格式化 ----------
 
     @staticmethod
     def _format_structured(artifact) -> list[str]:

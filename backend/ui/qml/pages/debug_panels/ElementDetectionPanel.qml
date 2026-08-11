@@ -4,9 +4,12 @@ import QtQuick.Layouts
 import GenshinUI
 
 Rectangle {
+    id: root
     color: "transparent"
     Layout.fillWidth: true
     Layout.fillHeight: true
+
+    property bool detecting: false
 
     ScrollView {
         id: scrollView
@@ -55,6 +58,12 @@ Rectangle {
                                 radius: 4
                                 border.color: Theme.border
                             }
+                            onTextChanged: searchTimer.restart()
+                        }
+                        Timer {
+                            id: searchTimer
+                            interval: 300
+                            onTriggered: ElementDetection.searchTemplates(searchInput.text)
                         }
                         Button {
                             text: "⟳"
@@ -68,6 +77,7 @@ Rectangle {
                                 verticalAlignment: Text.AlignVCenter
                             }
                             background: Rectangle { color: Theme.bgTrack; radius: 4 }
+                            onClicked: ElementDetection.reloadTemplates()
                         }
                     }
 
@@ -78,7 +88,9 @@ Rectangle {
                         ComboBox {
                             id: templateCombo
                             Layout.fillWidth: true
-                            model: ["请选择模板…"]
+                            model: ElementDetection.templateList
+                            currentIndex: -1
+                            displayText: currentIndex >= 0 ? currentText : "请选择模板…"
                             background: Rectangle {
                                 color: Theme.bgTrack
                                 radius: 4
@@ -92,6 +104,7 @@ Rectangle {
                                 verticalAlignment: Text.AlignVCenter
                                 leftPadding: 8
                             }
+                            onActivated: ElementDetection.selectTemplate(currentText)
                         }
                         Text { text: "阈值:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
                         SpinBox {
@@ -104,15 +117,30 @@ Rectangle {
                         Button {
                             text: "+ 添加"
                             implicitHeight: 30
+                            enabled: templateCombo.currentIndex >= 0
                             contentItem: Text {
                                 text: parent.text
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 12
-                                color: Theme.bgPrimary
+                                color: parent.enabled ? Theme.bgPrimary : Theme.textMuted
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }
-                            background: Rectangle { color: Theme.accent; radius: Theme.radius }
+                            background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
+                            onClicked: {
+                                var key = templateCombo.currentText
+                                var th = spinThreshold.value / 100.0
+                                var rx = chkRegion.checked ? spinRx.value : 0
+                                var ry = chkRegion.checked ? spinRy.value : 0
+                                var rw = chkRegion.checked ? spinRw.value : 0
+                                var rh = chkRegion.checked ? spinRh.value : 0
+                                ElementDetection.addCondition(key, th, rx, ry, rw, rh)
+                                conditionModel.append({
+                                    "templateName": key,
+                                    "threshold": spinThreshold.value + "%",
+                                    "key": key
+                                })
+                            }
                         }
                     }
 
@@ -125,12 +153,20 @@ Rectangle {
                             color: "#2b2b2b"
                             border.color: Theme.border
                             radius: 2
+                            Image {
+                                id: templatePreview
+                                anchors.fill: parent
+                                anchors.margins: 2
+                                fillMode: Image.PreserveAspectFit
+                                visible: source != ""
+                            }
                             Text {
                                 anchors.centerIn: parent
                                 text: "无预览"
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 12
                                 color: "#888"
+                                visible: templatePreview.source == ""
                             }
                         }
 
@@ -164,18 +200,28 @@ Rectangle {
                             RowLayout {
                                 spacing: 4
                                 Button {
-                                    text: "粘贴"
-                                    implicitHeight: 26
-                                    contentItem: Text {
-                                        text: parent.text
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: 12
-                                        color: Theme.textPrimary
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
+                                        text: "粘贴"
+                                        implicitHeight: 26
+                                        contentItem: Text {
+                                            text: parent.text
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 12
+                                            color: Theme.textPrimary
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        background: Rectangle { color: Theme.bgTrack; radius: 4 }
+                                        onClicked: {
+                                            var parts = Clipboard.text().split(",")
+                                            if (parts.length >= 4) {
+                                                spinRx.value = parseInt(parts[0]) || 0
+                                                spinRy.value = parseInt(parts[1]) || 0
+                                                spinRw.value = parseInt(parts[2]) || 0
+                                                spinRh.value = parseInt(parts[3]) || 0
+                                                chkRegion.checked = true
+                                            }
+                                        }
                                     }
-                                    background: Rectangle { color: Theme.bgTrack; radius: 4 }
-                                }
                                 Item { Layout.fillWidth: true }
                             }
                         }
@@ -247,6 +293,12 @@ Rectangle {
                                 verticalAlignment: Text.AlignVCenter
                             }
                             background: Rectangle { color: Theme.bgTrack; radius: 4 }
+                            onClicked: {
+                                if (conditionList.currentIndex >= 0) {
+                                    ElementDetection.removeCondition(conditionList.currentIndex)
+                                    conditionModel.remove(conditionList.currentIndex)
+                                }
+                            }
                         }
                         Button {
                             text: "清空列表"
@@ -260,6 +312,10 @@ Rectangle {
                                 verticalAlignment: Text.AlignVCenter
                             }
                             background: Rectangle { color: Theme.bgTrack; radius: 4 }
+                            onClicked: {
+                                ElementDetection.clearConditions()
+                                conditionModel.clear()
+                            }
                         }
                         Item { Layout.fillWidth: true }
                     }
@@ -268,7 +324,9 @@ Rectangle {
 
             // ---- 检测定位按钮 ----
             Button {
-                text: "检测定位"
+                id: btnDetect
+                text: detecting ? "检测中…" : "检测定位"
+                enabled: conditionModel.count > 0 && !detecting
                 Layout.fillWidth: true
                 implicitHeight: 34
                 contentItem: Text {
@@ -276,11 +334,15 @@ Rectangle {
                     font.family: Theme.fontFamily
                     font.pixelSize: 13
                     font.bold: true
-                    color: Theme.bgPrimary
+                    color: parent.enabled ? Theme.bgPrimary : Theme.textMuted
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
-                background: Rectangle { color: Theme.accent; radius: Theme.radius }
+                background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
+                onClicked: {
+                    detecting = true
+                    ElementDetection.detect()
+                }
             }
 
             // ---- 注册区域 ----
@@ -311,8 +373,64 @@ Rectangle {
                         verticalAlignment: Text.AlignVCenter
                     }
                     background: Rectangle { color: Theme.bgTrack; radius: Theme.radius }
+                    onClicked: {
+                        if (conditionList.currentIndex >= 0) {
+                            var item = conditionModel.get(conditionList.currentIndex)
+                            ElementDetection.registerRegion(item.key, registerNameInput.text)
+                        }
+                    }
                 }
             }
+
+            // ---- 检测结果 ----
+            Text {
+                id: detectionResult
+                Layout.fillWidth: true
+                text: ""
+                font.family: Theme.fontFamily
+                font.pixelSize: 12
+                color: Theme.textSecondary
+                wrapMode: Text.WordWrap
+                visible: text !== ""
+            }
+
+            Item { Layout.fillHeight: true }
         }
     }
+
+    // ============================================================
+    // Presenter 信号连接
+    // ============================================================
+    Connections {
+        target: ElementDetection
+
+        function onTemplateSelected(key, previewPath, rx, ry, rw, rh, hasRegion) {
+            templatePreview.source = previewPath ? "file:///" + previewPath : ""
+            if (hasRegion) {
+                spinRx.value = rx
+                spinRy.value = ry
+                spinRw.value = rw
+                spinRh.value = rh
+                chkRegion.checked = true
+            }
+        }
+
+        function onDetectionFinished(allPassed, detailText, resultPath) {
+            detecting = false
+            detectionResult.text = detailText
+            console.log("[ElementDetection] " + detailText)
+        }
+
+        function onRegionRegistered(name, x, y, w, h) {
+            registerNameInput.text = ""
+            console.log("[ElementDetection] 区域已注册: " + name + " (" + x + "," + y + "," + w + "x" + h + ")")
+        }
+
+        function onErrorOccurred(msg) {
+            detecting = false
+            detectionResult.text = "错误: " + msg
+            console.log("[ElementDetection] " + msg)
+        }
+    }
+
 }
