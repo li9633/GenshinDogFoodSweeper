@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from utils.logger import log
@@ -21,12 +20,37 @@ class OcrEngine:
         self._engines_dir = engines_dir
         self._model_manager = OcrModelManager(engines_dir)
 
-        # 必须在任何 paddle 相关 import 之前设置
+    # ---------- PaddleOCR 实例创建（唯一入口） ----------
+
+    @staticmethod
+    def _create_paddle_ocr(engines_dir: Path):
+        """创建 PaddleOCR 实例。
+
+        设置所需环境变量并初始化模型。此方法可在任意线程中调用，
+        OcrEngine 和 OcrWorker 均通过此方法创建各自的 OCR 实例。
+        """
+        import os
+
         os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
         os.environ.setdefault("FLAGS_use_onednn", "False")
         os.environ.setdefault("FLAGS_use_mkldnn", "0")
         os.environ.setdefault("FLAGS_enable_pir_api", "False")
         os.environ.setdefault("PADDLEX_HOME", str(engines_dir))
+
+        from paddleocr import PaddleOCR
+
+        models_dir = engines_dir / "official_models"
+        return PaddleOCR(
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False,
+            text_detection_model_name="PP-OCRv5_mobile_det",
+            text_detection_model_dir=str(models_dir / "PP-OCRv5_mobile_det"),
+            text_recognition_model_name="PP-OCRv5_mobile_rec",
+            text_recognition_model_dir=str(models_dir / "PP-OCRv5_mobile_rec"),
+        )
+
+    # ---------- 公开 API ----------
 
     @property
     def is_ready(self) -> bool:
@@ -42,18 +66,7 @@ class OcrEngine:
             if not self._model_manager.is_ready():
                 raise RuntimeError("OCR 模型未下载，请前往「设置」页面点击「下载模型」")
 
-            from paddleocr import PaddleOCR
-
-            models_dir = self._engines_dir / "official_models"
             log.info("首次加载 OCR 引擎（3-5 秒）…")
-            OcrEngine._ocr = PaddleOCR(
-                use_doc_orientation_classify=False,
-                use_doc_unwarping=False,
-                use_textline_orientation=False,
-                text_detection_model_name="PP-OCRv5_mobile_det",
-                text_detection_model_dir=str(models_dir / "PP-OCRv5_mobile_det"),
-                text_recognition_model_name="PP-OCRv5_mobile_rec",
-                text_recognition_model_dir=str(models_dir / "PP-OCRv5_mobile_rec"),
-            )
+            OcrEngine._ocr = OcrEngine._create_paddle_ocr(self._engines_dir)
             log.info("OCR 引擎就绪")
         return OcrEngine._ocr

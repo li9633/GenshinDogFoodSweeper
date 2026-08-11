@@ -61,15 +61,8 @@ class OcrWorker(QThread):
 
     def run(self) -> None:
         """线程主循环：初始化 PaddleOCR → 处理任务队列"""
-        import os
-
-        os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
-        os.environ.setdefault("FLAGS_use_onednn", "False")
-        os.environ.setdefault("FLAGS_use_mkldnn", "0")
-        os.environ.setdefault("FLAGS_enable_pir_api", "False")
-        os.environ.setdefault("PADDLEX_HOME", str(self._engines_dir))
-
         try:
+            from backend.automation.ocr_engine import OcrEngine
             from backend.automation.ocr_model_manager import OcrModelManager
 
             model_manager = OcrModelManager(self._engines_dir)
@@ -79,19 +72,8 @@ class OcrWorker(QThread):
                 )
                 return
 
-            from paddleocr import PaddleOCR
-
-            models_dir = self._engines_dir / "official_models"
             log.info("[OcrWorker] 首次加载 OCR 引擎（3-5 秒）…")
-            self._ocr = PaddleOCR(
-                use_doc_orientation_classify=False,
-                use_doc_unwarping=False,
-                use_textline_orientation=False,
-                text_detection_model_name="PP-OCRv5_mobile_det",
-                text_detection_model_dir=str(models_dir / "PP-OCRv5_mobile_det"),
-                text_recognition_model_name="PP-OCRv5_mobile_rec",
-                text_recognition_model_dir=str(models_dir / "PP-OCRv5_mobile_rec"),
-            )
+            self._ocr = OcrEngine._create_paddle_ocr(self._engines_dir)
             log.info("[OcrWorker] OCR 引擎就绪")
             self.ready.emit()
 
