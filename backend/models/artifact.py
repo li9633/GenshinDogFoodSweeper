@@ -20,8 +20,10 @@ class ArtifactInfo:
     """圣遗物完整信息"""
 
     set_name: str | None = None
+    set_id: int | None = None
     piece_type: str | None = None
     piece_name: str | None = None
+    rarity: int | None = None
     main_stat: ArtifactStat | None = None
     sub_stats: list[ArtifactStat] = field(default_factory=list)
     level: int | None = None

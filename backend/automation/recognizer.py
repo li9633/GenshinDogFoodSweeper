@@ -13,6 +13,7 @@ from utils.logger import log
 from backend.automation.color_sampler import sample_roi_color
 from backend.automation.template_manager import TemplateManager
 from backend.automation.template_matcher import multi_scale_match
+from backend.models.artifact import ArtifactInfo
 
 
 class ArtifactRecognizer:
@@ -203,6 +204,164 @@ class ArtifactRecognizer:
         if unlocked_score > locked_score and unlocked_score > 0.6:
             return False
         return None
+
+    # ---------- 完整识别流水线 ----------
+
+    @staticmethod
+    def recognize(
+        image: np.ndarray,
+        roi_configs: dict[str, tuple[int, int, int, int]],
+        ocr,
+    ) -> ArtifactInfo:
+        """执行完整圣遗物识别流程：OCR → 匹配 → 解析 → 返回 ArtifactInfo
+
+        Args:
+            image: 截图 RGB 图像
+            roi_configs: {区域名: (x, y, w, h), ...}
+            ocr: PaddleOCR 实例
+
+        Returns:
+            ArtifactInfo: 包含所有识别结果的结构化对象
+        """
+        import time
+
+        from utils.artifact_parser import ArtifactTextParser
+
+        from backend.automation.color_sampler import sample_roi_color
+
+        t0 = time.perf_counter()
+
+        ocr_texts: dict[str, list[str]] = {}
+        matched_set_name: str | None = None
+        matched_set_id: int | None = None
+        matched_piece_type: str | None = None
+        matched_piece_name: str | None = None
+        matched_rarity: int | None = None
+        matched_set_rarities: list[str] = []
+        piece_from_set_match = False
+
+        db_empty = ArtifactRecognizer.is_db_empty()
+
+        for name, (x, y, w, h) in roi_configs.items():
+            roi = image[y : y + h, x : x + w]
+            if roi.size == 0:
+                continue
+
+            ArtifactRecognizer.save_roi_temp(roi, name)
+            ocr_result = ocr.ocr(roi)
+            texts, _ = ArtifactRecognizer._parse_ocr_result(ocr_result)
+            ocr_texts[name] = texts
+
+            if db_empty:
+                continue
+
+            if name == "圣遗物名称" and texts:
+                match = ArtifactRecognizer.match_set_name(texts[0])
+                if match:
+                    matched_set_name = match[0]
+                    matched_set_id = match[1]
+                    matched_piece_type = match[2]
+                    matched_piece_name = match[3]
+                    piece_from_set_match = match[2] is not None
+                    log.info(
+                        f"[匹配套装] OCR='{texts[0]}' → set_name='{match[0]}' "
+                        f"set_id={match[1]} piece_type={match[2]} piece_name={match[3]} "
+                        f"score={match[4]:.3f}"
+                    )
+            elif name == "部位+主词条" and texts and not piece_from_set_match:
+                for t in texts:
+                    piece = ArtifactRecognizer.match_piece_type(
+                        t, set_id=matched_set_id
+                    )
+                    if piece:
+                        matched_piece_type = piece["type"]
+                        matched_piece_name = piece["name"]
+                        break
+
+        # 星级识别
+        if not db_empty and matched_set_id is not None:
+            from database.repository.artifact_set_repo import ArtifactSetRepo
+
+            set_obj = ArtifactSetRepo.find_by_id(matched_set_id)
+            if set_obj:
+                matched_set_rarities = set_obj.rarity
+        if "圣遗物星级" in roi_configs:
+            sx, sy, sw, sh = roi_configs["圣遗物星级"]
+            star_roi = image[sy : sy + sh, sx : sx + sw]
+            if star_roi.size > 0:
+                rgb = sample_roi_color(image, sx, sy, sw, sh)
+                detected = ArtifactRecognizer.classify_rarity(rgb)
+                if detected is not None:
+                    if matched_set_rarities:
+                        if str(detected) in matched_set_rarities:
+                            matched_rarity = detected
+                    else:
+                        matched_rarity = detected
+
+        # 锁定状态
+        lock_status = ArtifactRecognizer.match_lock_status(image)
+
+        # 结构化解析
+        name_ocr = " | ".join(ocr_texts.get("圣遗物名称", []))
+        main_ocr = " | ".join(ocr_texts.get("部位+主词条", []))
+        sub_ocr = " | ".join(ocr_texts.get("副词条区", []))
+        level_ocr = " | ".join(ocr_texts.get("圣遗物等级", []))
+        lock_ocr = (
+            "锁定" if lock_status is True else ("解锁" if lock_status is False else "")
+        )
+
+        artifact = ArtifactTextParser.parse(
+            set_name=matched_set_name,
+            piece_type=matched_piece_type,
+            piece_name=matched_piece_name,
+            name_ocr=name_ocr,
+            main_ocr=main_ocr,
+            sub_ocr=sub_ocr,
+            level_ocr=level_ocr,
+            lock_ocr=lock_ocr,
+            set_id=matched_set_id,
+        )
+
+        artifact.rarity = matched_rarity
+        artifact.set_id = matched_set_id
+
+        elapsed = (time.perf_counter() - t0) * 1000
+        log.info(f"[识别完成] 耗时 {elapsed:.0f}ms")
+
+        return artifact
+
+    # ---------- OCR 结果解析 ----------
+
+    @staticmethod
+    def _parse_ocr_result(ocr_result) -> tuple[list[str], int]:
+        """解析 PaddleOCR 返回结果，提取文本列表和检测框数量"""
+        texts: list[str] = []
+        dt_count = 0
+        if ocr_result and ocr_result[0]:
+            result = ocr_result[0]
+            if isinstance(result, dict):
+                texts = [t for t in result.get("rec_texts", []) if t and t.strip()]
+                dt_count = len(result.get("dt_polys", []))
+            elif hasattr(result, "rec_texts"):
+                texts = [t for t in result.rec_texts if t and t.strip()]
+                dt_count = (
+                    len(result.dt_polys)
+                    if hasattr(result, "dt_polys") and result.dt_polys
+                    else 0
+                )
+            elif isinstance(result, list):
+                dt_count = len(result)
+                for line_info in result:
+                    if isinstance(line_info, (list, tuple)) and len(line_info) >= 2:
+                        rec = line_info[1]
+                        text = rec[0] if isinstance(rec, (list, tuple)) else str(rec)
+                    else:
+                        text = str(line_info)
+                    if text.strip():
+                        texts.append(text.strip())
+            else:
+                log.warning(f"未知 OCR 结果类型: {type(result)}")
+        return texts, dt_count
 
     # ---------- ROI 临时文件（调试用） ----------
 
