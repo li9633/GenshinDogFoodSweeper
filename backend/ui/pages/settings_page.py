@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QShowEvent
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -24,33 +24,7 @@ from utils.logger import log
 from utils.settings_manager import settings
 
 from backend.automation.ocr_model_manager import OcrModelManager
-
-
-class _SyncWorker(QThread):
-    """后台线程：执行圣遗物数据同步"""
-
-    finished_sync = pyqtSignal(int, int, int)  # (sets_count, slots_count, expected_count)
-    progress = pyqtSignal(int, int, str)  # (current, total, set_name)
-    failed = pyqtSignal(str)
-
-    def run(self) -> None:
-        from crawler.artifact_set_fetcher import ArtifactSetFetcher
-
-        try:
-            data = ArtifactSetFetcher.run_concurrent(
-                progress_callback=self.progress.emit
-            )
-            total_slots = sum(len(item.get("slots", [])) for item in data)
-            total_expected = 0
-            for item in data:
-                effects = item.get("set_effects", {})
-                if "1pc" in effects and "2pc" not in effects and "4pc" not in effects:
-                    total_expected += 1
-                else:
-                    total_expected += 5
-            self.finished_sync.emit(len(data), total_slots, total_expected)
-        except Exception as e:  # noqa: BLE001
-            self.failed.emit(str(e))
+from backend.ui.presenters.sync_worker import SyncWorker
 
 
 class SettingsPage(QWidget):
@@ -63,7 +37,7 @@ class SettingsPage(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._sync_worker: _SyncWorker | None = None
+        self._sync_worker: SyncWorker | None = None
         self._model_manager = OcrModelManager()
         self._download_worker = None
 
@@ -206,7 +180,7 @@ class SettingsPage(QWidget):
         self._label_sync_time.setText("正在同步…")
         self.sync_started.emit()
 
-        self._sync_worker = _SyncWorker()
+        self._sync_worker = SyncWorker()
         self._sync_worker.progress.connect(self._on_progress)
         self._sync_worker.progress.connect(self.sync_progress.emit)
         self._sync_worker.finished_sync.connect(self._on_sync_finished)

@@ -120,6 +120,10 @@ class MainWindow(QMainWindow):
         if running:
             self.show_status(f"后端服务已启动 → http://127.0.0.1:{port}", 3000)
 
+    def start_backend(self) -> None:
+        """启动后端 API 服务"""
+        self._backend.start()
+
     def shutdown(self):
         self._backend.stop()
 

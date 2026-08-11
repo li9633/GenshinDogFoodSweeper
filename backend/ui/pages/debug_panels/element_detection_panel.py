@@ -1,10 +1,7 @@
-"""元素定位检测面板 — 独立调试子组件"""
+"""元素定位检测面板 — View 层（仅 UI 渲染 + 简单交互）"""
 
 from __future__ import annotations
 
-import time
-
-import cv2
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
@@ -26,16 +23,18 @@ from PyQt6.QtWidgets import (
 )
 from utils.logger import log
 
-from backend.automation.template_manager import TemplateManager
-from backend.utils.screen_capture import ScreenshotCapture
+from backend.ui.presenters.element_detection_presenter import (
+    ElementDetectionPresenter,
+)
 
 
 class ElementDetectionPanel(QWidget):
-    """元素定位检测 — 模板匹配 + 可视化标记"""
+    """元素定位检测 — View 层"""
 
     def __init__(self, capture_widget: QWidget | None = None, parent=None):
         super().__init__(parent)
         self._capture_widget = capture_widget
+        self._presenter = ElementDetectionPresenter()
         self._last_matches: list[tuple[str, int, int, int, int]] = []
         self._build_ui()
         self._refresh_template_list()
@@ -58,6 +57,7 @@ class ElementDetectionPanel(QWidget):
         layout.setSpacing(4)
         content.setLayout(layout)
 
+        # 添加检测条件
         add_group = QGroupBox("添加检测条件")
         add_layout = QVBoxLayout()
         add_layout.setContentsMargins(4, 4, 4, 4)
@@ -97,9 +97,9 @@ class ElementDetectionPanel(QWidget):
         row2.addWidget(self._btn_add)
         add_layout.addLayout(row2)
 
+        # 预览 + 区域
         preview_region_row = QHBoxLayout()
         preview_region_row.setSpacing(4)
-
         self._preview_label = QLabel()
         self._preview_label.setFixedSize(100, 80)
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -111,33 +111,24 @@ class ElementDetectionPanel(QWidget):
 
         region_col = QVBoxLayout()
         region_col.setSpacing(2)
-
         region_spin_row = QHBoxLayout()
         region_spin_row.setSpacing(2)
         self._chk_region = QCheckBox("限定区域")
         region_spin_row.addWidget(self._chk_region)
-        region_spin_row.addWidget(QLabel("X:"))
-        self._spin_rx = QSpinBox()
-        self._spin_rx.setRange(0, 9999)
-        self._spin_rx.setMinimumWidth(50)
-        region_spin_row.addWidget(self._spin_rx)
-        region_spin_row.addWidget(QLabel("Y:"))
-        self._spin_ry = QSpinBox()
-        self._spin_ry.setRange(0, 9999)
-        self._spin_ry.setMinimumWidth(50)
-        region_spin_row.addWidget(self._spin_ry)
-        region_spin_row.addWidget(QLabel("W:"))
-        self._spin_rw = QSpinBox()
-        self._spin_rw.setRange(1, 9999)
+        for label_text, attr in [
+            ("X:", "_spin_rx"),
+            ("Y:", "_spin_ry"),
+            ("W:", "_spin_rw"),
+            ("H:", "_spin_rh"),
+        ]:
+            region_spin_row.addWidget(QLabel(label_text))
+            spin = QSpinBox()
+            spin.setRange(0, 9999)
+            spin.setMinimumWidth(50)
+            setattr(self, attr, spin)
+            region_spin_row.addWidget(spin)
         self._spin_rw.setValue(200)
-        self._spin_rw.setMinimumWidth(50)
-        region_spin_row.addWidget(self._spin_rw)
-        region_spin_row.addWidget(QLabel("H:"))
-        self._spin_rh = QSpinBox()
-        self._spin_rh.setRange(1, 9999)
         self._spin_rh.setValue(100)
-        self._spin_rh.setMinimumWidth(50)
-        region_spin_row.addWidget(self._spin_rh)
         region_spin_row.addStretch()
         region_col.addLayout(region_spin_row)
 
@@ -148,12 +139,11 @@ class ElementDetectionPanel(QWidget):
         region_btn_row.addWidget(self._btn_paste)
         region_btn_row.addStretch()
         region_col.addLayout(region_btn_row)
-
         preview_region_row.addLayout(region_col, stretch=1)
         add_layout.addLayout(preview_region_row)
-
         layout.addWidget(add_group)
 
+        # 条件列表
         list_group = QGroupBox("检测条件列表（全部匹配才算通过）")
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(4, 4, 4, 4)
@@ -175,7 +165,6 @@ class ElementDetectionPanel(QWidget):
         btn_row.addWidget(self._btn_clear)
         btn_row.addStretch()
         list_layout.addLayout(btn_row)
-
         layout.addWidget(list_group)
 
         self._btn_detect = QPushButton("检测定位")
@@ -200,27 +189,23 @@ class ElementDetectionPanel(QWidget):
 
     def _refresh_template_list(self, keyword: str = "") -> None:
         self._combo_template.clear()
-        templates = (
-            TemplateManager.search(keyword) if keyword else TemplateManager.list_all()
-        )
+        templates = self._presenter.list_templates(keyword)
         for key, filename in templates.items():
             self._combo_template.addItem(f"{key} ({filename})", key)
 
     def _on_refresh(self) -> None:
-        TemplateManager.reload()
+        self._presenter.reload_templates()
         self._refresh_template_list()
 
     def _on_search_changed(self, text: str) -> None:
         self._refresh_template_list(text.strip())
-
-    # ---------- 条件管理 ----------
 
     def _on_template_changed(self, _idx: int) -> None:
         key = self._combo_template.currentData()
         if not key:
             self._update_preview(None)
             return
-        region = TemplateManager.get_region(key)
+        region = self._presenter.get_template_region(key)
         if region:
             self._spin_rx.setValue(region[0])
             self._spin_ry.setValue(region[1])
@@ -235,7 +220,7 @@ class ElementDetectionPanel(QWidget):
         if key is None:
             self._preview_label.setText("无预览")
             return
-        path = TemplateManager.get_path(key)
+        path = self._presenter.get_template_path(key)
         if path is None:
             self._preview_label.setText("无文件")
             return
@@ -245,11 +230,22 @@ class ElementDetectionPanel(QWidget):
             return
         pw, ph = self._preview_label.width(), self._preview_label.height()
         scaled = pixmap.scaled(
-            pw - 6, ph - 6,
+            pw - 6,
+            ph - 6,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
         self._preview_label.setPixmap(scaled)
+
+    # ---------- 条件管理 ----------
+
+    def _get_existing_conditions(self) -> list[tuple[str, float, tuple | None]]:
+        conditions: list = []
+        for i in range(self._condition_list.count()):
+            conditions.append(
+                self._condition_list.item(i).data(Qt.ItemDataRole.UserRole)
+            )
+        return conditions
 
     def _on_paste_region(self) -> None:
         text = QApplication.clipboard().text().strip()
@@ -271,21 +267,28 @@ class ElementDetectionPanel(QWidget):
             return
         template_key = self._combo_template.currentData()
         threshold = self._spin_threshold.value()
-        region = None
-        if self._chk_region.isChecked():
-            region = (self._spin_rx.value(), self._spin_ry.value(),
-                      self._spin_rw.value(), self._spin_rh.value())
-
-        for i in range(self._condition_list.count()):
-            existing_key = self._condition_list.item(i).data(Qt.ItemDataRole.UserRole)[0]
-            if existing_key == template_key:
-                log.warning(f"模板 [{template_key}] 已在列表中")
-                return
-
-        region_text = f"区域:({region[0]},{region[1]},{region[2]}x{region[3]})" if region else "全屏"
-        item = QListWidgetItem(
-            f"{template_key}  (阈值:{threshold:.2f})  {region_text}"
+        region = (
+            (
+                self._spin_rx.value(),
+                self._spin_ry.value(),
+                self._spin_rw.value(),
+                self._spin_rh.value(),
+            )
+            if self._chk_region.isChecked()
+            else None
         )
+
+        existing = self._get_existing_conditions()
+        if self._presenter.check_duplicate(existing, template_key):
+            log.warning(f"模板 [{template_key}] 已在列表中")
+            return
+
+        region_text = (
+            f"区域:({region[0]},{region[1]},{region[2]}x{region[3]})"
+            if region
+            else "全屏"
+        )
+        item = QListWidgetItem(f"{template_key}  (阈值:{threshold:.2f})  {region_text}")
         item.setData(Qt.ItemDataRole.UserRole, (template_key, threshold, region))
         self._condition_list.addItem(item)
         log.info(f"已添加 [{template_key}]，共 {self._condition_list.count()} 个条件")
@@ -299,7 +302,7 @@ class ElementDetectionPanel(QWidget):
         self._condition_list.clear()
         log.info("已清除所有条件")
 
-    # ---------- 检测逻辑 ----------
+    # ---------- 检测 ----------
 
     def _on_detect(self) -> None:
         if self._condition_list.count() == 0:
@@ -309,105 +312,29 @@ class ElementDetectionPanel(QWidget):
             log.error("截图预览组件未初始化")
             return
 
-        conditions: list[tuple[str, float, tuple[int, int, int, int] | None]] = []
-        for i in range(self._condition_list.count()):
-            conditions.append(
-                self._condition_list.item(i).data(Qt.ItemDataRole.UserRole)
-            )
-
         self._btn_detect.setEnabled(False)
         self._btn_detect.setText("检测中…")
 
         try:
-            cap = ScreenshotCapture()
-            result = cap.capture()
-            full_gray = cv2.cvtColor(result.image, cv2.COLOR_RGB2GRAY)
+            result = self._presenter.detect(self._get_existing_conditions())
+            self._last_matches = result.last_matches
 
-            t0 = time.perf_counter()
-            all_passed = True
-            detail_parts: list[str] = []
-            self._last_matches.clear()
-
-            for template_key, threshold, region in conditions:
-                template_path = TemplateManager.get_path(template_key)
-                if template_path is None:
-                    detail_parts.append(f"{template_key}: 文件不存在")
-                    all_passed = False
-                    continue
-
-                template = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
-                if template is None:
-                    detail_parts.append(f"{template_key}: 加载失败")
-                    all_passed = False
-                    continue
-
-                orig_th, orig_tw = template.shape
-
-                if region:
-                    rx, ry, rw, rh = region
-                    search_area = full_gray[ry:ry + rh, rx:rx + rw]
-                    if search_area.size == 0:
-                        detail_parts.append(f"{template_key}: 搜索区域无效")
-                        all_passed = False
-                        continue
-                else:
-                    rx, ry = 0, 0
-                    search_area = full_gray
-
-                best_score, best_loc, best_scale, best_size = \
-                    self._multi_scale_match(search_area, template)
-
-                passed = best_score >= threshold
-                if not passed:
-                    all_passed = False
-
-                color = (0, 255, 0) if passed else (255, 0, 0)
-                tw, th = best_size
-                if best_scale >= 1.0:
-                    size_info = f"{tw}x{th}"
-                else:
-                    size_info = f"{tw}x{th}/{orig_tw}x{orig_th}"
-                result.draw_rect(
-                    best_loc[0] + rx, best_loc[1] + ry, tw, th,
-                    color=color, thickness=3,
-                    label=f"{template_key} {best_score:.2f}",
-                )
-                detail_parts.append(
-                    f"{'✓' if passed else '✗'}{template_key}: {best_score:.3f}@{best_scale:.2f}x ({size_info}) → ({best_loc[0] + rx},{best_loc[1] + ry})"
-                )
-
-                self._last_matches.append(
-                    (template_key, best_loc[0] + rx, best_loc[1] + ry, tw, th)
-                )
-
-            elapsed = (time.perf_counter() - t0) * 1000
-
-            passed_count = sum(1 for p in detail_parts if p.startswith("✓"))
-            total = len(conditions)
-
-            timing = f" ({elapsed:.0f}ms)"
-            if all_passed:
-                log.info(
-                    f"全部通过 ({passed_count}/{total}){timing} | "
-                    + " | ".join(detail_parts)
-                )
-            else:
-                log.warning(
-                    f"未通过 ({passed_count}/{total}){timing} | "
-                    + " | ".join(detail_parts)
-                )
-
-            pixmap = result.to_qpixmap()
-            status = "✓ 全部通过" if all_passed else f"✗ {passed_count}/{total}"
+            pixmap = result.result.to_qpixmap()
+            status = (
+                "✓ 全部通过"
+                if result.all_passed
+                else f"✗ {result.passed_count}/{result.total}"
+            )
             self._capture_widget.display_pixmap(pixmap, f"检测: {status}")
-
         except RuntimeError as e:
             log.error(f"截图失败: {e}")
         finally:
             self._btn_detect.setEnabled(True)
             self._btn_detect.setText("检测定位")
 
-    def _on_condition_selected(self, current: QListWidgetItem | None, _prev: QListWidgetItem | None) -> None:
+    def _on_condition_selected(
+        self, current: QListWidgetItem | None, _prev: QListWidgetItem | None
+    ) -> None:
         if current is None:
             return
         key = current.data(Qt.ItemDataRole.UserRole)[0]
@@ -424,26 +351,15 @@ class ElementDetectionPanel(QWidget):
             return
 
         selected_key = selected.data(Qt.ItemDataRole.UserRole)[0]
+        display_name = self._edit_display_name.text().strip()
 
-        match = next(
-            (m for m in self._last_matches if m[0] == selected_key), None
+        result = self._presenter.register_region(
+            selected_key, self._last_matches, display_name
         )
-        if match is None:
-            log.warning(f"[{selected_key}] 本次未匹配成功")
+        if result is None:
             return
 
-        _, x, y, w, h = match
-        display_name = self._edit_display_name.text().strip()
-        name = display_name if display_name else selected_key
-
-        entry = TemplateManager._find_entry(selected_key)
-        filename = str(entry["file"]) if entry and entry.get("file") else f"images/{selected_key}.png"
-        TemplateManager.register(name, filename, (x, y, w, h))
-
-        TemplateManager.save()
         self._edit_display_name.clear()
-        log.info(f"[{name}] 区域已注册: ({x},{y},{w}x{h})")
-
         self._refresh_template_list()
         if self._capture_widget is not None:
             self._capture_widget.clear()
