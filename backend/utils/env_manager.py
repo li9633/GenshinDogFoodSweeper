@@ -9,13 +9,29 @@ from __future__ import annotations
 
 import os
 
+from PySide6.QtCore import Property, QObject, Signal
 
-class EnvManager:
-    """环境变量管理器"""
+
+class EnvManager(QObject):
+    """环境变量管理器 — QObject 实现，可直接暴露给 QML"""
+
+    # ---------- 信号 ----------
+
+    debugChanged = Signal()
 
     # ---------- 环境变量键名 ----------
 
     DEBUG_KEY = "GDFS_DEBUG_MODE"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    # ---------- QML 属性 ----------
+
+    @Property(bool, notify=debugChanged)
+    def isDebug(self) -> bool:
+        """QML 绑定: EnvManager.isDebug"""
+        return self.is_debug()
 
     # ---------- 通用方法 ----------
 

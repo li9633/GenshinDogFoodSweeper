@@ -1,0 +1,140 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import GenshinUI
+import "components"
+import "pages"
+
+ApplicationWindow {
+    id: root
+    visible: true
+    width: 1200
+    height: 800
+    minimumWidth: 900
+    minimumHeight: 600
+    color: Theme.bgPrimary
+    title: EnvManager.isDebug
+           ? "原神狗粮清扫器（调试模式）"
+           : "原神狗粮清扫器"
+
+    // ============================================================
+    // 主布局：侧边栏 + 内容区
+    // ============================================================
+    Component.onCompleted: {
+        Theme.isDark = SettingsPresenter.currentTheme === "dark"
+    }
+
+    RowLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        // -- 左侧导航栏 --
+        Sidebar {
+            id: sidebar
+            Layout.preferredWidth: 180
+            Layout.fillHeight: true
+            currentKey: "dogfood"
+
+            onPageSelected: function(key) {
+                sidebar.currentKey = key
+                stackView.replace(null, getPageComponent(key), StackView.Immediate)
+            }
+        }
+
+        // -- 分割线 --
+        Rectangle {
+            Layout.preferredWidth: 1
+            Layout.fillHeight: true
+            color: Theme.border
+        }
+
+        // -- 右侧内容区 --
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 0
+
+            // 顶部工具栏
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 48
+                color: "transparent"
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 16
+
+                    Text {
+                        text: "原神狗粮清扫器"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 16
+                        font.bold: true
+                        color: Theme.accent
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    // 主题切换
+                    Switch {
+                        id: themeSwitch
+                        checked: SettingsPresenter.currentTheme === "dark"
+                        onCheckedChanged: SettingsPresenter.setTheme(checked ? "dark" : "light")
+                    }
+
+                    Text {
+                        text: Theme.isDark ? "🌙" : "☀"
+                        font.pixelSize: 14
+                    }
+                }
+            }
+
+            // 分割线
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: Theme.border
+            }
+
+            // 页面容器
+            StackView {
+                id: stackView
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                initialItem: dogfoodPage
+            }
+        }
+    }
+
+    // ============================================================
+    // 页面组件工厂
+    // ============================================================
+    function getPageComponent(key) {
+        switch (key) {
+            case "dogfood":  return dogfoodPage
+            case "scanner":  return scannerPage
+            case "locker":   return lockerPage
+            case "rules":    return rulesPage
+            case "settings": return settingsPage
+            case "debug":    return debugPage
+            default:         return dogfoodPage
+        }
+    }
+
+    Component { id: dogfoodPage;  DogfoodPage {} }
+    Component { id: scannerPage;  ScannerPage {} }
+    Component { id: lockerPage;   LockerPage {} }
+    Component { id: rulesPage;    RulesPage {} }
+    Component { id: settingsPage; SettingsPage {} }
+    Component { id: debugPage;    DebugPage {} }
+
+    // ============================================================
+    // 主题同步：SettingsPresenter.themeChanged → Theme.isDark
+    // ============================================================
+    Connections {
+        target: SettingsPresenter
+        function onThemeChanged(theme) {
+            Theme.isDark = theme === "dark"
+        }
+    }
+}

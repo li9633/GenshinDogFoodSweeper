@@ -176,7 +176,7 @@ class ArtifactRecognitionPanel(QWidget):
             from backend.automation.ocr_worker import OcrWorker
 
             task_fn = ArtifactRecognitionPresenter.create_recognition_task(
-                image, roi_values
+                image, roi_values#$
             )
             worker = OcrWorker.instance()
             worker.submit(task_fn, callback_data=capture)

@@ -34,6 +34,7 @@ class SettingsManager:
             "last_sync_ts": "0",
             "last_sync_sets": "0",
             "last_sync_pieces": "0",
+            "last_sync_expected": "0",
         },
     }
 
