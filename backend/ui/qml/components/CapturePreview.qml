@@ -52,18 +52,9 @@ Rectangle {
 
             Item { Layout.fillWidth: true }
 
-            Button {
+            GButton {
                 text: "-"
                 implicitWidth: 28; implicitHeight: 24
-                contentItem: Text {
-                    text: parent.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                    color: Theme.textPrimary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle { color: Theme.bgSecondary; radius: 4 }
                 onClicked: zoomOut()
             }
 
@@ -76,33 +67,15 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            Button {
+            GButton {
                 text: "+"
                 implicitWidth: 28; implicitHeight: 24
-                contentItem: Text {
-                    text: parent.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                    color: Theme.textPrimary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle { color: Theme.bgSecondary; radius: 4 }
                 onClicked: zoomIn()
             }
 
-            Button {
+            GButton {
                 text: "适应"
                 implicitWidth: 44; implicitHeight: 24
-                contentItem: Text {
-                    text: parent.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 12
-                    color: Theme.textPrimary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle { color: Theme.bgSecondary; radius: 4 }
                 onClicked: zoomFit()
             }
 

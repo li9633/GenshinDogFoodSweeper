@@ -49,17 +49,10 @@ Rectangle {
                 visible: roiExpanded
                 spacing: 4
 
-                CheckBox {
+                GCheckBox {
                     id: chkEditRoi
                     text: "编辑 ROI"
                     checked: roiEditable
-                    contentItem: Text {
-                        text: parent.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textSecondary
-                        verticalAlignment: Text.AlignVCenter
-                    }
                     onCheckedChanged: roiEditable = checked
                 }
 
@@ -77,28 +70,28 @@ Rectangle {
                             Layout.preferredWidth: 80
                         }
                         Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                        SpinBox {
+                        GSpinBox {
                             Layout.preferredWidth: 55
                             from: 0; to: 9999
                             value: modelData.dx
                             enabled: roiEditable
                         }
                         Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                        SpinBox {
+                        GSpinBox {
                             Layout.preferredWidth: 55
                             from: 0; to: 9999
                             value: modelData.dy
                             enabled: roiEditable
                         }
                         Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                        SpinBox {
+                        GSpinBox {
                             Layout.preferredWidth: 55
                             from: 0; to: 9999
                             value: modelData.dw
                             enabled: roiEditable
                         }
                         Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                        SpinBox {
+                        GSpinBox {
                             Layout.preferredWidth: 55
                             from: 0; to: 9999
                             value: modelData.dh
@@ -194,38 +187,21 @@ Rectangle {
             RowLayout {
                 spacing: 8
 
-                Button {
+                GButton {
                     id: btnCapture
                     text: ArtifactRecognition.recognizing ? "识别中…" : "截图并识别"
+                    colorType: "primary"
                     enabled: !ArtifactRecognition.recognizing
                     implicitHeight: 34
                     Layout.fillWidth: true
-                    contentItem: Text {
-                        text: parent.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 13
-                        font.bold: true
-                        color: parent.enabled ? Theme.bgPrimary : Theme.textMuted
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
                     onClicked: ArtifactRecognition.recognize()
                 }
 
-                Button {
+                GButton {
                     text: "清除"
+                    colorType: "default"
                     implicitHeight: 34
                     implicitWidth: 80
-                    contentItem: Text {
-                        text: parent.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 13
-                        color: Theme.textPrimary
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle { color: Theme.bgTrack; radius: Theme.radius }
                     onClicked: {
                         ArtifactRecognition.clear()
                         ocrResultText.text = ""

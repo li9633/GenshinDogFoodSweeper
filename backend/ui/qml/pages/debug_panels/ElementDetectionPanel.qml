@@ -107,26 +107,17 @@ Rectangle {
                             onActivated: ElementDetection.selectTemplate(templateCombo.currentValue)
                         }
                         Text { text: "阈值:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                        SpinBox {
+                        GSpinBox {
                             id: spinThreshold
                             Layout.preferredWidth: 70
                             from: 0; to: 100
                             value: 80
                             editable: true
                         }
-                        Button {
+                        GButton {
                             text: "+ 添加"
-                            implicitHeight: 30
+                            colorType: "primary"
                             enabled: templateCombo.currentIndex >= 0
-                            contentItem: Text {
-                                text: parent.text
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 12
-                                color: parent.enabled ? Theme.bgPrimary : Theme.textMuted
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
                             onClicked: {
                                 var item = templateCombo.model[templateCombo.currentIndex]
                                 var key = item.name
@@ -172,41 +163,26 @@ Rectangle {
 
                             RowLayout {
                                 spacing: 2
-                                CheckBox {
+                                GCheckBox {
                                     id: chkRegion
                                     text: "限定区域"
-                                    contentItem: Text {
-                                        text: parent.text
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: 12
-                                        color: Theme.textPrimary
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
                                 }
                                 Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                                SpinBox { id: spinRx; Layout.preferredWidth: 55; from: 0; to: 9999 }
+                                GSpinBox { id: spinRx; Layout.preferredWidth: 55; from: 0; to: 9999 }
                                 Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                                SpinBox { id: spinRy; Layout.preferredWidth: 55; from: 0; to: 9999 }
+                                GSpinBox { id: spinRy; Layout.preferredWidth: 55; from: 0; to: 9999 }
                                 Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                                SpinBox { id: spinRw; Layout.preferredWidth: 55; from: 0; to: 9999; value: 200 }
+                                GSpinBox { id: spinRw; Layout.preferredWidth: 55; from: 0; to: 9999; value: 200 }
                                 Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                                SpinBox { id: spinRh; Layout.preferredWidth: 55; from: 0; to: 9999; value: 100 }
+                                GSpinBox { id: spinRh; Layout.preferredWidth: 55; from: 0; to: 9999; value: 100 }
                             }
 
                             RowLayout {
                                 spacing: 4
-                                Button {
+                                GButton {
                                         text: "粘贴"
+                                        colorType: "default"
                                         implicitHeight: 26
-                                        contentItem: Text {
-                                            text: parent.text
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: 12
-                                            color: Theme.textPrimary
-                                            horizontalAlignment: Text.AlignHCenter
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-                                        background: Rectangle { color: Theme.bgTrack; radius: 4 }
                                         onClicked: {
                                             var parts = Clipboard.text().split(",")
                                             if (parts.length >= 4) {
@@ -279,36 +255,20 @@ Rectangle {
 
                     RowLayout {
                         spacing: 4
-                        Button {
+                        GButton {
                             text: "移除选中"
+                            colorType: "default"
                             implicitHeight: 26
-                            contentItem: Text {
-                                text: parent.text
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 12
-                                color: Theme.textPrimary
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle { color: Theme.bgTrack; radius: 4 }
                             onClicked: {
                                 if (conditionList.currentIndex >= 0) {
                                     ElementDetection.removeCondition(conditionList.currentIndex)
                                 }
                             }
                         }
-                        Button {
+                        GButton {
                             text: "清空列表"
+                            colorType: "danger"
                             implicitHeight: 26
-                            contentItem: Text {
-                                text: parent.text
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 12
-                                color: Theme.danger
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle { color: Theme.bgTrack; radius: 4 }
                             onClicked: ElementDetection.clearConditions()
                         }
                         Item { Layout.fillWidth: true }
@@ -317,22 +277,13 @@ Rectangle {
             }
 
             // ---- 检测定位按钮 ----
-            Button {
+            GButton {
                 id: btnDetect
                 text: ElementDetection.detecting ? "检测中…" : "检测定位"
+                colorType: "primary"
                 enabled: ElementDetection.conditionCount > 0 && !ElementDetection.detecting
                 Layout.fillWidth: true
                 implicitHeight: 34
-                contentItem: Text {
-                    text: parent.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    font.bold: true
-                    color: parent.enabled ? Theme.bgPrimary : Theme.textMuted
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
                 onClicked: {
                     ElementDetection.detect()
                 }
@@ -354,18 +305,10 @@ Rectangle {
                         border.color: Theme.border
                     }
                 }
-                Button {
+                GButton {
                     text: "注册区域"
+                    colorType: "default"
                     implicitHeight: 30
-                    contentItem: Text {
-                        text: parent.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textPrimary
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle { color: Theme.bgTrack; radius: Theme.radius }
                     onClicked: {
                         if (conditionList.currentIndex >= 0) {
                             var item = ElementDetection.conditions[conditionList.currentIndex]

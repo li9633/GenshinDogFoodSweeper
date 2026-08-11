@@ -24,16 +24,16 @@ Rectangle {
                 spacing: 6
 
                 Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                SpinBox { id: spinX; Layout.preferredWidth: 70; from: 0; to: 9999; value: RegionMarker.regionX; onValueChanged: RegionMarker.setCoords(value, spinY.value, spinW.value, spinH.value) }
+                GSpinBox { id: spinX; Layout.preferredWidth: 70; from: 0; to: 9999; value: RegionMarker.regionX; onValueChanged: RegionMarker.setCoords(value, spinY.value, spinW.value, spinH.value) }
 
                 Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                SpinBox { id: spinY; Layout.preferredWidth: 70; from: 0; to: 9999; value: RegionMarker.regionY; onValueChanged: RegionMarker.setCoords(spinX.value, value, spinW.value, spinH.value) }
+                GSpinBox { id: spinY; Layout.preferredWidth: 70; from: 0; to: 9999; value: RegionMarker.regionY; onValueChanged: RegionMarker.setCoords(spinX.value, value, spinW.value, spinH.value) }
 
                 Text { text: "宽:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                SpinBox { id: spinW; Layout.preferredWidth: 70; from: 1; to: 9999; value: RegionMarker.regionW; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, value, spinH.value) }
+                GSpinBox { id: spinW; Layout.preferredWidth: 70; from: 1; to: 9999; value: RegionMarker.regionW; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, value, spinH.value) }
 
                 Text { text: "高:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                SpinBox { id: spinH; Layout.preferredWidth: 70; from: 1; to: 9999; value: RegionMarker.regionH; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, spinW.value, value) }
+                GSpinBox { id: spinH; Layout.preferredWidth: 70; from: 1; to: 9999; value: RegionMarker.regionH; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, spinW.value, value) }
             }
 
             // ---- 保存模板 ----
@@ -54,18 +54,10 @@ Rectangle {
                         border.color: Theme.border
                     }
                 }
-                Button {
+                GButton {
                     text: "保存为模板"
+                    colorType: "primary"
                     implicitHeight: 30
-                    contentItem: Text {
-                        text: parent.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.bgPrimary
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle { color: Theme.accent; radius: Theme.radius }
                     onClicked: {
                         if (filenameInput.text.trim() === "") {
                             return
@@ -79,78 +71,43 @@ Rectangle {
             RowLayout {
                 spacing: 6
 
-                Button {
+                GButton {
                     id: btnMark
                     text: RegionMarker.marking ? "截图中…" : "截图并标记"
+                    colorType: "primary"
                     enabled: !RegionMarker.marking
                     implicitHeight: 30
-                    contentItem: Text {
-                        text: parent.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: parent.enabled ? Theme.bgPrimary : Theme.textMuted
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
                     onClicked: {
                         marking = true
                         RegionMarker.mark()
                     }
                 }
 
-                Button {
+                GButton {
                     id: btnSelect
                     checkable: true
                     checked: RegionMarker.selectionMode
                     text: checked ? "选区中…" : "选区模式"
+                    colorType: checked ? "primary" : "default"
                     implicitHeight: 30
-                    contentItem: Text {
-                        text: parent.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: parent.checked ? Theme.bgPrimary : Theme.textPrimary
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle {
-                        color: parent.checked ? Theme.accent : Theme.bgTrack
-                        radius: Theme.radius
-                    }
                     onToggled: {
                         RegionMarker.selectionMode = checked
                     }
                 }
 
-                Button {
+                GButton {
                     text: "复制坐标"
+                    colorType: "default"
                     implicitHeight: 30
-                    contentItem: Text {
-                        text: parent.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textPrimary
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle { color: Theme.bgTrack; radius: Theme.radius }
                     onClicked: {
                         RegionMarker.copyCoords()
                     }
                 }
 
-                Button {
+                GButton {
                     text: "清除"
+                    colorType: "default"
                     implicitHeight: 30
-                    contentItem: Text {
-                        text: parent.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textPrimary
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle { color: Theme.bgTrack; radius: Theme.radius }
                     onClicked: RegionMarker.clear()
                 }
 
@@ -161,20 +118,12 @@ Rectangle {
             RowLayout {
                 spacing: 8
 
-                Button {
+                GButton {
                     id: btnColor
                     text: RegionMarker.extracting ? "提取中…" : "提取颜色"
+                    colorType: "primary"
                     enabled: !RegionMarker.extracting
                     implicitHeight: 30
-                    contentItem: Text {
-                        text: parent.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: parent.enabled ? Theme.bgPrimary : Theme.textMuted
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
                     onClicked: {
                         extracting = true
                         RegionMarker.extractColor()

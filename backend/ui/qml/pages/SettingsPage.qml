@@ -126,22 +126,10 @@ Rectangle {
                     RowLayout {
                         spacing: 12
 
-                        Button {
+                        GButton {
                             text: syncing ? "同步中…" : "立即同步"
+                            colorType: "primary"
                             enabled: !syncing
-
-                            contentItem: Text {
-                                text: parent.text
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 13
-                                color: parent.enabled ? Theme.bgPrimary : Theme.textMuted
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                color: parent.enabled ? Theme.accent : Theme.bgTrack
-                                radius: 4
-                            }
                             onClicked: {
                                 syncing = true
                                 SettingsPresenter.startSync()
@@ -228,24 +216,12 @@ Rectangle {
                     RowLayout {
                         spacing: 12
 
-                        Button {
+                        GButton {
                             text: downloading ? "下载中…"
                                  : SettingsPresenter.modelReady ? "重新下载"
                                  : "下载模型"
+                            colorType: "primary"
                             enabled: !downloading
-
-                            contentItem: Text {
-                                text: parent.text
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 13
-                                color: parent.enabled ? Theme.bgPrimary : Theme.textMuted
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                color: parent.enabled ? Theme.accent : Theme.bgTrack
-                                radius: 4
-                            }
                             onClicked: {
                                 downloading = true
                                 SettingsPresenter.downloadModels()
