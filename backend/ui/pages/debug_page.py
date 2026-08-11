@@ -2,6 +2,8 @@
 调试页面
 ========
 Tab 式布局，上半部分为工具面板的 Tab 切换区，下半部分为共享预览区。
+
+本页面自包含所有调试面板的创建和管理，外部只需传入共享的截图预览组件。
 """
 
 from __future__ import annotations
@@ -16,11 +18,15 @@ from PyQt6.QtWidgets import (
 
 
 class DebugPage(QWidget):
-    """调试页面 — Tab 切换 + 底部共享预览"""
+    """调试页面 — Tab 切换 + 底部共享预览
+
+    在 __init__ 中完成所有子面板的创建和注册，
+    外部（MainWindow）只需传入 capture_widget 即可。
+    """
 
     _PREVIEW_TABS: ClassVar[set[int]] = set()
 
-    def __init__(self, parent=None):
+    def __init__(self, capture_widget: QWidget, parent=None):
         super().__init__(parent)
 
         outer = QVBoxLayout(self)
@@ -35,6 +41,31 @@ class DebugPage(QWidget):
         self._preview_layout.setContentsMargins(0, 0, 0, 0)
         self._preview_container.setVisible(False)
         outer.addWidget(self._preview_container, stretch=1)
+
+        self._init_panels(capture_widget)
+        self.set_preview(capture_widget)
+
+    def _init_panels(self, capture_widget: QWidget) -> None:
+        """创建并注册所有调试面板"""
+        from .debug_panels.artifact_recognition_panel import (
+            ArtifactRecognitionPanel,
+        )
+        from .debug_panels.element_detection_panel import (
+            ElementDetectionPanel,
+        )
+        from .debug_panels.region_marker_panel import RegionMarkerPanel
+        from .debug_panels.status_bar_test_panel import StatusBarTestPanel
+
+        self.add_tab(
+            RegionMarkerPanel(capture_widget), "区域标记", show_preview=True
+        )
+        self.add_tab(
+            ElementDetectionPanel(capture_widget), "元素定位", show_preview=True
+        )
+        self.add_tab(
+            ArtifactRecognitionPanel(capture_widget), "圣遗物识别", show_preview=True
+        )
+        self.add_tab(StatusBarTestPanel(), "状态栏")
 
     def add_tab(self, panel: QWidget, tab_name: str, show_preview: bool = False) -> None:
         """注册一个工具面板为独立 Tab"""
