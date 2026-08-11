@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 from utils.logger import log
 
+from backend.automation.color_sampler import sample_roi_color
 from backend.automation.template_manager import TemplateManager
 from backend.utils.screen_capture import ScreenshotCapture
 
@@ -173,52 +174,6 @@ class RegionMarkerPanel(QGroupBox):
 
     # ---------- 颜色提取 ----------
 
-    @staticmethod
-    def _sample_roi_color(image, x: int, y: int, w: int, h: int) -> tuple[int, int, int]:
-        """
-        提取 ROI 区域的主色调（RGB）。
-
-        采样策略：取 ROI 中心 65% 区域，降采样后用 K-Means 聚类找主色，
-        避免边缘干扰和文字噪声。
-        """
-        roi = image[y:y + h, x:x + w]
-        if roi.size == 0:
-            return (0, 0, 0)
-        ch, cw = int(h * 0.65), int(w * 0.65)
-        cy, cx = (h - ch) // 2, (w - cw) // 2
-        center = roi[cy:cy + ch, cx:cx + cw]
-        pixels = center[::2, ::2].reshape(-1, 3).astype(np.float32)
-        if len(pixels) < 3:
-            return (0, 0, 0)
-        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-        _, labels, centers = cv2.kmeans(
-            pixels, 3, None, criteria, 3, cv2.KMEANS_PP_CENTERS
-        )
-        label_counts = np.bincount(labels.flatten())
-        dominant = centers[np.argmax(label_counts)]
-        return tuple(round(c) for c in dominant)
-
-    # 各星级实测背景色（RGB）
-    RARITY_COLORS: tuple[tuple[int, int, int], ...] = (
-        (113, 118, 138),  # 1★ #71768A
-        (42, 143, 114),   # 2★ #2A8F72
-        (81, 127, 203),   # 3★ #517FCB
-        (161, 86, 224),   # 4★ #A156E0
-        (188, 105, 50),   # 5★ #BC6932
-    )
-
-    @classmethod
-    def classify_rarity(cls, rgb: tuple[int, int, int]) -> int | None:
-        """根据实测背景色用 RGB 欧氏距离判定星级（1~5），距离过远返回 None。"""
-        best_star = None
-        best_dist = float("inf")
-        for i, ref in enumerate(cls.RARITY_COLORS):
-            dist = sum((a - b) ** 2 for a, b in zip(rgb, ref)) ** 0.5
-            if dist < best_dist:
-                best_dist = dist
-                best_star = i + 1
-        return best_star if best_dist < 80 else None
-
     def _on_extract_color(self) -> None:
         """截图并提取当前 ROI 区域的主色调"""
         x, y = self._spin_x.value(), self._spin_y.value()
@@ -229,7 +184,7 @@ class RegionMarkerPanel(QGroupBox):
         try:
             cap = ScreenshotCapture()
             result = cap.capture()
-            rgb = self._sample_roi_color(result.image, x, y, w, h)
+            rgb = sample_roi_color(result.image, x, y, w, h)
             r, g, b = rgb
             hsv = cv2.cvtColor(np.uint8([[[r, g, b]]]), cv2.COLOR_RGB2HSV)[0][0]
             self._color_swatch.setStyleSheet(
