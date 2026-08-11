@@ -271,15 +271,37 @@ Rectangle {
     Connections {
         target: ArtifactRecognition
 
-        function onRecognitionFinished(ocrText, structuredText, imagePath) {
+        function onRecognitionFinished(ocrText, structuredText, imagePath, dbEmpty) {
             ocrResultText.text = ocrText
             structuredResultText.text = structuredText
             console.log("[ArtifactRecognition] 识别完成, 耗时图: " + imagePath)
+            if (dbEmpty) {
+                dbEmptyDialog.open()
+            }
         }
 
         function onErrorOccurred(msg) {
             ocrResultText.text = "错误: " + msg
             console.log("[ArtifactRecognition] " + msg)
+        }
+    }
+
+    // ---- 数据库为空警告对话框 ----
+    Dialog {
+        id: dbEmptyDialog
+        title: "本地圣遗物模板为空"
+        modal: true
+        standardButtons: Dialog.Ok
+        anchors.centerIn: parent
+
+        Text {
+            text: "数据库中暂无圣遗物套装数据，将仅显示 OCR 识别结果，不进行匹配。\n\n" +
+                  "请前往[设置]页面，点击「圣遗物同步」拉取最新圣遗物数据。"
+            font.family: Theme.fontFamily
+            font.pixelSize: 13
+            color: Theme.textPrimary
+            wrapMode: Text.WordWrap
+            width: 320
         }
     }
 }

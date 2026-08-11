@@ -24,7 +24,7 @@ class ArtifactRecognitionPresenter(QObject):
 
     # -- 信号 --
     recognitionStarted = Signal()
-    recognitionFinished = Signal(str, str, str)
+    recognitionFinished = Signal(str, str, str, bool)
     # ocrText, structuredText, imagePath
     errorOccurred = Signal(str)
     clearPreview = Signal()
@@ -94,7 +94,7 @@ class ArtifactRecognitionPresenter(QObject):
             PreviewImageProvider.put("artifact", result["display_result"].image)
 
             self.recognitionFinished.emit(
-                self._ocr_text, self._structured_text, "artifact"
+                self._ocr_text, self._structured_text, "artifact", db_empty
             )
 
         except Exception as exc:

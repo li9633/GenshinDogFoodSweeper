@@ -11,7 +11,7 @@ Rectangle {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "规则预设"
+            text: "圣遗物清理规则预设"
             font.family: Theme.fontFamily
             font.pixelSize: 22
             font.bold: true
@@ -20,7 +20,7 @@ Rectangle {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "规则预设功能将在后续版本实现"
+            text: "自定义圣遗物清理规则，将在后续版本实现"
             font.family: Theme.fontFamily
             font.pixelSize: 14
             color: Theme.textSecondary

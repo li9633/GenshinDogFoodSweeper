@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 from PySide6.QtCore import Property, QObject, Signal, Slot
@@ -37,6 +38,7 @@ class ElementDetectionPresenter(QObject):
 
     # -- 信号 --
     templatesChanged = Signal()
+    conditionsChanged = Signal()
     templateSelected = Signal(str, str, int, int, int, int, bool)
     # key, previewPath, rx, ry, rw, rh, hasRegion
     detectionFinished = Signal(bool, str, str)
@@ -47,7 +49,8 @@ class ElementDetectionPresenter(QObject):
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._template_list: list[str] = []
+        self._template_list: list[dict] = []
+        self._template_file_map: dict[str, str] = {}
         self._conditions: list[dict] = []
         self._last_matches: list[tuple[str, int, int, int, int]] = []
         self._refresh_templates()
@@ -56,12 +59,23 @@ class ElementDetectionPresenter(QObject):
 
     def _refresh_templates(self, keyword: str = "") -> None:
         d = TemplateManager.search(keyword) if keyword else TemplateManager.list_all()
-        self._template_list = list(d.keys())
+        self._template_list = [
+            {"name": name, "fileName": Path(path).name, "displayText": f"{name}({Path(path).name})"}
+            for name, path in d.items()
+        ]
+        self._template_file_map = {name: Path(path).name for name, path in d.items()}
         self.templatesChanged.emit()
 
-    @Property("QStringList", notify=templatesChanged)
-    def templateList(self) -> list[str]:
+    @Property(list, notify=templatesChanged)
+    def templateList(self) -> list[dict]:
         return self._template_list
+
+    @Property("QStringList", notify=templatesChanged)
+    def templateNames(self) -> list[str]:
+        return [t["name"] for t in self._template_list]
+
+    def getTemplateFileName(self, name: str) -> str:
+        return self._template_file_map.get(name, name + ".png")
 
     @Slot(str)
     def searchTemplates(self, keyword: str) -> None:
@@ -86,6 +100,10 @@ class ElementDetectionPresenter(QObject):
 
     # ========== 条件管理 ==========
 
+    @Property(list, notify=conditionsChanged)
+    def conditions(self) -> list[dict]:
+        return self._conditions
+
     @Slot(str, float, int, int, int, int)
     def addCondition(
         self, key: str, threshold: float, rx: int, ry: int, rw: int, rh: int
@@ -97,22 +115,29 @@ class ElementDetectionPresenter(QObject):
         has_region = rw > 0 and rh > 0
         self._conditions.append({
             "key": key,
+            "templateName": key,
+            "fileName": self._template_file_map.get(key, key + ".png"),
             "threshold": threshold,
+            "thresholdText": f"{int(threshold * 100)}%",
             "rx": rx,
             "ry": ry,
             "rw": rw,
             "rh": rh,
+            "regionText": f"区域:({rx},{ry},{rw}x{rh})" if has_region else "全屏",
         })
+        self.conditionsChanged.emit()
 
     @Slot(int)
     def removeCondition(self, index: int) -> None:
         if 0 <= index < len(self._conditions):
             self._conditions.pop(index)
+            self.conditionsChanged.emit()
 
     @Slot()
     def clearConditions(self) -> None:
         self._conditions.clear()
         self._last_matches.clear()
+        self.conditionsChanged.emit()
 
     @Property(int)
     def conditionCount(self) -> int:

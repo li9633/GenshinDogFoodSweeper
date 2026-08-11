@@ -89,6 +89,8 @@ Rectangle {
                             id: templateCombo
                             Layout.fillWidth: true
                             model: ElementDetection.templateList
+                            textRole: "displayText"
+                            valueRole: "name"
                             currentIndex: -1
                             displayText: currentIndex >= 0 ? currentText : "请选择模板…"
                             background: Rectangle {
@@ -104,7 +106,7 @@ Rectangle {
                                 verticalAlignment: Text.AlignVCenter
                                 leftPadding: 8
                             }
-                            onActivated: ElementDetection.selectTemplate(currentText)
+                            onActivated: ElementDetection.selectTemplate(templateCombo.currentValue)
                         }
                         Text { text: "阈值:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
                         SpinBox {
@@ -128,18 +130,14 @@ Rectangle {
                             }
                             background: Rectangle { color: parent.enabled ? Theme.accent : Theme.bgTrack; radius: Theme.radius }
                             onClicked: {
-                                var key = templateCombo.currentText
+                                var item = templateCombo.model[templateCombo.currentIndex]
+                                var key = item.name
                                 var th = spinThreshold.value / 100.0
                                 var rx = chkRegion.checked ? spinRx.value : 0
                                 var ry = chkRegion.checked ? spinRy.value : 0
                                 var rw = chkRegion.checked ? spinRw.value : 0
                                 var rh = chkRegion.checked ? spinRh.value : 0
                                 ElementDetection.addCondition(key, th, rx, ry, rw, rh)
-                                conditionModel.append({
-                                    "templateName": key,
-                                    "threshold": spinThreshold.value + "%",
-                                    "key": key
-                                })
                             }
                         }
                     }
@@ -255,7 +253,7 @@ Rectangle {
                         id: conditionList
                         Layout.fillWidth: true
                         Layout.preferredHeight: 100
-                        model: ListModel { id: conditionModel }
+                        model: ElementDetection.conditions
                         clip: true
 
                         delegate: Rectangle {
@@ -267,10 +265,12 @@ Rectangle {
                                 anchors.verticalCenter: parent.verticalCenter
                                 anchors.left: parent.left
                                 anchors.leftMargin: 8
-                                text: templateName + " (阈值: " + threshold + ")"
+                                text: modelData.templateName + "(" + modelData.fileName + ")（" + modelData.thresholdText + "，" + modelData.regionText + "）"
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 12
                                 color: Theme.textPrimary
+                                elide: Text.ElideRight
+                                width: parent.width - 16
                             }
                             MouseArea {
                                 anchors.fill: parent
@@ -296,7 +296,6 @@ Rectangle {
                             onClicked: {
                                 if (conditionList.currentIndex >= 0) {
                                     ElementDetection.removeCondition(conditionList.currentIndex)
-                                    conditionModel.remove(conditionList.currentIndex)
                                 }
                             }
                         }
@@ -312,10 +311,7 @@ Rectangle {
                                 verticalAlignment: Text.AlignVCenter
                             }
                             background: Rectangle { color: Theme.bgTrack; radius: 4 }
-                            onClicked: {
-                                ElementDetection.clearConditions()
-                                conditionModel.clear()
-                            }
+                            onClicked: ElementDetection.clearConditions()
                         }
                         Item { Layout.fillWidth: true }
                     }
@@ -326,7 +322,7 @@ Rectangle {
             Button {
                 id: btnDetect
                 text: detecting ? "检测中…" : "检测定位"
-                enabled: conditionModel.count > 0 && !detecting
+                enabled: ElementDetection.conditionCount > 0 && !detecting
                 Layout.fillWidth: true
                 implicitHeight: 34
                 contentItem: Text {
@@ -375,7 +371,7 @@ Rectangle {
                     background: Rectangle { color: Theme.bgTrack; radius: Theme.radius }
                     onClicked: {
                         if (conditionList.currentIndex >= 0) {
-                            var item = conditionModel.get(conditionList.currentIndex)
+                            var item = ElementDetection.conditions[conditionList.currentIndex]
                             ElementDetection.registerRegion(item.key, registerNameInput.text)
                         }
                     }

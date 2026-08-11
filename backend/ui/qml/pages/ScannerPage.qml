@@ -20,7 +20,7 @@ Rectangle {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "圣遗物扫描功能将在后续版本实现"
+            text: "圣遗物扫描识别功能将在后续版本实现"
             font.family: Theme.fontFamily
             font.pixelSize: 14
             color: Theme.textSecondary
