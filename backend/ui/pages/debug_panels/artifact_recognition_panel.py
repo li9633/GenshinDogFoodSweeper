@@ -174,17 +174,12 @@ class ArtifactRecognitionPanel(QWidget):
             image = capture.image.copy()
 
             from backend.automation.ocr_worker import OcrWorker
-            from backend.ui.presenters.artifact_recognition_presenter import (
-                ArtifactRecognitionPresenter,
+
+            task_fn = ArtifactRecognitionPresenter.create_recognition_task(
+                image, roi_values
             )
-
-            def recognition_task(ocr):
-                return ArtifactRecognitionPresenter.recognize_from_image(
-                    image, roi_values, ocr
-                )
-
             worker = OcrWorker.instance()
-            worker.submit(recognition_task, callback_data=capture)
+            worker.submit(task_fn, callback_data=capture)
         except Exception:  # noqa: BLE001
             import traceback
 
@@ -224,32 +219,6 @@ class ArtifactRecognitionPanel(QWidget):
     def _on_ocr_task_error(self, error: str, _callback_data: object) -> None:
         """OCR Worker 返回错误"""
         self._on_recognize_error(error)
-
-    def _on_recognize_result(self, result: dict) -> None:
-        capture = result["capture"]
-        data = result["data"]
-
-        if self._capture_widget:
-            self._capture_widget.display_pixmap(capture.to_qpixmap(), "截图完成")
-
-        if data["db_empty"]:
-            QMessageBox.warning(
-                self,
-                "本地圣遗物模板为空",
-                "数据库中暂无圣遗物套装数据，将仅显示 OCR 识别结果，不进行匹配。\n\n"
-                "请前往[设置]页面，点击「圣遗物同步」拉取最新圣遗物数据。",
-            )
-
-        self._ocr_result_text.setText("\n".join(data["ocr_lines"]))
-        self._structured_result_text.setText("\n".join(data["structured_lines"]))
-
-        if self._capture_widget:
-            self._capture_widget.display_pixmap(
-                data["display_result"].to_qpixmap(),
-                f"识别完成 ({data['elapsed_ms']:.0f}ms)",
-            )
-        log.info(f"识别完成 ({data['elapsed_ms']:.0f}ms)")
-        self._set_btn_loading(False)
 
     def _on_recognize_error(self, error: str) -> None:
         log.error(f"识别失败: {error}")
