@@ -253,7 +253,7 @@ class SettingsPage(QWidget):
             self._model_progress.setRange(0, total)
         self._model_progress.setValue(current)
         self._label_model_status.setText(f"正在下载… {current}/{total}")
-        log.info(status)
+        log.debug(status)
 
     def _on_download_finished(self, success: bool, message: str) -> None:
         self._model_progress.setVisible(False)

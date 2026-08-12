@@ -500,7 +500,7 @@ class ArtifactSetFetcher:
                 else:
                     expected = 5
                 total_expected += expected
-                log.info(f"拉取部位详情: {item['name']} (id={set_id})")
+                log.debug(f"拉取部位详情: {item['name']} (id={set_id})")
                 slots = cls.fetch_slots_for_set(set_id, expected)
                 item["slots"] = slots
                 for slot in slots:
@@ -526,7 +526,7 @@ def main():
 
     data = ArtifactSetFetcher.run()
 
-    print(f"\n同步完成，共 {len(data)} 个圣遗物套装")
+    log.info(f"同步完成，共 {len(data)} 个圣遗物套装")
 
 
 if __name__ == "__main__":

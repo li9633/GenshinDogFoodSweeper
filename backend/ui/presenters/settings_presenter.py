@@ -65,6 +65,10 @@ class SettingsPresenter(QObject):
         settings.set_theme(theme)
         self.themeChanged.emit(theme)
 
+    @Slot(int)
+    def setThemeByIndex(self, index: int) -> None:
+        self.setTheme("dark" if index == 0 else "light")
+
     # ========== 同步 ==========
 
     @Property(str, notify=syncTimeChanged)

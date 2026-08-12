@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import GenshinUI
 
@@ -24,20 +23,20 @@ Rectangle {
 
     // ---- 缩放函数 ----
     function zoomIn() {
-        fitToView = false
-        zoomFactor = Math.min(zoomFactor + 0.25, 5.0)
+        root.fitToView = false;
+        root.zoomFactor = Math.min(root.zoomFactor + 0.25, 5.0);
     }
     function zoomOut() {
-        fitToView = false
-        zoomFactor = Math.max(zoomFactor - 0.25, 0.25)
+        root.fitToView = false;
+        root.zoomFactor = Math.max(root.zoomFactor - 0.25, 0.25);
     }
     function zoomFit() {
-        fitToView = true
-        zoomFactor = 1.0
+        root.fitToView = true;
+        root.zoomFactor = 1.0;
     }
     function clear() {
-        source = ""
-        infoText = "等待截图…"
+        root.source = "";
+        root.infoText = "等待截图…";
     }
 
     ColumnLayout {
@@ -50,16 +49,19 @@ Rectangle {
             Layout.margins: 6
             spacing: 4
 
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
 
             GButton {
                 text: "-"
-                implicitWidth: 28; implicitHeight: 24
-                onClicked: zoomOut()
+                implicitWidth: 28
+                implicitHeight: 24
+                onClicked: root.zoomOut()
             }
 
             Text {
-                text: fitToView ? "适应" : Math.round(zoomFactor * 100) + "%"
+                text: root.fitToView ? "适应" : Math.round(root.zoomFactor * 100) + "%"
                 font.family: Theme.fontFamily
                 font.pixelSize: 12
                 color: Theme.textSecondary
@@ -69,18 +71,20 @@ Rectangle {
 
             GButton {
                 text: "+"
-                implicitWidth: 28; implicitHeight: 24
-                onClicked: zoomIn()
+                implicitWidth: 28
+                implicitHeight: 24
+                onClicked: root.zoomIn()
             }
 
             GButton {
                 text: "适应"
-                implicitWidth: 44; implicitHeight: 24
-                onClicked: zoomFit()
+                implicitWidth: 44
+                implicitHeight: 24
+                onClicked: root.zoomFit()
             }
 
             Text {
-                text: infoText
+                text: root.infoText
                 font.family: Theme.fontFamily
                 font.pixelSize: 12
                 color: Theme.textMuted
@@ -107,75 +111,73 @@ Rectangle {
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.NoButton
-                onWheel: function(wheel) {
+                onWheel: function (wheel) {
                     if (wheel.modifiers & Qt.ControlModifier) {
-                        if (wheel.angleDelta.y > 0) zoomIn()
-                        else zoomOut()
+                        if (wheel.angleDelta.y > 0)
+                            root.zoomIn();
+                        else
+                            root.zoomOut();
                     }
                 }
             }
 
             Item {
                 id: imageContainer
-                width: fitToView ? flickable.width : Math.max(flickable.width, imageItem.width)
-                height: fitToView ? flickable.height : Math.max(flickable.height, imageItem.height)
+                width: root.fitToView ? flickable.width : Math.max(flickable.width, imageItem.width)
+                height: root.fitToView ? flickable.height : Math.max(flickable.height, imageItem.height)
 
                 Image {
                     id: imageItem
                     anchors.centerIn: parent
                     source: root.source
                     visible: root.source !== null && root.source.toString() !== ""
-                    fillMode: fitToView ? Image.PreserveAspectFit : Image.Pad
-                    width: fitToView ? flickable.width : implicitWidth * zoomFactor
-                    height: fitToView ? flickable.height : implicitHeight * zoomFactor
+                    fillMode: root.fitToView ? Image.PreserveAspectFit : Image.Pad
+                    width: root.fitToView ? flickable.width : implicitWidth * root.zoomFactor
+                    height: root.fitToView ? flickable.height : implicitHeight * root.zoomFactor
 
                     // 选区拖拽
                     MouseArea {
                         anchors.fill: parent
-                        enabled: selectionMode
+                        enabled: root.selectionMode
                         cursorShape: enabled ? Qt.CrossCursor : Qt.ArrowCursor
                         preventStealing: true
 
                         property point startPoint
                         property bool dragging: false
 
-                        onPressed: function(mouse) {
-                            startPoint = Qt.point(mouse.x, mouse.y)
-                            dragging = true
-                            rubberBand.x = mouse.x
-                            rubberBand.y = mouse.y
-                            rubberBand.width = 0
-                            rubberBand.height = 0
-                            rubberBand.visible = true
+                        onPressed: function (mouse) {
+                            startPoint = Qt.point(mouse.x, mouse.y);
+                            dragging = true;
+                            rubberBand.x = mouse.x;
+                            rubberBand.y = mouse.y;
+                            rubberBand.width = 0;
+                            rubberBand.height = 0;
+                            rubberBand.visible = true;
                         }
-                        onPositionChanged: function(mouse) {
-                            if (!dragging) return
-                            var x = Math.min(startPoint.x, mouse.x)
-                            var y = Math.min(startPoint.y, mouse.y)
-                            var w = Math.abs(mouse.x - startPoint.x)
-                            var h = Math.abs(mouse.y - startPoint.y)
-                            rubberBand.x = x
-                            rubberBand.y = y
-                            rubberBand.width = w
-                            rubberBand.height = h
+                        onPositionChanged: function (mouse) {
+                            if (!dragging)
+                                return;
+                            let x = Math.min(startPoint.x, mouse.x);
+                            let y = Math.min(startPoint.y, mouse.y);
+                            let w = Math.abs(mouse.x - startPoint.x);
+                            let h = Math.abs(mouse.y - startPoint.y);
+                            rubberBand.x = x;
+                            rubberBand.y = y;
+                            rubberBand.width = w;
+                            rubberBand.height = h;
                         }
-                        onReleased: function(mouse) {
-                            dragging = false
-                            rubberBand.visible = false
-                            var x = Math.min(startPoint.x, mouse.x)
-                            var y = Math.min(startPoint.y, mouse.y)
-                            var w = Math.abs(mouse.x - startPoint.x)
-                            var h = Math.abs(mouse.y - startPoint.y)
+                        onReleased: function (mouse) {
+                            dragging = false;
+                            rubberBand.visible = false;
+                            let x = Math.min(startPoint.x, mouse.x);
+                            let y = Math.min(startPoint.y, mouse.y);
+                            let w = Math.abs(mouse.x - startPoint.x);
+                            let h = Math.abs(mouse.y - startPoint.y);
                             if (w > 5 && h > 5) {
                                 // 映射回原始图像坐标
-                                var scaleX = imageItem.implicitWidth / imageItem.width
-                                var scaleY = imageItem.implicitHeight / imageItem.height
-                                root.regionSelected(
-                                    Math.round(x * scaleX),
-                                    Math.round(y * scaleY),
-                                    Math.round(w * scaleX),
-                                    Math.round(h * scaleY)
-                                )
+                                let scaleX = imageItem.implicitWidth / imageItem.width;
+                                let scaleY = imageItem.implicitHeight / imageItem.height;
+                                root.regionSelected(Math.round(x * scaleX), Math.round(y * scaleY), Math.round(w * scaleX), Math.round(h * scaleY));
                             }
                         }
                     }

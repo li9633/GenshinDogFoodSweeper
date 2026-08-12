@@ -213,7 +213,7 @@ class ArtifactRecognitionPanel(QWidget):
                 data["display_result"].to_qpixmap(),
                 f"识别完成 ({data['elapsed_ms']:.0f}ms)",
             )
-        log.info(f"识别完成 ({data['elapsed_ms']:.0f}ms)")
+        log.debug(f"识别完成 ({data['elapsed_ms']:.0f}ms)")
         self._set_btn_loading(False)
 
     def _on_ocr_task_error(self, error: str, _callback_data: object) -> None:
@@ -247,4 +247,4 @@ class ArtifactRecognitionPanel(QWidget):
         self._structured_result_text.clear()
         if self._capture_widget is not None:
             self._capture_widget.clear()
-        log.info("已清除识别结果")
+        log.debug("已清除识别结果")

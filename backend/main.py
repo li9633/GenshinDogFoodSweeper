@@ -51,39 +51,43 @@ def main():
     # -- QML 引擎 --
     engine = QQmlApplicationEngine()
     engine.addImageProvider("preview", PreviewImageProvider())
-    log.info("PreviewImageProvider 注册成功")
+    log.debug("PreviewImageProvider 注册成功")
 
     # 将 Python 后端对象暴露给 QML
     import traceback
 
     from utils.env_manager import EnvManager
+
     _env_manager = EnvManager()
     engine.rootContext().setContextProperty("EnvManager", _env_manager)
-    log.info(f"EnvManager 注册成功, isDebug={_env_manager.is_debug()}")
+    log.debug(f"EnvManager 注册成功, isDebug={_env_manager.is_debug()}")
 
     try:
         from ui.presenters.settings_presenter import SettingsPresenter
+
         presenter = SettingsPresenter()
         engine.rootContext().setContextProperty("SettingsPresenter", presenter)
-        log.info("SettingsPresenter 注册成功")
-    except Exception as exc: 
+        log.debug("SettingsPresenter 注册成功")
+    except Exception as exc:
         traceback.print_exc()
         log.error(f"SettingsPresenter 初始化失败: {exc}")
 
     try:
         from ui.presenters.region_marker_presenter import RegionMarkerPresenter
+
         region_marker = RegionMarkerPresenter()
         engine.rootContext().setContextProperty("RegionMarker", region_marker)
-        log.info("RegionMarker 注册成功")
+        log.debug("RegionMarker 注册成功")
     except Exception as exc:
         traceback.print_exc()
         log.error(f"RegionMarker 初始化失败: {exc}")
 
     try:
         from ui.presenters.element_detection_presenter import ElementDetectionPresenter
+
         element_detection = ElementDetectionPresenter()
         engine.rootContext().setContextProperty("ElementDetection", element_detection)
-        log.info("ElementDetection 注册成功")
+        log.debug("ElementDetection 注册成功")
     except Exception as exc:
         traceback.print_exc()
         log.error(f"ElementDetection 初始化失败: {exc}")
@@ -92,18 +96,22 @@ def main():
         from ui.presenters.artifact_recognition_presenter import (
             ArtifactRecognitionPresenter,
         )
+
         artifact_recognition = ArtifactRecognitionPresenter()
-        engine.rootContext().setContextProperty("ArtifactRecognition", artifact_recognition)
-        log.info("ArtifactRecognition 注册成功")
+        engine.rootContext().setContextProperty(
+            "ArtifactRecognition", artifact_recognition
+        )
+        log.debug("ArtifactRecognition 注册成功")
     except Exception as exc:
         traceback.print_exc()
         log.error(f"ArtifactRecognition 初始化失败: {exc}")
 
     try:
         from ui.pages.debug_panels.status_bar_test_panel import StatusBarTestPresenter
+
         status_bar_test = StatusBarTestPresenter()
         engine.rootContext().setContextProperty("StatusBarTest", status_bar_test)
-        log.info("StatusBarTest 注册成功")
+        log.debug("StatusBarTest 注册成功")
     except Exception as exc:
         traceback.print_exc()
         log.error(f"StatusBarTest 初始化失败: {exc}")

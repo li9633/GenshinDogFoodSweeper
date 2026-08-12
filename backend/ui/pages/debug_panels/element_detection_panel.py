@@ -292,16 +292,16 @@ class ElementDetectionPanel(QWidget):
         item = QListWidgetItem(f"{template_key}  (阈值:{threshold:.2f})  {region_text}")
         item.setData(Qt.ItemDataRole.UserRole, (template_key, threshold, region))
         self._condition_list.addItem(item)
-        log.info(f"已添加 [{template_key}]，共 {self._condition_list.count()} 个条件")
+        log.debug(f"已添加 [{template_key}]，共 {self._condition_list.count()} 个条件")
 
     def _on_remove_condition(self) -> None:
         for item in self._condition_list.selectedItems():
             self._condition_list.takeItem(self._condition_list.row(item))
-        log.info(f"当前 {self._condition_list.count()} 个条件")
+        log.debug(f"当前 {self._condition_list.count()} 个条件")
 
     def _on_clear_conditions(self) -> None:
         self._condition_list.clear()
-        log.info("已清除所有条件")
+        log.debug("已清除所有条件")
 
     # ---------- 检测 ----------
 

@@ -173,6 +173,22 @@ class ElementDetectionPresenter(QObject):
         ))
         self.conditionsChanged.emit()
 
+    @Slot(int, int, bool, int, int, int, int)
+    def addConditionByIndex(
+        self, index: int, threshold_percent: int,
+        has_region: bool, rx: int, ry: int, rw: int, rh: int
+    ) -> None:
+        if index < 0 or index >= len(self._template_list):
+            self.errorOccurred.emit("无效模板索引")
+            return
+        item = self._template_list[index]
+        th = threshold_percent / 100.0
+        region_x = rx if has_region else 0
+        region_y = ry if has_region else 0
+        region_w = rw if has_region else 0
+        region_h = rh if has_region else 0
+        self.addCondition(item.name, th, region_x, region_y, region_w, region_h)
+
     @Slot(int)
     def removeCondition(self, index: int) -> None:
         if 0 <= index < len(self._conditions):
@@ -293,7 +309,7 @@ class ElementDetectionPresenter(QObject):
             else:
                 log.warning(summary + " | " + " | ".join(detail_parts))
 
-            self.detectionFinished.emit(all_passed, detail_text, "element")
+            self.detectionFinished.emit(all_passed, detail_text, "detection")
 
         except Exception as exc:
             self.errorOccurred.emit(str(exc))
@@ -325,5 +341,13 @@ class ElementDetectionPresenter(QObject):
         )
         TemplateManager.register(name, filename, (x, y, w, h))
         TemplateManager.save()
-        log.info(f"[{name}] 区域已注册: ({x},{y},{w}x{h})")
+        log.debug(f"[{name}] 区域已注册: ({x},{y},{w}x{h})")
         self.regionRegistered.emit(name, x, y, w, h)
+
+    @Slot(int, str)
+    def registerRegionByIndex(self, index: int, display_name: str) -> None:
+        """通过条件列表索引注册区域"""
+        if index < 0 or index >= len(self._conditions):
+            self.errorOccurred.emit("无效条件索引")
+            return
+        self.registerRegion(self._conditions[index].key, display_name)

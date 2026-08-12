@@ -3,6 +3,9 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import GenshinUI
 
+// qmllint disable unqualified
+// ElementDetection 是 Python 通过 setContextProperty 注入的上下文属性，qmllint 无法识别
+
 Rectangle {
     id: root
     color: "transparent"
@@ -34,6 +37,7 @@ Rectangle {
                     font.pixelSize: 13
                     font.bold: true
                     color: Theme.textPrimary
+                    // qmllint disable missing-property
                     x: parent.leftPadding
                 }
 
@@ -67,6 +71,7 @@ Rectangle {
                             text: "⟳"
                             implicitWidth: 30; implicitHeight: 30
                             contentItem: Text {
+                                // qmllint disable missing-property
                                 text: parent.text
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 14
@@ -118,16 +123,12 @@ Rectangle {
                             text: "+ 添加"
                             colorType: "primary"
                             enabled: templateCombo.currentIndex >= 0
-                            onClicked: {
-                                var item = templateCombo.model[templateCombo.currentIndex]
-                                var key = item.name
-                                var th = spinThreshold.value / 100.0
-                                var rx = chkRegion.checked ? spinRx.value : 0
-                                var ry = chkRegion.checked ? spinRy.value : 0
-                                var rw = chkRegion.checked ? spinRw.value : 0
-                                var rh = chkRegion.checked ? spinRh.value : 0
-                                ElementDetection.addCondition(key, th, rx, ry, rw, rh)
-                            }
+                            onClicked: ElementDetection.addConditionByIndex(
+                                templateCombo.currentIndex,
+                                spinThreshold.value,
+                                chkRegion.checked,
+                                spinRx.value, spinRy.value, spinRw.value, spinRh.value
+                            )
                         }
                     }
 
@@ -145,7 +146,7 @@ Rectangle {
                                 anchors.fill: parent
                                 anchors.margins: 2
                                 fillMode: Image.PreserveAspectFit
-                                visible: source != ""
+                                visible: source !== ""
                             }
                             Text {
                                 anchors.centerIn: parent
@@ -153,7 +154,7 @@ Rectangle {
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 12
                                 color: "#888"
-                                visible: templatePreview.source == ""
+                                visible: templatePreview.source === ""
                             }
                         }
 
@@ -216,6 +217,7 @@ Rectangle {
                     font.pixelSize: 13
                     font.bold: true
                     color: Theme.textPrimary
+                    // qmllint disable missing-property
                     x: parent.leftPadding
                 }
 
@@ -231,6 +233,9 @@ Rectangle {
                         clip: true
 
                         delegate: Rectangle {
+                            required property int index
+                            required property var modelData
+
                             width: conditionList.width
                             height: 28
                             color: index % 2 === 0 ? Theme.accentOverlay6 : "transparent"
@@ -311,8 +316,7 @@ Rectangle {
                     implicitHeight: 30
                     onClicked: {
                         if (conditionList.currentIndex >= 0) {
-                            var item = ElementDetection.conditions[conditionList.currentIndex]
-                            ElementDetection.registerRegion(item.key, registerNameInput.text)
+                            ElementDetection.registerRegionByIndex(conditionList.currentIndex, registerNameInput.text)
                         }
                     }
                 }

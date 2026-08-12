@@ -3,6 +3,9 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import GenshinUI
 
+// qmllint disable unqualified
+// RegionMarker 是 Python 通过 setContextProperty 注入的上下文属性，qmllint 无法识别
+
 Rectangle {
     id: root
     color: "transparent"
@@ -58,12 +61,7 @@ Rectangle {
                     text: "保存为模板"
                     colorType: "primary"
                     implicitHeight: 30
-                    onClicked: {
-                        if (filenameInput.text.trim() === "") {
-                            return
-                        }
-                        RegionMarker.saveTemplate(filenameInput.text)
-                    }
+                    onClicked: RegionMarker.saveTemplate(filenameInput.text)
                 }
             }
 
@@ -77,10 +75,7 @@ Rectangle {
                     colorType: "primary"
                     enabled: !RegionMarker.marking
                     implicitHeight: 30
-                    onClicked: {
-                        marking = true
-                        RegionMarker.mark()
-                    }
+                    onClicked: RegionMarker.mark()
                 }
 
                 GButton {
@@ -124,10 +119,7 @@ Rectangle {
                     colorType: "primary"
                     enabled: !RegionMarker.extracting
                     implicitHeight: 30
-                    onClicked: {
-                        extracting = true
-                        RegionMarker.extractColor()
-                    }
+                    onClicked: RegionMarker.extractColor()
                 }
 
                 Rectangle {

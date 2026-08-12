@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 from PySide6.QtGui import QImage
 from PySide6.QtQuick import QQuickImageProvider
+from utils.logger import log
 
 
 class PreviewImageProvider(QQuickImageProvider):
@@ -27,12 +28,11 @@ class PreviewImageProvider(QQuickImageProvider):
         """存入 numpy RGB 数组（H, W, 3）"""
         inst = PreviewImageProvider._instance
         if inst is None:
-            print(f"[ImageProvider] put({key}) 失败: _instance is None", flush=True)
+            log.warning(f"[ImageProvider] put({key}) 失败: _instance is None")
             return
         rgb = np.ascontiguousarray(rgb)
         h, w, ch = rgb.shape
         qimg = QImage(rgb.tobytes(), w, h, ch * w, QImage.Format.Format_RGB888)
-        print(f"[ImageProvider] put({key}) shape=({h},{w},{ch}) isNull={qimg.isNull()}", flush=True)
         inst._images[key] = qimg.copy()
 
     @staticmethod
@@ -47,6 +47,4 @@ class PreviewImageProvider(QQuickImageProvider):
             inst._images.pop(key, None)
 
     def requestImage(self, id: str, requestedSize, *args) -> QImage:
-        img = self._images.get(id, QImage())
-        print(f"[ImageProvider] requestImage({id}) found={id in self._images} isNull={img.isNull()}", flush=True)
-        return img
+        return self._images.get(id, QImage())

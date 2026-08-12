@@ -3,6 +3,9 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import GenshinUI
 
+// qmllint disable unqualified
+// ArtifactRecognition 是 Python 通过 setContextProperty 注入的上下文属性，qmllint 无法识别
+
 Rectangle {
     id: root
     color: "transparent"
@@ -30,6 +33,7 @@ Rectangle {
                 checked: roiExpanded
                 text: (checked ? "▾" : "▸") + " ROI 区域定义（相对于游戏窗口）"
                 contentItem: Text {
+                    // qmllint disable missing-property
                     text: parent.text
                     font.family: Theme.fontFamily
                     font.pixelSize: 13
@@ -38,6 +42,7 @@ Rectangle {
                     leftPadding: 8
                 }
                 background: Rectangle {
+                    // qmllint disable missing-property
                     color: parent.checked ? Theme.accentOverlay10 : "transparent"
                     border.color: Theme.border
                     radius: Theme.radius
@@ -124,6 +129,7 @@ Rectangle {
                         font.pixelSize: 12
                         font.bold: true
                         color: Theme.textPrimary
+                        // qmllint disable missing-property
                         x: parent.leftPadding
                     }
 
@@ -161,6 +167,7 @@ Rectangle {
                         font.pixelSize: 12
                         font.bold: true
                         color: Theme.textPrimary
+                        // qmllint disable missing-property
                         x: parent.leftPadding
                     }
 
@@ -202,11 +209,7 @@ Rectangle {
                     colorType: "default"
                     implicitHeight: 34
                     implicitWidth: 80
-                    onClicked: {
-                        ArtifactRecognition.clear()
-                        ocrResultText.text = ""
-                        structuredResultText.text = ""
-                    }
+                    onClicked: ArtifactRecognition.clear()
                 }
             }
 
@@ -226,6 +229,11 @@ Rectangle {
             if (dbEmpty) {
                 dbEmptyDialog.open()
             }
+        }
+
+        function onClearPreview() {
+            ocrResultText.text = ""
+            structuredResultText.text = ""
         }
 
         function onErrorOccurred(msg) {

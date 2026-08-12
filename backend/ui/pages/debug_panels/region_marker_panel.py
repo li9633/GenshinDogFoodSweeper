@@ -128,7 +128,7 @@ class RegionMarkerPanel(QGroupBox):
         self._capture_widget.display_pixmap(
             result.to_qpixmap(), f"区域: ({x}, {y}) {w}x{h}"
         )
-        log.info(f"已标记区域 ({x}, {y}, {w}, {h})")
+        log.debug(f"已标记区域 ({x}, {y}, {w}, {h})")
         self._btn_mark.setEnabled(True)
         self._btn_mark.setText("截图并标记")
 
@@ -140,7 +140,7 @@ class RegionMarkerPanel(QGroupBox):
     def _on_copy(self) -> None:
         x, y, w, h = self._coords()
         QApplication.clipboard().setText(f"{x},{y},{w},{h}")
-        log.info(f"已复制坐标: {x}, {y}, {w}, {h}")
+        log.debug(f"已复制坐标: {x}, {y}, {w}, {h}")
 
     def _on_save_template(self) -> None:
         filename = self._input_filename.text().strip()
@@ -159,7 +159,7 @@ class RegionMarkerPanel(QGroupBox):
     def _on_clear(self) -> None:
         if self._capture_widget is not None:
             self._capture_widget.clear()
-        log.info("已清除")
+        log.debug("已清除")
 
     def _on_extract_color(self) -> None:
         x, y, w, h = self._coords()
@@ -185,7 +185,7 @@ class RegionMarkerPanel(QGroupBox):
             f"RGB({c['r']}, {c['g']}, {c['b']})  "
             f"HSV({c['h_hsv']}°, {c['s_hsv'] / 255:.0%}, {c['v_hsv'] / 255:.0%})"
         )
-        log.info(
+        log.debug(
             f"颜色提取: RGB({c['r']},{c['g']},{c['b']}) "
             f"HSV({c['h_hsv']},{c['s_hsv']},{c['v_hsv']})"
         )
@@ -212,7 +212,7 @@ class RegionMarkerPanel(QGroupBox):
             self._capture_widget.set_selection_mode(checked)
         self._btn_select.setText("选区中…" if checked else "选区模式")
         if checked:
-            log.info("进入选区模式，在截图上拖拽鼠标选择区域")
+            log.debug("进入选区模式，在截图上拖拽鼠标选择区域")
 
     def _on_region_selected(self, x: int, y: int, w: int, h: int) -> None:
         self._spin_x.setValue(x)
@@ -225,4 +225,4 @@ class RegionMarkerPanel(QGroupBox):
             self._capture_widget.set_selection_mode(False)
         self._btn_select.setChecked(False)
         self._btn_select.setText("选区模式")
-        log.info(f"已选区: ({x}, {y}, {w}x{h})")
+        log.debug(f"已选区: ({x}, {y}, {w}x{h})")

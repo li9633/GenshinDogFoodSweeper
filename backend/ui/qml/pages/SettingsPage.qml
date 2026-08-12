@@ -3,6 +3,9 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import GenshinUI
 
+// qmllint disable unqualified
+// SettingsPresenter 是 Python 上下文属性；syncing/downloading 等是根元素属性，qmllint 无法跨层级识别
+
 Rectangle {
     id: root
     color: Theme.bgPrimary
@@ -61,6 +64,7 @@ Rectangle {
                     font.pixelSize: 14
                     font.bold: true
                     color: Theme.textPrimary
+                    // qmllint disable missing-property
                     x: parent.leftPadding
                 }
 
@@ -79,9 +83,7 @@ Rectangle {
                         id: themeCombo
                         model: ["深色", "浅色"]
                         currentIndex: SettingsPresenter.themeIndex
-                        onCurrentIndexChanged: {
-                            SettingsPresenter.setTheme(currentIndex === 0 ? "dark" : "light")
-                        }
+                        onCurrentIndexChanged: SettingsPresenter.setThemeByIndex(currentIndex)
 
                         background: Rectangle {
                             color: Theme.bgTrack
@@ -115,6 +117,7 @@ Rectangle {
                     font.pixelSize: 14
                     font.bold: true
                     color: Theme.textPrimary
+                    // qmllint disable missing-property
                     x: parent.leftPadding
                 }
 
@@ -130,10 +133,7 @@ Rectangle {
                             text: syncing ? "同步中…" : "立即同步"
                             colorType: "primary"
                             enabled: !syncing
-                            onClicked: {
-                                syncing = true
-                                SettingsPresenter.startSync()
-                            }
+                            onClicked: SettingsPresenter.startSync()
                         }
                     }
 
@@ -205,6 +205,7 @@ Rectangle {
                     font.pixelSize: 14
                     font.bold: true
                     color: Theme.textPrimary
+                    // qmllint disable missing-property
                     x: parent.leftPadding
                 }
 
@@ -222,10 +223,7 @@ Rectangle {
                                  : "下载模型"
                             colorType: "primary"
                             enabled: !downloading
-                            onClicked: {
-                                downloading = true
-                                SettingsPresenter.downloadModels()
-                            }
+                            onClicked: SettingsPresenter.downloadModels()
                         }
                     }
 
@@ -297,6 +295,10 @@ Rectangle {
             themeCombo.currentIndex = (theme === "dark") ? 0 : 1
         }
 
+        function onSyncStarted() {
+            syncing = true
+        }
+
         function onSyncProgress(current, total, name) {
             syncProgress.indeterminate = false
             syncProgress.from = 0
@@ -313,6 +315,10 @@ Rectangle {
         function onSyncFailed(error) {
             syncing = false
             syncProgressText = ""
+        }
+
+        function onModelDownloadStarted() {
+            downloading = true
         }
 
         function onModelDownloadProgress(current, total, status) {

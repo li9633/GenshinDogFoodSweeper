@@ -137,13 +137,13 @@ class ArtifactRecognizer:
                 pieces = all_pieces
 
             piece_names = [p["name"] for p in pieces]
-            log.info(
+            log.debug(
                 f"[匹配部位] OCR='{text}' set_id={set_id} "
                 f"候选({len(pieces)}个): {piece_names[:5]}{'...' if len(piece_names) > 5 else ''}"
             )
             result = process.extractOne(text, piece_names, scorer=fuzz.partial_ratio)
             if result:
-                log.info(f"[匹配部位] 最佳匹配: '{result[0]}' score={result[1]}")
+                log.debug(f"[匹配部位] 最佳匹配: '{result[0]}' score={result[1]}")
             if result and result[1] >= 75:
                 matched = next(p for p in pieces if p["name"] == result[0])
                 return {"type": matched["type"], "name": matched["name"]}
@@ -263,7 +263,7 @@ class ArtifactRecognizer:
                     matched_piece_type = match[2]
                     matched_piece_name = match[3]
                     piece_from_set_match = match[2] is not None
-                    log.info(
+                    log.debug(
                         f"[匹配套装] OCR='{texts[0]}' → set_name='{match[0]}' "
                         f"set_id={match[1]} piece_type={match[2]} piece_name={match[3]} "
                         f"score={match[4]:.3f}"
@@ -326,7 +326,7 @@ class ArtifactRecognizer:
         artifact.set_id = matched_set_id
 
         elapsed = (time.perf_counter() - t0) * 1000
-        log.info(f"[识别完成] 耗时 {elapsed:.0f}ms")
+        log.debug(f"[识别完成] 耗时 {elapsed:.0f}ms")
 
         return artifact
 

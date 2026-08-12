@@ -131,7 +131,7 @@ class RegionMarkerPresenter(QObject):
             marked = _mark_region(result, self._x, self._y, self._w, self._h)
             PreviewImageProvider.put("region", marked.image)
             self.captureFinished.emit("region", self._x, self._y, self._w, self._h)
-            log.info(f"已标记区域 ({self._x}, {self._y}, {self._w}x{self._h})")
+            log.debug(f"已标记区域 ({self._x}, {self._y}, {self._w}x{self._h})")
         except Exception as exc:
             self.errorOccurred.emit(str(exc))
             log.error(f"截图失败: {exc}")
@@ -167,7 +167,7 @@ class RegionMarkerPresenter(QObject):
                 f"RGB({c['r']}, {c['g']}, {c['b']})  "
                 f"HSV({c['h_hsv']}°, {c['s_hsv'] / 255:.0%}, {c['v_hsv'] / 255:.0%})"
             )
-            log.info(
+            log.debug(
                 f"颜色提取: RGB({c['r']},{c['g']},{c['b']}) "
                 f"HSV({c['h_hsv']},{c['s_hsv']},{c['v_hsv']})"
             )
