@@ -122,6 +122,13 @@ Rectangle {
             onRegionSelected: function(x, y, w, h) {
                 RegionMarker.setCoords(x, y, w, h)
             }
+
+            onClearRequested: {
+                switch (tabBar.currentIndex) {
+                    case 0: RegionMarker.clear(); break
+                    case 2: ArtifactRecognition.clear(); break
+                }
+            }
         }
     }
 

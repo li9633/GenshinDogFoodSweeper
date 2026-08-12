@@ -202,13 +202,6 @@ Rectangle {
                     Layout.fillWidth: true
                     onClicked: ArtifactRecognition.recognize()
                 }
-
-                GButton {
-                    text: "清除"
-                    colorType: "default"
-                    implicitWidth: 80
-                    onClicked: ArtifactRecognition.clear()
-                }
             }
 
             Item { Layout.fillHeight: true }

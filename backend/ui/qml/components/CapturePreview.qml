@@ -20,6 +20,7 @@ Rectangle {
 
     // ---- 信号 ----
     signal regionSelected(int x, int y, int w, int h)
+    signal clearRequested()
 
     // ---- 缩放函数 ----
     function zoomIn() {
@@ -81,6 +82,18 @@ Rectangle {
                 implicitWidth: 44
                 implicitHeight: 24
                 onClicked: root.zoomFit()
+            }
+
+            GButton {
+                text: "清除"
+                visible: root.source !== null && root.source.toString() !== ""
+                implicitWidth: 44
+                implicitHeight: 24
+                colorType: "default"
+                onClicked: {
+                    root.clear()
+                    root.clearRequested()
+                }
             }
 
             Text {

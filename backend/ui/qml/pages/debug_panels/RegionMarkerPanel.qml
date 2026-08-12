@@ -95,12 +95,6 @@ Rectangle {
                     }
                 }
 
-                GButton {
-                    text: "清除"
-                    colorType: "default"
-                    onClicked: RegionMarker.clear()
-                }
-
                 Item { Layout.fillWidth: true }
             }
 
