@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from database.init_db import create_tables
 from PySide6.QtCore import Qt
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
 from ui.presenters.image_provider import PreviewImageProvider
 from utils.logger import log, setup_logging
@@ -161,6 +162,10 @@ def main():
 
     qml_dir = Path(__file__).parent / "ui" / "qml"
     engine.addImportPath(str(qml_dir))
+
+    # 全局文本渲染：必须在 load 之前设置，让所有 Text 组件使用 Windows ClearType
+    QQuickWindow.setTextRenderType(QQuickWindow.NativeTextRendering)
+
     engine.load(str(qml_dir / "main.qml"))
 
     if not engine.rootObjects():
