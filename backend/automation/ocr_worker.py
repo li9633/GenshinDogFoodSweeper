@@ -72,9 +72,9 @@ class OcrWorker(QThread):
                 )
                 return
 
-            log.info("[OcrWorker] 首次加载 OCR 引擎（3-5 秒）…")
+            log.info("OCR 引擎预热中（3-5 秒）…")
             self._ocr = OcrEngine._create_paddle_ocr(self._engines_dir)
-            log.info("[OcrWorker] OCR 引擎就绪")
+            log.info("OCR 引擎就绪")
             self.ready.emit()
 
             # ---- 任务处理循环 ----
@@ -93,12 +93,12 @@ class OcrWorker(QThread):
                     self.task_done.emit(result, callback_data)
                 except Exception:
                     tb = traceback.format_exc()
-                    log.error(f"[OcrWorker] 任务执行失败:\n{tb}")
+                    log.error(f"OCR 识别失败:\n{tb}")
                     self.task_error.emit(tb, callback_data)
 
         except Exception:
             tb = traceback.format_exc()
-            log.error(f"[OcrWorker] 初始化失败:\n{tb}")
+            log.error(f"OCR 引擎初始化失败:\n{tb}")
             self.task_error.emit(tb, None)
 
     def submit(self, fn: Callable[[Any], Any], callback_data: Any = None) -> None:

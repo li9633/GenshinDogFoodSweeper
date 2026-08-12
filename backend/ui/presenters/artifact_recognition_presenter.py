@@ -1,20 +1,23 @@
 """圣遗物识别 Presenter — QObject 封装，供 QML 绑定
 
 截图 → OCR → Recognizer → 格式化展示。
+
+OCR 识别通过 OcrWorker 在专用线程中执行，避免阻塞 UI。
 """
 
 from __future__ import annotations
 
-import copy
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
+import numpy as np
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.logger import log
 
-from backend.automation.ocr_engine import OcrEngine
 from backend.automation.recognizer import ArtifactRecognizer
-from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
+from backend.utils.screen_capture import CaptureMethod, CaptureResult, ScreenshotCapture
 
 from .image_provider import PreviewImageProvider
 
@@ -57,7 +60,6 @@ class ArtifactRecognitionPresenter(QObject):
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._ocr_engine = OcrEngine()
         self._current_result: CaptureResult | None = None
         self._ocr_text = ""
         self._structured_text = ""
@@ -66,6 +68,7 @@ class ArtifactRecognitionPresenter(QObject):
             RoiDefinition(r.name, r.dx, r.dy, r.dw, r.dh)
             for r in _DEFAULT_ROI_DEFINITIONS
         ]
+        self._connect_ocr_worker()
 
     @Property(str, notify=textChanged)
     def ocrText(self) -> str:
@@ -96,7 +99,7 @@ class ArtifactRecognitionPresenter(QObject):
 
     @Slot()
     def recognize(self) -> None:
-        """截图 → OCR → 识别，结果通过信号返回"""
+        """截图 → 提交 OCR Worker → 结果通过信号返回（不阻塞 UI）"""
         self._recognizing = True
         self.recognizingChanged.emit()
         self.recognitionStarted.emit()
@@ -109,37 +112,90 @@ class ArtifactRecognitionPresenter(QObject):
             cap = ScreenshotCapture()
             self._current_result = cap.capture()
 
-            t0 = time.perf_counter()
-            ocr = self._ocr_engine.get()
-            db_empty = ArtifactRecognizer.is_db_empty()
-
-            display = copy.copy(self._current_result)
-            display.image = self._current_result.image.copy()
-
-            artifact = ArtifactRecognizer.recognize(
-                self._current_result.image, roi_spins, ocr
-            )
-            result = self._build_display_result(
-                artifact, roi_spins, display, t0, db_empty
+            task_fn = ArtifactRecognitionPresenter.create_recognition_task(
+                self._current_result.image.copy(), roi_spins
             )
 
-            self._ocr_text = "\n".join(result["ocr_lines"])
-            self._structured_text = "\n".join(result["structured_lines"])
-            self.textChanged.emit()
+            from backend.automation.ocr_worker import OcrWorker
 
-            # 保存结果图（内存缓存，零 IO）
-            PreviewImageProvider.put("artifact", result["display_result"].image)
-
-            self.recognitionFinished.emit(
-                self._ocr_text, self._structured_text, "artifact", db_empty
-            )
+            worker = OcrWorker.instance()
+            worker.submit(task_fn, callback_data=None)
 
         except Exception as exc:
-            log.error(f"圣遗物识别失败: {exc}")
-            self.errorOccurred.emit(str(exc))
-        finally:
-            self._recognizing = False
-            self.recognizingChanged.emit()
+            self._on_recognize_error(str(exc))
+
+    # ---------- OCR Worker 信号连接 ----------
+
+    def _connect_ocr_worker(self) -> None:
+        from backend.automation.ocr_worker import OcrWorker
+
+        worker = OcrWorker.instance()
+        worker.task_done.connect(self._on_ocr_task_done)
+        worker.task_error.connect(self._on_ocr_task_error)
+
+    def _on_ocr_task_done(self, result: dict, _callback_data: object) -> None:
+        data = result
+        self._ocr_text = "\n".join(data["ocr_lines"])
+        self._structured_text = "\n".join(data["structured_lines"])
+        self.textChanged.emit()
+
+        PreviewImageProvider.put("artifact", data["display_result"].image)
+
+        self.recognitionFinished.emit(
+            self._ocr_text,
+            self._structured_text,
+            "artifact",
+            data.get("db_empty", False),
+        )
+        self._recognizing = False
+        self.recognizingChanged.emit()
+
+    def _on_ocr_task_error(self, error: str, _callback_data: object) -> None:
+        self._on_recognize_error(error)
+
+    def _on_recognize_error(self, error: str) -> None:
+        log.error(f"圣遗物识别失败: {error}")
+        self.errorOccurred.emit(str(error))
+        self._recognizing = False
+        self.recognizingChanged.emit()
+
+    # ---------- OCR 任务工厂 ----------
+
+    @staticmethod
+    def create_recognition_task(
+        image: np.ndarray,
+        roi_configs: dict[str, tuple[int, int, int, int]],
+    ) -> Callable[[Any], dict]:
+        """创建 OCR 识别任务（在 Worker 线程中执行）。
+
+        Args:
+            image: 截图 RGB 图像
+            roi_configs: {区域名: (x, y, w, h), ...}
+
+        Returns:
+            callable(ocr_instance) -> dict，包含 ocr_lines / structured_lines /
+            display_result / elapsed_ms / db_empty
+        """
+
+        def task(ocr) -> dict:
+            t0 = time.perf_counter()
+            db_empty = ArtifactRecognizer.is_db_empty()
+
+            artifact = ArtifactRecognizer.recognize(image, roi_configs, ocr)
+
+            display = CaptureResult(
+                image=image.copy(),
+                width=image.shape[1],
+                height=image.shape[0],
+                method=CaptureMethod.WIN32,
+                elapsed_ms=0,
+            )
+
+            return ArtifactRecognitionPresenter._build_display_result(
+                artifact, roi_configs, display, t0, db_empty
+            )
+
+        return task
 
     @Slot()
     def clear(self) -> None:

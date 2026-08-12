@@ -128,6 +128,27 @@ def main():
         traceback.print_exc()
         log.error(f"StatusBar 初始化失败: {exc}")
 
+    # -- OCR 引擎预热（后台线程，不阻塞 UI） --
+    from PySide6.QtCore import QTimer
+
+    def _start_ocr_worker():
+        from backend.automation.ocr_worker import OcrWorker
+
+        # OcrWorker 内部通过 log.info/log.error 自动驱动状态栏
+        # （create_db_sink 已将 loguru → 状态栏桥接）
+        OcrWorker.instance()
+
+    QTimer.singleShot(2000, _start_ocr_worker)
+
+    # -- 退出清理 --
+    def _cleanup():
+        from backend.automation.ocr_worker import OcrWorker
+
+        OcrWorker.destroy_instance()
+        log.info("OCR Worker 已停止")
+
+    app.aboutToQuit.connect(_cleanup)
+
     qml_dir = Path(__file__).parent / "ui" / "qml"
     engine.addImportPath(str(qml_dir))
     engine.load(str(qml_dir / "main.qml"))

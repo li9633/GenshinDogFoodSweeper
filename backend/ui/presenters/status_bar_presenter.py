@@ -8,26 +8,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 
-# 日志级别 → 文字颜色，对齐 loguru 默认配色
-_LEVEL_COLORS: dict[str, str] = {
-    "DEBUG": "#3498DB",
-    "INFO": "#B8B5C0",
-    "SUCCESS": "#27AE60",
-    "WARNING": "#F39C12",
-    "ERROR": "#E74C3C",
-    "CRITICAL": "#C0392B",
-}
-
-# 日志级别 → 背景色（暗色主题下）
-_LEVEL_BG: dict[str, str] = {
-    "DEBUG": "#1B2A3A",
-    "INFO": "#1E1F2E",
-    "SUCCESS": "#1B2E20",
-    "WARNING": "#2E2A1B",
-    "ERROR": "#311B1B",
-    "CRITICAL": "#3C1A1A",
-}
-
 
 class StatusBarPresenter(QObject):
     """状态栏 Presenter — 线程安全，供 QML 绑定"""
@@ -62,14 +42,6 @@ class StatusBarPresenter(QObject):
     @Property(str, notify=messageChanged)
     def level(self) -> str:
         return self._level
-
-    @Property(str, notify=messageChanged)
-    def textColor(self) -> str:
-        return _LEVEL_COLORS.get(self._level.upper(), "#B8B5C0")
-
-    @Property(str, notify=messageChanged)
-    def backgroundColor(self) -> str:
-        return _LEVEL_BG.get(self._level.upper(), "#1E1F2E")
 
     @Property(bool, notify=messageChanged)
     def dismissable(self) -> bool:

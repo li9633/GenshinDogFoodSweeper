@@ -13,12 +13,12 @@ Rectangle {
     // 颜色映射（QML 侧，原生 color 类型，避免 Python str→QColor 转换）
     // ============================================================
     readonly property var levelColors: ({
-        "DEBUG":    { text: "#3498DB", bg: "#1B2A3A" },
-        "INFO":     { text: "#B8B5C0", bg: "#1E1F2E" },
-        "SUCCESS":  { text: "#27AE60", bg: "#1B2E20" },
-        "WARNING":  { text: "#F39C12", bg: "#2E2A1B" },
-        "ERROR":    { text: "#E74C3C", bg: "#311B1B" },
-        "CRITICAL": { text: "#C0392B", bg: "#3C1A1A" }
+        "DEBUG":    { text: "#3498DB", bg: "#F7F5F0" },
+        "INFO":     { text: "#7F8C8D", bg: "#F7F5F0" },
+        "SUCCESS":  { text: "#27AE60", bg: "#F7F5F0" },
+        "WARNING":  { text: "#D35400", bg: "#F7F5F0" },
+        "ERROR":    { text: "#E74C3C", bg: "#F7F5F0" },
+        "CRITICAL": { text: "#FFFFFF", bg: "#E74C3C" }
     })
 
     readonly property var currentColors: {
@@ -47,7 +47,7 @@ Rectangle {
             Layout.preferredWidth: levelBadgeText.implicitWidth + 12
             Layout.preferredHeight: 20
             radius: 3
-            color: Qt.rgba(root.barTextColor.r, root.barTextColor.g, root.barTextColor.b, 0.15)
+            color: Qt.rgba(root.barTextColor.r, root.barTextColor.g, root.barTextColor.b, 0.12)
 
             Text {
                 id: levelBadgeText
