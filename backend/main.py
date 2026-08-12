@@ -116,6 +116,18 @@ def main():
         traceback.print_exc()
         log.error(f"StatusBarTest 初始化失败: {exc}")
 
+    try:
+        from ui.presenters.status_bar_presenter import StatusBarPresenter
+        from utils.log_bridge import set_status_callback
+
+        status_bar = StatusBarPresenter()
+        engine.rootContext().setContextProperty("StatusBarPresenter", status_bar)
+        set_status_callback(status_bar.show)
+        log.debug("StatusBar 注册成功，日志桥接已启用")
+    except Exception as exc:
+        traceback.print_exc()
+        log.error(f"StatusBar 初始化失败: {exc}")
+
     qml_dir = Path(__file__).parent / "ui" / "qml"
     engine.addImportPath(str(qml_dir))
     engine.load(str(qml_dir / "main.qml"))

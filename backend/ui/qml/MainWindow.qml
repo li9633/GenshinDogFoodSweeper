@@ -21,91 +21,102 @@ ApplicationWindow {
            : "原神狗粮清扫器"
 
     // ============================================================
-    // 主布局：侧边栏 + 内容区
+    // 主布局：侧边栏 + 内容区 + 状态栏
     // ============================================================
     Component.onCompleted: {
         Theme.isDark = SettingsPresenter.currentTheme === "dark"
     }
 
-    RowLayout {
+    ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        // -- 左侧导航栏 --
-        Sidebar {
-            id: sidebar
-            Layout.preferredWidth: 160
-            Layout.fillHeight: true
-            currentKey: "dogfood"
-
-            onPageSelected: function(key) {
-                sidebar.currentKey = key
-                stackView.replace(null, getPageComponent(key), StackView.Immediate)
-            }
-        }
-
-        // -- 分割线 --
-        Rectangle {
-            Layout.preferredWidth: 1
-            Layout.fillHeight: true
-            color: Theme.border
-        }
-
-        // -- 右侧内容区 --
-        ColumnLayout {
+        RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // 顶部工具栏
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 40
-                color: "transparent"
+            // -- 左侧导航栏 --
+            Sidebar {
+                id: sidebar
+                Layout.preferredWidth: 160
+                Layout.fillHeight: true
+                currentKey: "dogfood"
 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-
-                    Text {
-                        text: "原神狗粮清扫器"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 16
-                        font.bold: true
-                        color: Theme.accent
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    // 主题切换
-                    Switch {
-                        id: themeSwitch
-                        checked: SettingsPresenter.currentTheme === "dark"
-                        onCheckedChanged: SettingsPresenter.setTheme(checked ? "dark" : "light")
-                    }
-
-                    Text {
-                        text: Theme.isDark ? "🌙" : "☀"
-                        font.pixelSize: 14
-                    }
+                onPageSelected: function(key) {
+                    sidebar.currentKey = key
+                    stackView.replace(null, getPageComponent(key), StackView.Immediate)
                 }
             }
 
-            // 分割线
+            // -- 分割线 --
             Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
+                Layout.preferredWidth: 1
+                Layout.fillHeight: true
                 color: Theme.border
             }
 
-            // 页面容器
-            StackView {
-                id: stackView
+            // -- 右侧内容区 --
+            ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                initialItem: dogfoodPage
+                spacing: 0
+
+                // 顶部工具栏
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    color: "transparent"
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 16
+
+                        Text {
+                            text: "原神狗粮清扫器"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 16
+                            font.bold: true
+                            color: Theme.accent
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        // 主题切换
+                        Switch {
+                            id: themeSwitch
+                            checked: SettingsPresenter.currentTheme === "dark"
+                            onCheckedChanged: SettingsPresenter.setTheme(checked ? "dark" : "light")
+                        }
+
+                        Text {
+                            text: Theme.isDark ? "🌙" : "☀"
+                            font.pixelSize: 14
+                        }
+                    }
+                }
+
+                // 分割线
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: Theme.border
+                }
+
+                // 页面容器
+                StackView {
+                    id: stackView
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    initialItem: dogfoodPage
+                }
             }
+        }
+
+        // -- 底部状态栏 --
+        StatusBar {
+            Layout.fillWidth: true
         }
     }
 
