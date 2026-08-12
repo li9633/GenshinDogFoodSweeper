@@ -50,26 +50,12 @@ Rectangle {
             }
 
             // ======== 外观设置 ========
-            GroupBox { padding: 10
+            GCard {
                 title: "外观设置"
                 Layout.fillWidth: true
-                background: Rectangle {
-                    color: Theme.bgSecondary
-                    radius: Theme.radius
-                    border.color: Theme.border
-                }
-                label: Text {
-                    text: "外观设置"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    font.bold: true
-                    color: Theme.textPrimary
-                    // qmllint disable missing-property
-                    x: parent.leftPadding
-                }
 
                 RowLayout {
-                    anchors.fill: parent
+                    Layout.fillWidth: true
                     spacing: 8
 
                     Text {
@@ -89,26 +75,12 @@ Rectangle {
             }
 
             // ======== 圣遗物同步 ========
-            GroupBox {
+            GCard {
                 title: "圣遗物同步"
                 Layout.fillWidth: true
-                background: Rectangle {
-                    color: Theme.bgSecondary
-                    radius: Theme.radius
-                    border.color: Theme.border
-                }
-                label: Text {
-                    text: "圣遗物同步"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: Theme.textPrimary
-                    // qmllint disable missing-property
-                    x: parent.leftPadding
-                }
 
                 ColumnLayout {
-                    anchors.fill: parent
+                    Layout.fillWidth: true
                     spacing: 8
 
                     // 按钮行
@@ -177,27 +149,12 @@ Rectangle {
             }
 
             // ======== OCR 模型 ========
-            GroupBox {
+            GCard {
                 title: "OCR 模型"
                 Layout.fillWidth: true
-                padding: 10
-                background: Rectangle {
-                    color: Theme.bgSecondary
-                    radius: Theme.radius
-                    border.color: Theme.border
-                }
-                label: Text {
-                    text: "OCR 模型"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    font.bold: true
-                    color: Theme.textPrimary
-                    // qmllint disable missing-property
-                    x: parent.leftPadding
-                }
 
                 ColumnLayout {
-                    anchors.fill: parent
+                    Layout.fillWidth: true
                     spacing: 8
 
                     // 按钮行

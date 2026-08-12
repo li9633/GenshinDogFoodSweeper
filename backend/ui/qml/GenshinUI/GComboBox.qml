@@ -47,10 +47,11 @@ ComboBox {
     popup: Popup {
         y: control.height + 2
         width: control.width
-        implicitHeight: Math.min(contentItem.contentHeight, 200)
+        implicitHeight: Math.min(popupList.contentHeight, 200)
         padding: 2
 
         contentItem: ListView {
+            id: popupList
             clip: true
             implicitHeight: contentHeight
             model: control.popup.visible ? control.delegateModel : null

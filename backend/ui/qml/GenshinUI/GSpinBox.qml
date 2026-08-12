@@ -1,11 +1,12 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 
 SpinBox {
     id: control
 
     implicitHeight: 30
-    implicitWidth: 70
+    Layout.preferredWidth: 100
 
     contentItem: TextInput {
         text: control.displayText

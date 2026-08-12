@@ -23,37 +23,24 @@ Rectangle {
             spacing: Theme.spacing
 
             // ---- 坐标定位 ----
-            GroupBox {
+            GCard {
                 title: "坐标定位"
                 Layout.fillWidth: true
-                background: Rectangle {
-                    color: Theme.bgSecondary
-                    radius: Theme.radius
-                    border.color: Theme.border
-                }
-                label: Text {
-                    text: "坐标定位"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: Theme.textPrimary
-                    x: parent.leftPadding
-                }
 
                 ColumnLayout {
-                    anchors.fill: parent
+                    Layout.fillWidth: true
                     spacing: 4
 
                     RowLayout {
                         spacing: 4
                         Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: spinX; Layout.preferredWidth: 70; from: 0; to: 9999; value: RegionMarker.regionX; onValueChanged: RegionMarker.setCoords(value, spinY.value, spinW.value, spinH.value) }
+                        GSpinBox { id: spinX; from: 0; to: 9999; value: RegionMarker.regionX; onValueChanged: RegionMarker.setCoords(value, spinY.value, spinW.value, spinH.value) }
                         Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: spinY; Layout.preferredWidth: 70; from: 0; to: 9999; value: RegionMarker.regionY; onValueChanged: RegionMarker.setCoords(spinX.value, value, spinW.value, spinH.value) }
+                        GSpinBox { id: spinY; from: 0; to: 9999; value: RegionMarker.regionY; onValueChanged: RegionMarker.setCoords(spinX.value, value, spinW.value, spinH.value) }
                         Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: spinW; Layout.preferredWidth: 70; from: 1; to: 9999; value: RegionMarker.regionW; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, value, spinH.value) }
+                        GSpinBox { id: spinW; from: 1; to: 9999; value: RegionMarker.regionW; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, value, spinH.value) }
                         Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: spinH; Layout.preferredWidth: 70; from: 1; to: 9999; value: RegionMarker.regionH; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, spinW.value, value) }
+                        GSpinBox { id: spinH; from: 1; to: 9999; value: RegionMarker.regionH; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, spinW.value, value) }
                     }
 
                     GButton {
@@ -65,25 +52,12 @@ Rectangle {
             }
 
             // ---- 截图操作 ----
-            GroupBox {
+            GCard {
                 title: "截图操作"
                 Layout.fillWidth: true
-                background: Rectangle {
-                    color: Theme.bgSecondary
-                    radius: Theme.radius
-                    border.color: Theme.border
-                }
-                label: Text {
-                    text: "截图操作"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: Theme.textPrimary
-                    x: parent.leftPadding
-                }
 
                 RowLayout {
-                    anchors.fill: parent
+                    Layout.fillWidth: true
                     spacing: 6
 
                     GButton {
@@ -108,25 +82,12 @@ Rectangle {
             }
 
             // ---- 颜色提取 ----
-            GroupBox {
+            GCard {
                 title: "颜色提取"
                 Layout.fillWidth: true
-                background: Rectangle {
-                    color: Theme.bgSecondary
-                    radius: Theme.radius
-                    border.color: Theme.border
-                }
-                label: Text {
-                    text: "颜色提取"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: Theme.textPrimary
-                    x: parent.leftPadding
-                }
 
                 RowLayout {
-                    anchors.fill: parent
+                    Layout.fillWidth: true
                     spacing: 6
 
                     GButton {
@@ -157,25 +118,12 @@ Rectangle {
             }
 
             // ---- 模板保存 ----
-            GroupBox {
+            GCard {
                 title: "模板保存"
                 Layout.fillWidth: true
-                background: Rectangle {
-                    color: Theme.bgSecondary
-                    radius: Theme.radius
-                    border.color: Theme.border
-                }
-                label: Text {
-                    text: "模板保存"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: Theme.textPrimary
-                    x: parent.leftPadding
-                }
 
                 RowLayout {
-                    anchors.fill: parent
+                    Layout.fillWidth: true
                     spacing: 4
 
                     TextField {

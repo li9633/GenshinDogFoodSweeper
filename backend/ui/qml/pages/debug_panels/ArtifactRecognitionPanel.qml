@@ -25,25 +25,12 @@ Rectangle {
             spacing: Theme.spacing
 
             // ---- ROI 区域定义 ----
-            GroupBox {
-                title: "ROI 区域定义"
+            GCard {
+                title: "ROI 区域定义（相对于游戏窗口）"
                 Layout.fillWidth: true
-                background: Rectangle {
-                    color: Theme.bgSecondary
-                    radius: Theme.radius
-                    border.color: Theme.border
-                }
-                label: Text {
-                    text: "ROI 区域定义（相对于游戏窗口）"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: Theme.textPrimary
-                    x: parent.leftPadding
-                }
 
                 ColumnLayout {
-                    anchors.fill: parent
+                    Layout.fillWidth: true
                     spacing: 4
 
                     GCheckBox {
@@ -68,28 +55,24 @@ Rectangle {
                             }
                             Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
                             GSpinBox {
-                                Layout.preferredWidth: 55
                                 from: 0; to: 9999
                                 value: modelData.dx
                                 enabled: roiEditable
                             }
                             Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
                             GSpinBox {
-                                Layout.preferredWidth: 55
                                 from: 0; to: 9999
                                 value: modelData.dy
                                 enabled: roiEditable
                             }
                             Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
                             GSpinBox {
-                                Layout.preferredWidth: 55
                                 from: 0; to: 9999
                                 value: modelData.dw
                                 enabled: roiEditable
                             }
                             Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
                             GSpinBox {
-                                Layout.preferredWidth: 55
                                 from: 0; to: 9999
                                 value: modelData.dh
                                 enabled: roiEditable
@@ -107,35 +90,21 @@ Rectangle {
                 spacing: 6
 
                 // 识别结果 OCR 原始输出
-                GroupBox {
-                    title: "识别结果"
+                GCard {
+                    title: "识别结果（OCR 原始输出）"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    background: Rectangle {
-                        color: Theme.bgSecondary
-                        radius: Theme.radius
-                        border.color: Theme.border
-                    }
-                    label: Text {
-                        text: "识别结果（OCR 原始输出）"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 14
-                        font.bold: true
-                        color: Theme.textPrimary
-                        // qmllint disable missing-property
-                        x: parent.leftPadding
-                    }
 
                     ScrollView {
-                        anchors.fill: parent
-                        anchors.margins: 4
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
                         clip: true
 
                         TextArea {
                             id: ocrResultText
                             readOnly: true
                             placeholderText: "点击「识别」查看 OCR 原始结果…"
-                            font.family: "Consolas"
+                            font.family: Theme.fontFamily
                             font.pixelSize: 12
                             color: Theme.textPrimary
                             background: null
@@ -145,35 +114,21 @@ Rectangle {
                 }
 
                 // 格式化解析结果
-                GroupBox {
+                GCard {
                     title: "格式化解析结果"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    background: Rectangle {
-                        color: Theme.bgSecondary
-                        radius: Theme.radius
-                        border.color: Theme.border
-                    }
-                    label: Text {
-                        text: "格式化解析结果"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 14
-                        font.bold: true
-                        color: Theme.textPrimary
-                        // qmllint disable missing-property
-                        x: parent.leftPadding
-                    }
 
                     ScrollView {
-                        anchors.fill: parent
-                        anchors.margins: 4
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
                         clip: true
 
                         TextArea {
                             id: structuredResultText
                             readOnly: true
                             placeholderText: "结构化解析结果将显示在此…"
-                            font.family: "Consolas"
+                            font.family: Theme.fontFamily
                             font.pixelSize: 12
                             color: Theme.textPrimary
                             background: null
@@ -184,22 +139,9 @@ Rectangle {
             }
 
             // ---- 操作 ----
-            GroupBox {
+            GCard {
                 title: "操作"
                 Layout.fillWidth: true
-                background: Rectangle {
-                    color: Theme.bgSecondary
-                    radius: Theme.radius
-                    border.color: Theme.border
-                }
-                label: Text {
-                    text: "操作"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: Theme.textPrimary
-                    x: parent.leftPadding
-                }
 
                 GButton {
                     id: btnCapture
@@ -207,7 +149,6 @@ Rectangle {
                     colorType: "primary"
                     enabled: !ArtifactRecognition.recognizing
                     Layout.fillWidth: true
-                    anchors.fill: parent
                     onClicked: ArtifactRecognition.recognize()
                 }
             }
