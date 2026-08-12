@@ -12,7 +12,6 @@ Rectangle {
     Layout.fillWidth: true
     Layout.fillHeight: true
 
-    property bool roiExpanded: false
     property bool roiEditable: false
 
     ScrollView {
@@ -23,86 +22,80 @@ Rectangle {
 
         ColumnLayout {
             width: scrollView.availableWidth
-            spacing: 6
+            spacing: Theme.spacing
 
-            // ---- ROI 折叠区 ----
-            Button {
-                id: roiHeader
+            // ---- ROI 区域定义 ----
+            GroupBox {
+                title: "ROI 区域定义"
                 Layout.fillWidth: true
-                checkable: true
-                checked: roiExpanded
-                text: (checked ? "▾" : "▸") + " ROI 区域定义（相对于游戏窗口）"
-                contentItem: Text {
-                    // qmllint disable missing-property
-                    text: parent.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    color: Theme.textPrimary
-                    verticalAlignment: Text.AlignVCenter
-                    leftPadding: 8
-                }
                 background: Rectangle {
-                    // qmllint disable missing-property
-                    color: parent.checked ? Theme.accentOverlay10 : "transparent"
-                    border.color: Theme.border
+                    color: Theme.bgSecondary
                     radius: Theme.radius
+                    border.color: Theme.border
                 }
-                onClicked: roiExpanded = !roiExpanded
-            }
-
-            ColumnLayout {
-                visible: roiExpanded
-                spacing: 4
-
-                GCheckBox {
-                    id: chkEditRoi
-                    text: "编辑 ROI"
-                    checked: roiEditable
-                    onCheckedChanged: roiEditable = checked
+                label: Text {
+                    text: "ROI 区域定义（相对于游戏窗口）"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 14
+                    font.bold: true
+                    color: Theme.textPrimary
+                    x: parent.leftPadding
                 }
 
-                Repeater {
-                    id: roiRepeater
-                    model: ArtifactRecognition.roiDefinitions
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 4
 
-                    RowLayout {
-                        spacing: 2
-                        Text {
-                            text: modelData.name + ":"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 12
-                            color: Theme.textSecondary
-                            Layout.preferredWidth: 80
+                    GCheckBox {
+                        id: chkEditRoi
+                        text: "编辑 ROI"
+                        checked: roiEditable
+                        onCheckedChanged: roiEditable = checked
+                    }
+
+                    Repeater {
+                        id: roiRepeater
+                        model: ArtifactRecognition.roiDefinitions
+
+                        RowLayout {
+                            spacing: 2
+                            Text {
+                                text: modelData.name + ":"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 13
+                                color: Theme.textSecondary
+                                Layout.preferredWidth: 80
+                            }
+                            Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
+                            GSpinBox {
+                                Layout.preferredWidth: 55
+                                from: 0; to: 9999
+                                value: modelData.dx
+                                enabled: roiEditable
+                            }
+                            Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
+                            GSpinBox {
+                                Layout.preferredWidth: 55
+                                from: 0; to: 9999
+                                value: modelData.dy
+                                enabled: roiEditable
+                            }
+                            Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
+                            GSpinBox {
+                                Layout.preferredWidth: 55
+                                from: 0; to: 9999
+                                value: modelData.dw
+                                enabled: roiEditable
+                            }
+                            Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
+                            GSpinBox {
+                                Layout.preferredWidth: 55
+                                from: 0; to: 9999
+                                value: modelData.dh
+                                enabled: roiEditable
+                            }
+                            Item { Layout.fillWidth: true }
                         }
-                        Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                        GSpinBox {
-                            Layout.preferredWidth: 55
-                            from: 0; to: 9999
-                            value: modelData.dx
-                            enabled: roiEditable
-                        }
-                        Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                        GSpinBox {
-                            Layout.preferredWidth: 55
-                            from: 0; to: 9999
-                            value: modelData.dy
-                            enabled: roiEditable
-                        }
-                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                        GSpinBox {
-                            Layout.preferredWidth: 55
-                            from: 0; to: 9999
-                            value: modelData.dw
-                            enabled: roiEditable
-                        }
-                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
-                        GSpinBox {
-                            Layout.preferredWidth: 55
-                            from: 0; to: 9999
-                            value: modelData.dh
-                            enabled: roiEditable
-                        }
-                        Item { Layout.fillWidth: true }
                     }
                 }
             }
@@ -126,7 +119,7 @@ Rectangle {
                     label: Text {
                         text: "识别结果（OCR 原始输出）"
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: 14
                         font.bold: true
                         color: Theme.textPrimary
                         // qmllint disable missing-property
@@ -164,7 +157,7 @@ Rectangle {
                     label: Text {
                         text: "格式化解析结果"
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: 14
                         font.bold: true
                         color: Theme.textPrimary
                         // qmllint disable missing-property
@@ -190,9 +183,23 @@ Rectangle {
                 }
             }
 
-            // ---- 操作按钮 ----
-            RowLayout {
-                spacing: 6
+            // ---- 操作 ----
+            GroupBox {
+                title: "操作"
+                Layout.fillWidth: true
+                background: Rectangle {
+                    color: Theme.bgSecondary
+                    radius: Theme.radius
+                    border.color: Theme.border
+                }
+                label: Text {
+                    text: "操作"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 14
+                    font.bold: true
+                    color: Theme.textPrimary
+                    x: parent.leftPadding
+                }
 
                 GButton {
                     id: btnCapture
@@ -200,6 +207,7 @@ Rectangle {
                     colorType: "primary"
                     enabled: !ArtifactRecognition.recognizing
                     Layout.fillWidth: true
+                    anchors.fill: parent
                     onClicked: ArtifactRecognition.recognize()
                 }
             }

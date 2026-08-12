@@ -4,13 +4,13 @@ import QtQuick.Controls
 SpinBox {
     id: control
 
-    implicitHeight: 26
+    implicitHeight: 30
     implicitWidth: 70
 
     contentItem: TextInput {
         text: control.displayText
         font.family: Theme.fontFamily
-        font.pixelSize: 13
+        font.pixelSize: 14
         color: Theme.textPrimary
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter

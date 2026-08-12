@@ -7,8 +7,8 @@ CheckBox {
     leftPadding: indicator.width + 6
 
     indicator: Rectangle {
-        implicitWidth: 16
-        implicitHeight: 16
+        implicitWidth: 18
+        implicitHeight: 18
         x: 0
         y: (control.availableHeight - height) / 2
         radius: 3
@@ -27,7 +27,7 @@ CheckBox {
     contentItem: Text {
         text: control.text
         font.family: Theme.fontFamily
-        font.pixelSize: 12
+        font.pixelSize: 13
         color: Theme.textPrimary
         verticalAlignment: Text.AlignVCenter
         leftPadding: 0

@@ -56,15 +56,16 @@ Rectangle {
 
             GButton {
                 text: "-"
-                implicitWidth: 28
-                implicitHeight: 24
+                implicitWidth: 30
+                implicitHeight: 30
+                colorType: "default"
                 onClicked: root.zoomOut()
             }
 
             Text {
                 text: root.fitToView ? "适应" : Math.round(root.zoomFactor * 100) + "%"
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: 13
                 color: Theme.textSecondary
                 Layout.preferredWidth: 40
                 horizontalAlignment: Text.AlignHCenter
@@ -72,24 +73,22 @@ Rectangle {
 
             GButton {
                 text: "+"
-                implicitWidth: 28
-                implicitHeight: 24
+                implicitWidth: 30
+                implicitHeight: 30
+                colorType: "default"
                 onClicked: root.zoomIn()
             }
 
             GButton {
                 text: "适应"
-                implicitWidth: 44
-                implicitHeight: 24
+                colorType: "info"
                 onClicked: root.zoomFit()
             }
 
             GButton {
                 text: "清除"
                 visible: root.source !== null && root.source.toString() !== ""
-                implicitWidth: 44
-                implicitHeight: 24
-                colorType: "default"
+                colorType: "warning"
                 onClicked: {
                     root.clear()
                     root.clearRequested()

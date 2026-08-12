@@ -36,8 +36,24 @@ QtObject {
     readonly property color dangerHover:    isDark ? "#F44336" : "#D32F2F"
     readonly property color dangerPressed:  isDark ? "#D32F2F" : "#B71C1C"
 
+    // -- 成功色 --
+    readonly property color success:         isDark ? "#4CAF50" : "#2E7D32"
+    readonly property color successHover:    isDark ? "#66BB6A" : "#388E3C"
+    readonly property color successPressed:  isDark ? "#388E3C" : "#1B5E20"
+
+    // -- 警告色 --
+    readonly property color warning:         isDark ? "#FF9800" : "#EF6C00"
+    readonly property color warningHover:    isDark ? "#FFA726" : "#F57C00"
+    readonly property color warningPressed:  isDark ? "#F57C00" : "#E65100"
+
+    // -- 信息色 --
+    readonly property color info:         isDark ? "#42A5F5" : "#1565C0"
+    readonly property color infoHover:    isDark ? "#64B5F6" : "#1976D2"
+    readonly property color infoPressed:  isDark ? "#1E88E5" : "#0D47A1"
+
     // -- 图标 --
     readonly property string fontFamily: "Microsoft YaHei"
-    readonly property int fontSize: 13
-    readonly property int radius: 4
+    readonly property int fontSize: 15
+    readonly property int radius: 6
+    readonly property int spacing: 8
 }

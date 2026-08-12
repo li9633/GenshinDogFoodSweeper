@@ -29,64 +29,37 @@ Rectangle {
                 color: Theme.bgSidebar
             }
 
-            TabButton {
-                text: "区域标记"
-                font.family: Theme.fontFamily
-                font.pixelSize: 13
-                contentItem: Text {
-                    text: parent.text
-                    font: parent.font
-                    color: parent.checked ? Theme.accent : Theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: parent.checked ? Theme.accentOverlay10 : "transparent"
-                }
-            }
-            TabButton {
-                text: "元素定位"
-                font.family: Theme.fontFamily
-                font.pixelSize: 13
-                contentItem: Text {
-                    text: parent.text
-                    font: parent.font
-                    color: parent.checked ? Theme.accent : Theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: parent.checked ? Theme.accentOverlay10 : "transparent"
-                }
-            }
-            TabButton {
-                text: "圣遗物识别"
-                font.family: Theme.fontFamily
-                font.pixelSize: 13
-                contentItem: Text {
-                    text: parent.text
-                    font: parent.font
-                    color: parent.checked ? Theme.accent : Theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: parent.checked ? Theme.accentOverlay10 : "transparent"
-                }
-            }
-            TabButton {
-                text: "状态栏"
-                font.family: Theme.fontFamily
-                font.pixelSize: 13
-                contentItem: Text {
-                    text: parent.text
-                    font: parent.font
-                    color: parent.checked ? Theme.accent : Theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: parent.checked ? Theme.accentOverlay10 : "transparent"
+            Repeater {
+                model: ["区域标记", "元素定位", "圣遗物识别", "状态栏"]
+
+                TabButton {
+                    required property int index
+                    required property string modelData
+
+                    text: modelData
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 14
+
+                    HoverHandler {
+                        id: tabHover
+                        cursorShape: Qt.PointingHandCursor
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        font: parent.font
+                        color: parent.checked ? Theme.accent : Theme.textSecondary
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    background: Rectangle {
+                        color: {
+                            if (parent.checked) return Theme.accentOverlay10
+                            if (tabHover.hovered) return Theme.accentOverlay6
+                            return "transparent"
+                        }
+                    }
                 }
             }
         }

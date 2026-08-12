@@ -20,7 +20,7 @@ Rectangle {
 
         ColumnLayout {
             width: scrollView.availableWidth
-            spacing: 6
+            spacing: Theme.spacing
 
             // ---- 添加检测条件 ----
             GroupBox {
@@ -34,7 +34,7 @@ Rectangle {
                 label: Text {
                     text: "添加检测条件"
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: 14
                     font.bold: true
                     color: Theme.textPrimary
                     // qmllint disable missing-property
@@ -67,19 +67,11 @@ Rectangle {
                             interval: 300
                             onTriggered: ElementDetection.searchTemplates(searchInput.text)
                         }
-                        Button {
+                        GButton {
                             text: "⟳"
-                            implicitWidth: 28; implicitHeight: 28
-                            contentItem: Text {
-                                // qmllint disable missing-property
-                                text: parent.text
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 14
-                                color: Theme.textPrimary
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle { color: Theme.bgTrack; radius: 4 }
+                            implicitWidth: 30
+                            implicitHeight: 30
+                            colorType: "default"
                             onClicked: ElementDetection.reloadTemplates()
                         }
                     }
@@ -88,7 +80,7 @@ Rectangle {
                     RowLayout {
                         spacing: 4
                         Text { text: "模板:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                        ComboBox {
+                        GComboBox {
                             id: templateCombo
                             Layout.fillWidth: true
                             model: ElementDetection.templateList
@@ -96,19 +88,6 @@ Rectangle {
                             valueRole: "name"
                             currentIndex: -1
                             displayText: currentIndex >= 0 ? currentText : "请选择模板…"
-                            background: Rectangle {
-                                color: Theme.bgTrack
-                                radius: 4
-                                border.color: Theme.border
-                            }
-                            contentItem: Text {
-                                text: templateCombo.displayText
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 13
-                                color: Theme.textPrimary
-                                verticalAlignment: Text.AlignVCenter
-                                leftPadding: 8
-                            }
                             onActivated: ElementDetection.selectTemplate(templateCombo.currentValue)
                         }
                         Text { text: "阈值:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
@@ -181,9 +160,8 @@ Rectangle {
                             RowLayout {
                                 spacing: 4
                                 GButton {
-                                        text: "粘贴"
+                                        text: "粘贴坐标到区域"
                                         colorType: "default"
-                                        implicitHeight: 26
                                         onClicked: {
                                             var parts = Clipboard.text().split(",")
                                             if (parts.length >= 4) {
@@ -214,7 +192,7 @@ Rectangle {
                 label: Text {
                     text: "检测条件列表（全部匹配才算通过）"
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: 14
                     font.bold: true
                     color: Theme.textPrimary
                     // qmllint disable missing-property
@@ -281,57 +259,74 @@ Rectangle {
                 }
             }
 
-            // ---- 检测定位按钮 ----
-            GButton {
-                id: btnDetect
-                text: ElementDetection.detecting ? "检测中…" : "检测定位"
-                colorType: "primary"
-                enabled: ElementDetection.conditionCount > 0 && !ElementDetection.detecting
+            // ---- 检测操作 ----
+            GroupBox {
+                title: "检测操作"
                 Layout.fillWidth: true
-                implicitHeight: 34
-                onClicked: {
-                    ElementDetection.detect()
+                background: Rectangle {
+                    color: Theme.bgSecondary
+                    radius: Theme.radius
+                    border.color: Theme.border
                 }
-            }
-
-            // ---- 注册区域 ----
-            RowLayout {
-                spacing: 4
-                TextField {
-                    id: registerNameInput
-                    Layout.fillWidth: true
-                    placeholderText: "注册名称（留空用文件名）"
+                label: Text {
+                    text: "检测操作"
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: 14
+                    font.bold: true
                     color: Theme.textPrimary
-                    background: Rectangle {
-                        color: Theme.bgTrack
-                        radius: 4
-                        border.color: Theme.border
-                    }
+                    x: parent.leftPadding
                 }
-                GButton {
-                    text: "注册区域"
-                    colorType: "default"
-                    implicitHeight: 30
-                    onClicked: {
-                        if (conditionList.currentIndex >= 0) {
-                            ElementDetection.registerRegionByIndex(conditionList.currentIndex, registerNameInput.text)
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 4
+
+                    GButton {
+                        id: btnDetect
+                        text: ElementDetection.detecting ? "检测中…" : "检测定位"
+                        colorType: "primary"
+                        enabled: ElementDetection.conditionCount > 0 && !ElementDetection.detecting
+                        Layout.fillWidth: true
+                        onClicked: ElementDetection.detect()
+                    }
+
+                    RowLayout {
+                        spacing: 4
+                        TextField {
+                            id: registerNameInput
+                            Layout.fillWidth: true
+                            placeholderText: "注册名称（留空用文件名）"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 14
+                            color: Theme.textPrimary
+                            background: Rectangle {
+                                color: Theme.bgTrack
+                                radius: Theme.radius
+                                border.color: Theme.border
+                            }
+                        }
+                        GButton {
+                            text: "注册区域"
+                            colorType: "default"
+                            onClicked: {
+                                if (conditionList.currentIndex >= 0) {
+                                    ElementDetection.registerRegionByIndex(conditionList.currentIndex, registerNameInput.text)
+                                }
+                            }
                         }
                     }
-                }
-            }
 
-            // ---- 检测结果 ----
-            Text {
-                id: detectionResult
-                Layout.fillWidth: true
-                text: ""
-                font.family: Theme.fontFamily
-                font.pixelSize: 12
-                color: Theme.textSecondary
-                wrapMode: Text.WordWrap
-                visible: text !== ""
+                    Text {
+                        id: detectionResult
+                        Layout.fillWidth: true
+                        text: ""
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                        color: Theme.textSecondary
+                        wrapMode: Text.WordWrap
+                        visible: text !== ""
+                    }
+                }
             }
 
             Item { Layout.fillHeight: true }

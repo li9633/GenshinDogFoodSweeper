@@ -7,7 +7,7 @@ import GenshinUI
 Rectangle {
     id: root
 
-    width: 160
+    width: 200
     color: Theme.bgSidebar
 
     property string currentKey: "dogfood"
@@ -49,14 +49,14 @@ Rectangle {
     // ============================================================
     ListView {
         anchors.fill: parent
-        anchors.topMargin: 8
+        anchors.topMargin: 12
         spacing: 0
         model: menuModel
         interactive: false
 
         delegate: Item {
             width: root.width
-            height: visible ? (model.type === "section" ? 36 : 32) : 0
+            height: visible ? (model.type === "section" ? 44 : 40) : 0
             visible: {
                 if (model.type === "section") return true
                 if (model.indent === undefined || !model.indent) return true
@@ -74,19 +74,19 @@ Rectangle {
                     Row {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
-                        anchors.leftMargin: 16
-                        spacing: 8
+                        anchors.leftMargin: 20
+                        spacing: 10
 
                         Text {
                             text: model.icon || ""
-                            font.pixelSize: 13
+                            font.pixelSize: 14
                             anchors.verticalCenter: parent.verticalCenter
                         }
 
                         Text {
                             text: model.text || ""
                             font.family: Theme.fontFamily
-                            font.pixelSize: 13
+                            font.pixelSize: 14
                             font.weight: Font.DemiBold
                             color: Theme.textPrimary
                             anchors.verticalCenter: parent.verticalCenter
@@ -94,7 +94,7 @@ Rectangle {
 
                         Text {
                             text: root.expandedSections[model.key] ? "▼" : "▶"
-                            font.pixelSize: 10
+                            font.pixelSize: 11
                             color: Theme.textMuted
                             anchors.verticalCenter: parent.verticalCenter
                         }
@@ -120,12 +120,12 @@ Rectangle {
                     Row {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
-                        anchors.leftMargin: model.indent ? 36 : 16
-                        spacing: 8
+                        anchors.leftMargin: model.indent ? 44 : 20
+                        spacing: 10
 
                         Text {
                             text: model.icon || ""
-                            font.pixelSize: 13
+                            font.pixelSize: 14
                             anchors.verticalCenter: parent.verticalCenter
                             visible: model.icon !== undefined && model.icon !== ""
                         }
@@ -133,7 +133,7 @@ Rectangle {
                         Text {
                             text: model.text || ""
                             font.family: Theme.fontFamily
-                            font.pixelSize: 13
+                            font.pixelSize: 14
                             color: root.currentKey === model.key
                                    ? Theme.accent
                                    : Theme.textSecondary

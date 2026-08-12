@@ -79,25 +79,11 @@ Rectangle {
                         color: Theme.textPrimary
                     }
 
-                    ComboBox {
+                    GComboBox {
                         id: themeCombo
                         model: ["深色", "浅色"]
                         currentIndex: SettingsPresenter.themeIndex
                         onCurrentIndexChanged: SettingsPresenter.setThemeByIndex(currentIndex)
-
-                        background: Rectangle {
-                            color: Theme.bgTrack
-                            radius: 4
-                            border.color: Theme.border
-                        }
-                        contentItem: Text {
-                            text: themeCombo.displayText
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 13
-                            color: Theme.textPrimary
-                            verticalAlignment: Text.AlignVCenter
-                            leftPadding: 8
-                        }
                     }
                 }
             }
