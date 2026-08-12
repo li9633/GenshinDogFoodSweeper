@@ -13,6 +13,7 @@ Rectangle {
     Layout.fillHeight: true
 
     property bool roiEditable: false
+    property bool roiExpanded: false
 
     ScrollView {
         id: scrollView
@@ -24,60 +25,99 @@ Rectangle {
             width: scrollView.availableWidth
             spacing: Theme.spacing
 
-            // ---- ROI 区域定义 ----
+            // ---- ROI 区域定义（可折叠，默认折叠）----
             GCard {
-                title: "ROI 区域定义（相对于游戏窗口）"
+                title: ""
                 Layout.fillWidth: true
 
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 4
 
-                    GCheckBox {
-                        id: chkEditRoi
-                        text: "编辑 ROI"
-                        checked: roiEditable
-                        onCheckedChanged: roiEditable = checked
-                    }
-
-                    Repeater {
-                        id: roiRepeater
-                        model: ArtifactRecognition.roiDefinitions
+                    // 可点击标题行
+                    Item {
+                        Layout.fillWidth: true
+                        implicitHeight: titleText.implicitHeight
 
                         RowLayout {
-                            spacing: 2
+                            anchors.fill: parent
+                            spacing: 6
                             Text {
-                                text: modelData.name + ":"
+                                text: roiExpanded ? "▼" : "▶"
                                 font.family: Theme.fontFamily
-                                font.pixelSize: 13
+                                font.pixelSize: 10
                                 color: Theme.textSecondary
-                                Layout.preferredWidth: 80
+                                width: 14
                             }
-                            Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                            GSpinBox {
-                                from: 0; to: 9999
-                                value: modelData.dx
-                                enabled: roiEditable
+                            Text {
+                                id: titleText
+                                text: "ROI 区域定义（相对于游戏窗口）"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 14
+                                font.bold: true
+                                color: Theme.textPrimary
                             }
-                            Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                            GSpinBox {
-                                from: 0; to: 9999
-                                value: modelData.dy
-                                enabled: roiEditable
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: roiExpanded = !roiExpanded
+                        }
+                    }
+
+                    // 可折叠内容
+                    ColumnLayout {
+                        visible: roiExpanded
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        GCheckBox {
+                            id: chkEditRoi
+                            text: "编辑 ROI"
+                            checked: roiEditable
+                            onCheckedChanged: roiEditable = checked
+                        }
+
+                        Repeater {
+                            id: roiRepeater
+                            model: ArtifactRecognition.roiDefinitions
+
+                            RowLayout {
+                                spacing: 2
+                                Text {
+                                    text: modelData.name + ":"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 13
+                                    color: Theme.textSecondary
+                                    Layout.preferredWidth: 80
+                                }
+                                Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
+                                GSpinBox {
+                                    from: 0; to: 9999
+                                    value: modelData.dx
+                                    enabled: roiEditable
+                                }
+                                Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
+                                GSpinBox {
+                                    from: 0; to: 9999
+                                    value: modelData.dy
+                                    enabled: roiEditable
+                                }
+                                Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
+                                GSpinBox {
+                                    from: 0; to: 9999
+                                    value: modelData.dw
+                                    enabled: roiEditable
+                                }
+                                Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
+                                GSpinBox {
+                                    from: 0; to: 9999
+                                    value: modelData.dh
+                                    enabled: roiEditable
+                                }
+                                Item { Layout.fillWidth: true }
                             }
-                            Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                            GSpinBox {
-                                from: 0; to: 9999
-                                value: modelData.dw
-                                enabled: roiEditable
-                            }
-                            Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
-                            GSpinBox {
-                                from: 0; to: 9999
-                                value: modelData.dh
-                                enabled: roiEditable
-                            }
-                            Item { Layout.fillWidth: true }
                         }
                     }
                 }

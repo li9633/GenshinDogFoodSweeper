@@ -82,18 +82,6 @@ ApplicationWindow {
                         }
 
                         Item { Layout.fillWidth: true }
-
-                        // 主题切换
-                        Switch {
-                            id: themeSwitch
-                            checked: SettingsPresenter.currentTheme === "dark"
-                            onCheckedChanged: SettingsPresenter.setTheme(checked ? "dark" : "light")
-                        }
-
-                        Text {
-                            text: Theme.isDark ? "🌙" : "☀"
-                            font.pixelSize: 14
-                        }
                     }
                 }
 
