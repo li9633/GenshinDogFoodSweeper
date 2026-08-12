@@ -63,26 +63,8 @@ ApplicationWindow {
                 spacing: 0
 
                 // 顶部工具栏
-                Rectangle {
+                Toolbar {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 40
-                    color: "transparent"
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 16
-                        anchors.rightMargin: 16
-
-                        Text {
-                            text: "原神狗粮清扫器"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 16
-                            font.bold: true
-                            color: Theme.accent
-                        }
-
-                        Item { Layout.fillWidth: true }
-                    }
                 }
 
                 // 分割线

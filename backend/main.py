@@ -128,6 +128,16 @@ def main():
         traceback.print_exc()
         log.error(f"StatusBar 初始化失败: {exc}")
 
+    try:
+        from ui.presenters.game_detector import GameDetector
+
+        game_detector = GameDetector()
+        engine.rootContext().setContextProperty("GameDetector", game_detector)
+        log.debug("GameDetector 注册成功")
+    except Exception as exc:
+        traceback.print_exc()
+        log.error(f"GameDetector 初始化失败: {exc}")
+
     # -- OCR 引擎预热（后台线程，不阻塞 UI） --
     from PySide6.QtCore import QTimer
 
