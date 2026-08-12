@@ -42,8 +42,9 @@ Rectangle {
         anchors.rightMargin: 8
         spacing: 8
 
-        // 级别标签
+        // 级别标签（默认"就绪"状态不显示）
         Rectangle {
+            visible: StatusBarPresenter.showLevel
             Layout.preferredWidth: levelBadgeText.implicitWidth + 12
             Layout.preferredHeight: 20
             radius: 3

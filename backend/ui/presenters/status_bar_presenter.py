@@ -22,8 +22,9 @@ class StatusBarPresenter(QObject):
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
         self._message = "就绪"
-        self._level = "INFO"
+        self._level = ""
         self._visible = True
+        self._show_level = False
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._reset_to_default)
@@ -42,6 +43,10 @@ class StatusBarPresenter(QObject):
     @Property(str, notify=messageChanged)
     def level(self) -> str:
         return self._level
+
+    @Property(bool, notify=messageChanged)
+    def showLevel(self) -> bool:
+        return self._show_level
 
     @Property(bool, notify=messageChanged)
     def dismissable(self) -> bool:
@@ -68,6 +73,7 @@ class StatusBarPresenter(QObject):
         self._level = level.upper()
         self._message = message
         self._visible = True
+        self._show_level = True
         self.messageChanged.emit()
         self.visibleChanged.emit()
 
@@ -76,6 +82,7 @@ class StatusBarPresenter(QObject):
 
     def _reset_to_default(self) -> None:
         self._timer.stop()
-        self._level = "INFO"
+        self._level = ""
         self._message = "就绪"
+        self._show_level = False
         self.messageChanged.emit()
