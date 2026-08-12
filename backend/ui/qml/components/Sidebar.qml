@@ -1,11 +1,13 @@
 import QtQuick
-import QtQuick.Controls
 import GenshinUI
+
+// qmllint disable unqualified
+// EnvManager 是 Python 上下文属性；Loader sourceComponent 内联组件中访问 root/model 是标准 Qt 写法
 
 Rectangle {
     id: root
 
-    width: 180
+    width: 160
     color: Theme.bgSidebar
 
     property string currentKey: "dogfood"
@@ -36,8 +38,8 @@ Rectangle {
     property var expandedSections: ({ "launcher": true })
 
     function toggleSection(key) {
-        var map = {}
-        for (var k in expandedSections) map[k] = expandedSections[k]
+        let map = {}
+        for (let k in expandedSections) map[k] = expandedSections[k]
         map[key] = !map[key]
         expandedSections = map
     }
@@ -47,18 +49,18 @@ Rectangle {
     // ============================================================
     ListView {
         anchors.fill: parent
-        anchors.topMargin: 12
+        anchors.topMargin: 8
         spacing: 0
         model: menuModel
         interactive: false
 
         delegate: Item {
             width: root.width
-            height: visible ? (model.type === "section" ? 40 : 36) : 0
+            height: visible ? (model.type === "section" ? 36 : 32) : 0
             visible: {
                 if (model.type === "section") return true
                 if (model.indent === undefined || !model.indent) return true
-                var pk = model.parentKey || ""
+                let pk = model.parentKey || ""
                 return root.expandedSections[pk] === true
             }
 
@@ -72,19 +74,19 @@ Rectangle {
                     Row {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
-                        anchors.leftMargin: 20
+                        anchors.leftMargin: 16
                         spacing: 8
 
                         Text {
                             text: model.icon || ""
-                            font.pixelSize: 14
+                            font.pixelSize: 13
                             anchors.verticalCenter: parent.verticalCenter
                         }
 
                         Text {
                             text: model.text || ""
                             font.family: Theme.fontFamily
-                            font.pixelSize: 14
+                            font.pixelSize: 13
                             font.weight: Font.DemiBold
                             color: Theme.textPrimary
                             anchors.verticalCenter: parent.verticalCenter
@@ -118,7 +120,7 @@ Rectangle {
                     Row {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
-                        anchors.leftMargin: model.indent ? 40 : 20
+                        anchors.leftMargin: model.indent ? 36 : 16
                         spacing: 8
 
                         Text {

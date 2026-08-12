@@ -8,7 +8,7 @@ Button {
     property string colorType: "default"
 
     implicitHeight: 28
-    implicitWidth: Math.max(60, contentItem.implicitWidth + 24)
+    implicitWidth: Math.max(56, contentItem.implicitWidth + 20)
 
     HoverHandler {
         cursorShape: control.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
@@ -17,7 +17,7 @@ Button {
     contentItem: Text {
         text: control.text
         font.family: Theme.fontFamily
-        font.pixelSize: 12
+        font.pixelSize: 13
         color: {
             if (!control.enabled) return Theme.textMuted
             if (control.colorType === "primary" || control.colorType === "danger") return Theme.bgPrimary

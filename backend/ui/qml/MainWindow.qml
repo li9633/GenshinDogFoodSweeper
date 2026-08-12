@@ -5,6 +5,9 @@ import GenshinUI
 import "components"
 import "pages"
 
+// qmllint disable unqualified
+// EnvManager / SettingsPresenter 是 Python 通过 setContextProperty 注入的上下文属性
+
 ApplicationWindow {
     id: root
     visible: true
@@ -31,7 +34,7 @@ ApplicationWindow {
         // -- 左侧导航栏 --
         Sidebar {
             id: sidebar
-            Layout.preferredWidth: 180
+            Layout.preferredWidth: 160
             Layout.fillHeight: true
             currentKey: "dogfood"
 
@@ -57,7 +60,7 @@ ApplicationWindow {
             // 顶部工具栏
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 48
+                Layout.preferredHeight: 40
                 color: "transparent"
 
                 RowLayout {

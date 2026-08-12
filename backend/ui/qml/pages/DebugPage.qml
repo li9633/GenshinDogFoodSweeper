@@ -5,6 +5,11 @@ import GenshinUI
 import "debug_panels"
 import "../components"
 
+// qmllint disable unqualified
+// RegionMarker / ElementDetection / ArtifactRecognition 是 Python 上下文属性
+// qmllint disable missing-property
+// TabButton 的 contentItem/background 代理中 parent.text/font/checked 是标准 Qt 用法，qmllint 误报
+
 Rectangle {
     id: root
     color: Theme.bgPrimary
@@ -90,7 +95,7 @@ Rectangle {
         StackLayout {
             id: panelStack
             Layout.fillWidth: true
-            Layout.preferredHeight: 250
+            Layout.preferredHeight: 280
             currentIndex: tabBar.currentIndex
 
             RegionMarkerPanel {}

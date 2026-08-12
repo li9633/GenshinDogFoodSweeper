@@ -38,6 +38,6 @@ QtObject {
 
     // -- 图标 --
     readonly property string fontFamily: "Microsoft YaHei"
-    readonly property int fontSize: 14
-    readonly property int radius: 6
+    readonly property int fontSize: 13
+    readonly property int radius: 4
 }

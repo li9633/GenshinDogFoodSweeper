@@ -18,12 +18,12 @@ Rectangle {
     ScrollView {
         id: scrollView
         anchors.fill: parent
-        anchors.margins: 12
+        anchors.margins: 8
         clip: true
 
         ColumnLayout {
             width: scrollView.availableWidth
-            spacing: 8
+            spacing: 6
 
             // ---- ROI 折叠区 ----
             Button {
@@ -111,7 +111,7 @@ Rectangle {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 180
-                spacing: 8
+                spacing: 6
 
                 // 识别结果 OCR 原始输出
                 GroupBox {
@@ -192,14 +192,13 @@ Rectangle {
 
             // ---- 操作按钮 ----
             RowLayout {
-                spacing: 8
+                spacing: 6
 
                 GButton {
                     id: btnCapture
                     text: ArtifactRecognition.recognizing ? "识别中…" : "截图并识别"
                     colorType: "primary"
                     enabled: !ArtifactRecognition.recognizing
-                    implicitHeight: 34
                     Layout.fillWidth: true
                     onClicked: ArtifactRecognition.recognize()
                 }
@@ -207,7 +206,6 @@ Rectangle {
                 GButton {
                     text: "清除"
                     colorType: "default"
-                    implicitHeight: 34
                     implicitWidth: 80
                     onClicked: ArtifactRecognition.clear()
                 }

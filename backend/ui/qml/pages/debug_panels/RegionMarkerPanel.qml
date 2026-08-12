@@ -15,16 +15,16 @@ Rectangle {
     ScrollView {
         id: scrollView
         anchors.fill: parent
-        anchors.margins: 12
+        anchors.margins: 8
         clip: true
 
         ColumnLayout {
             width: scrollView.availableWidth
-            spacing: 10
+            spacing: 6
 
             // ---- 坐标输入 ----
             RowLayout {
-                spacing: 6
+                spacing: 4
 
                 Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
                 GSpinBox { id: spinX; Layout.preferredWidth: 70; from: 0; to: 9999; value: RegionMarker.regionX; onValueChanged: RegionMarker.setCoords(value, spinY.value, spinW.value, spinH.value) }
@@ -41,7 +41,7 @@ Rectangle {
 
             // ---- 保存模板 ----
             RowLayout {
-                spacing: 6
+                spacing: 4
 
                 Text { text: "文件名:"; font.family: Theme.fontFamily; font.pixelSize: 13; color: Theme.textSecondary }
                 TextField {
@@ -60,7 +60,6 @@ Rectangle {
                 GButton {
                     text: "保存为模板"
                     colorType: "primary"
-                    implicitHeight: 30
                     onClicked: RegionMarker.saveTemplate(filenameInput.text)
                 }
             }
@@ -74,7 +73,6 @@ Rectangle {
                     text: RegionMarker.marking ? "截图中…" : "截图并标记"
                     colorType: "primary"
                     enabled: !RegionMarker.marking
-                    implicitHeight: 30
                     onClicked: RegionMarker.mark()
                 }
 
@@ -84,7 +82,6 @@ Rectangle {
                     checked: RegionMarker.selectionMode
                     text: checked ? "选区中…" : "选区模式"
                     colorType: checked ? "primary" : "default"
-                    implicitHeight: 30
                     onToggled: {
                         RegionMarker.selectionMode = checked
                     }
@@ -93,7 +90,6 @@ Rectangle {
                 GButton {
                     text: "复制坐标"
                     colorType: "default"
-                    implicitHeight: 30
                     onClicked: {
                         RegionMarker.copyCoords()
                     }
@@ -102,7 +98,6 @@ Rectangle {
                 GButton {
                     text: "清除"
                     colorType: "default"
-                    implicitHeight: 30
                     onClicked: RegionMarker.clear()
                 }
 
@@ -111,14 +106,13 @@ Rectangle {
 
             // ---- 颜色提取 ----
             RowLayout {
-                spacing: 8
+                spacing: 6
 
                 GButton {
                     id: btnColor
                     text: RegionMarker.extracting ? "提取中…" : "提取颜色"
                     colorType: "primary"
                     enabled: !RegionMarker.extracting
-                    implicitHeight: 30
                     onClicked: RegionMarker.extractColor()
                 }
 

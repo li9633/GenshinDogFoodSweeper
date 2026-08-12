@@ -33,24 +33,24 @@ Rectangle {
     ScrollView {
         id: scrollView
         anchors.fill: parent
-        anchors.margins: 24
+        anchors.margins: 16
         clip: true
 
         ColumnLayout {
             width: scrollView.availableWidth
-            spacing: 20
+            spacing: 12
 
             // -- 标题 --
             Text {
                 text: "设置"
                 font.family: Theme.fontFamily
-                font.pixelSize: 22
+                font.pixelSize: 18
                 font.bold: true
                 color: Theme.accent
             }
 
             // ======== 外观设置 ========
-            GroupBox {
+            GroupBox { padding: 10
                 title: "外观设置"
                 Layout.fillWidth: true
                 background: Rectangle {
@@ -61,7 +61,7 @@ Rectangle {
                 label: Text {
                     text: "外观设置"
                     font.family: Theme.fontFamily
-                    font.pixelSize: 14
+                    font.pixelSize: 13
                     font.bold: true
                     color: Theme.textPrimary
                     // qmllint disable missing-property
@@ -70,7 +70,7 @@ Rectangle {
 
                 RowLayout {
                     anchors.fill: parent
-                    spacing: 12
+                    spacing: 8
 
                     Text {
                         text: "主题:"
@@ -123,11 +123,11 @@ Rectangle {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    spacing: 10
+                    spacing: 8
 
                     // 按钮行
                     RowLayout {
-                        spacing: 12
+                        spacing: 8
 
                         GButton {
                             text: syncing ? "同步中…" : "立即同步"
@@ -194,6 +194,7 @@ Rectangle {
             GroupBox {
                 title: "OCR 模型"
                 Layout.fillWidth: true
+                padding: 10
                 background: Rectangle {
                     color: Theme.bgSecondary
                     radius: Theme.radius
@@ -202,7 +203,7 @@ Rectangle {
                 label: Text {
                     text: "OCR 模型"
                     font.family: Theme.fontFamily
-                    font.pixelSize: 14
+                    font.pixelSize: 13
                     font.bold: true
                     color: Theme.textPrimary
                     // qmllint disable missing-property
@@ -211,11 +212,11 @@ Rectangle {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    spacing: 10
+                    spacing: 8
 
                     // 按钮行
                     RowLayout {
-                        spacing: 12
+                        spacing: 8
 
                         GButton {
                             text: downloading ? "下载中…"

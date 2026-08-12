@@ -15,12 +15,12 @@ Rectangle {
     ScrollView {
         id: scrollView
         anchors.fill: parent
-        anchors.margins: 12
+        anchors.margins: 8
         clip: true
 
         ColumnLayout {
             width: scrollView.availableWidth
-            spacing: 8
+            spacing: 6
 
             // ---- 添加检测条件 ----
             GroupBox {
@@ -43,11 +43,11 @@ Rectangle {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    spacing: 6
+                    spacing: 4
 
                     // 搜索 + 刷新
                     RowLayout {
-                        spacing: 4
+                        spacing: 3
                         TextField {
                             id: searchInput
                             Layout.fillWidth: true
@@ -69,7 +69,7 @@ Rectangle {
                         }
                         Button {
                             text: "⟳"
-                            implicitWidth: 30; implicitHeight: 30
+                            implicitWidth: 28; implicitHeight: 28
                             contentItem: Text {
                                 // qmllint disable missing-property
                                 text: parent.text
@@ -134,7 +134,7 @@ Rectangle {
 
                     // 预览 + 限定区域
                     RowLayout {
-                        spacing: 6
+                        spacing: 4
 
                         Rectangle {
                             width: 100; height: 80
@@ -160,7 +160,7 @@ Rectangle {
 
                         ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: 4
+                            spacing: 3
 
                             RowLayout {
                                 spacing: 2
