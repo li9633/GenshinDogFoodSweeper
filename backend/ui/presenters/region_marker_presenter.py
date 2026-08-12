@@ -126,12 +126,15 @@ class RegionMarkerPresenter(QObject):
         self._marking = True
         self.markingChanged.emit()
         try:
+            import time
+            t0 = time.perf_counter()
             result = _capture()
             self._last_capture = result
             marked = _mark_region(result, self._x, self._y, self._w, self._h)
             PreviewImageProvider.put("region", marked.image)
             self.captureFinished.emit("region", self._x, self._y, self._w, self._h)
-            log.debug(f"已标记区域 ({self._x}, {self._y}, {self._w}x{self._h})")
+            elapsed = (time.perf_counter() - t0) * 1000
+            log.info(f"区域标记完成 ({elapsed:.0f}ms)")
         except Exception as exc:
             self.errorOccurred.emit(str(exc))
             log.error(f"截图失败: {exc}")
@@ -146,9 +149,13 @@ class RegionMarkerPresenter(QObject):
             self.errorOccurred.emit("请输入文件名")
             return
         try:
+            import time
+            t0 = time.perf_counter()
             result = self._last_capture if self._last_capture else _capture()
             _save_template(result, filename.strip(), self._x, self._y, self._w, self._h)
             self.templateSaved.emit(filename.strip())
+            elapsed = (time.perf_counter() - t0) * 1000
+            log.info(f"模板保存完成 ({elapsed:.0f}ms)")
         except Exception as exc:
             self.errorOccurred.emit(str(exc))
             log.error(f"保存模板失败: {exc}")
@@ -159,6 +166,8 @@ class RegionMarkerPresenter(QObject):
         self._extracting = True
         self.extractingChanged.emit()
         try:
+            import time
+            t0 = time.perf_counter()
             result = _capture()
             self._last_capture = result
             c = _extract_color(result, self._x, self._y, self._w, self._h)
@@ -167,10 +176,8 @@ class RegionMarkerPresenter(QObject):
                 f"RGB({c['r']}, {c['g']}, {c['b']})  "
                 f"HSV({c['h_hsv']}°, {c['s_hsv'] / 255:.0%}, {c['v_hsv'] / 255:.0%})"
             )
-            log.debug(
-                f"颜色提取: RGB({c['r']},{c['g']},{c['b']}) "
-                f"HSV({c['h_hsv']},{c['s_hsv']},{c['v_hsv']})"
-            )
+            elapsed = (time.perf_counter() - t0) * 1000
+            log.info(f"颜色提取完成 ({elapsed:.0f}ms)")
         except Exception as exc:
             self.errorOccurred.emit(str(exc))
             log.error(f"颜色提取失败: {exc}")

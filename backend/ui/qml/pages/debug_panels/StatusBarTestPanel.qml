@@ -1,5 +1,5 @@
+// qmllint disable unqualified
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import GenshinUI
 
@@ -15,32 +15,20 @@ Rectangle {
 
         Repeater {
             model: [
-                { level: "INFO",     label: "信息 (灰)", btnColor: "#6B6E8A", textColor: "white" },
-                { level: "SUCCESS",  label: "成功 (绿)", btnColor: "#4CAF50", textColor: "white" },
-                { level: "WARNING",  label: "警告 (橙)", btnColor: "#FF9800", textColor: "white" },
-                { level: "ERROR",    label: "错误 (红)", btnColor: "#EF5350", textColor: "white" },
-                { level: "CRITICAL", label: "严重",      btnColor: "#C62828", textColor: "white" }
+                { level: "INFO",     label: "信息 (灰)", btnColor: "#6B6E8A" },
+                { level: "SUCCESS",  label: "成功 (绿)", btnColor: "#4CAF50" },
+                { level: "WARNING",  label: "警告 (橙)", btnColor: "#FF9800" },
+                { level: "ERROR",    label: "错误 (红)", btnColor: "#EF5350" },
+                { level: "CRITICAL", label: "严重",      btnColor: "#C62828" }
             ]
 
-            Button {
+            GButton {
+                // modelData 是 Repeater delegate 的隐式上下文属性
                 text: modelData.label
+                btnColor: modelData.btnColor
                 implicitWidth: 100
                 implicitHeight: 32
-                contentItem: Text {
-                    text: parent.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 12
-                    color: modelData.textColor
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: modelData.btnColor
-                    radius: Theme.radius
-                }
-                onClicked: {
-                    StatusBarTest.testLog(modelData.level)
-                }
+                onClicked: StatusBarTest.testLog(modelData.level)
             }
         }
     }

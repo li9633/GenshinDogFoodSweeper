@@ -141,6 +141,9 @@ class ArtifactRecognitionPresenter(QObject):
 
         PreviewImageProvider.put("artifact", data["display_result"].image)
 
+        elapsed = data.get("elapsed_ms", 0)
+        log.info(f"圣遗物识别完成 ({elapsed:.0f}ms)")
+
         self.recognitionFinished.emit(
             self._ocr_text,
             self._structured_text,
