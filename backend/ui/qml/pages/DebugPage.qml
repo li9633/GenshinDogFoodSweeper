@@ -90,7 +90,7 @@ Rectangle {
             id: preview
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: tabBar.currentIndex !== 3 && tabBar.currentIndex !== 4
+            visible: tabBar.currentIndex !== 4
             selectionMode: RegionMarker.selectionMode
 
             onRegionSelected: (x, y, w, h) => {
@@ -146,6 +146,16 @@ Rectangle {
         function onClearPreview() {
             preview.source = ""
             preview.infoText = "等待截图…"
+        }
+    }
+
+    Connections {
+        target: ArtifactScan
+
+        function onDebugPreviewReady(key) {
+            preview.source = ""
+            preview.source = "image://preview/" + key
+            preview.infoText = "灰度检测调试预览"
         }
     }
 }

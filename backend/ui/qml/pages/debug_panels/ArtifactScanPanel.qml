@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import GenshinUI
+import "../../components"
 
 // qmllint disable unqualified
 // ArtifactScan 是 Python 通过 setContextProperty 注入的上下文属性
@@ -146,36 +147,6 @@ Rectangle {
                         Layout.fillWidth: true
                     }
 
-                    // 结果文字
-                    Text {
-                        text: ArtifactScan.clickResult
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textSecondary
-                        visible: ArtifactScan.clickResult !== ""
-                    }
-                }
-            }
-
-            // ---- 滚轮操作 ----
-            GCard {
-                title: "滚轮操作"
-                Layout.fillWidth: true
-
-                RowLayout {
-                    spacing: 6
-
-                    GButton {
-                        text: "滚轮上 (-1)"
-                        colorType: "default"
-                        onClicked: ArtifactScan.scrollWheel(-1)
-                    }
-
-                    GButton {
-                        text: "滚轮下 (+1)"
-                        colorType: "default"
-                        onClicked: ArtifactScan.scrollWheel(1)
-                    }
                 }
             }
 
@@ -464,7 +435,7 @@ Rectangle {
                     spacing: 6
 
                     Text {
-                        text: "手动滚到顶部标记首锚点 → 自动滚到底部 → 查找尾锚点 → 计算页数"
+                        text: "手动滚到顶部标记首锚点 → 智能拖拽到底 → 查找尾锚点 → 计算页数"
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
                         color: Theme.textSecondary
@@ -501,38 +472,40 @@ Rectangle {
                         }
                     }
 
-                    // 滚动条拖拽（使用模板「背包滚动条滑块」的 region 自动定位）
+                    // 智能拖拽到底（检测顶部 → 拖拽 → 检测底部 → 完成）
                     Text {
-                        text: "滚动条轨道高度（滑块从顶到底的像素距离）:"
+                        text: "顶部检测区域（确认滑块在顶部，X与底部共用）:"
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
                         color: Theme.textSecondary
                     }
 
                     RowLayout {
+                        spacing: 4
+
+                        Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: topRegionY; from: 0; to: 9999; value: 184 }
+                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: topRegionW; from: 5; to: 999; value: 7 }
+                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: topRegionH; from: 5; to: 999; value: 23 }
+                    }
+
+                    RowLayout {
                         spacing: 6
 
-                        Text { text: "轨道高度(px):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: scrollbarTrackHeight; from: 100; to: 2000; value: 760 }
-
                         GButton {
-                            text: "智能滚轮到底"
+                            text: "智能拖拽到底"
                             colorType: "primary"
                             enabled: ArtifactScan.anchorFirstX > 0 && !ArtifactScan.anchorScrollRunning
-                            onClicked: {
-                                ArtifactScan.scrollbarTrackHeight = scrollbarTrackHeight.value
-                                ArtifactScan.scrollToBottom()
-                            }
+                            onClicked: ArtifactScan.scrollToBottom(
+                                detectRegionX.value, detectRegionY.value,
+                                detectRegionW.value, detectRegionH.value,
+                                topRegionY.value, topRegionW.value, topRegionH.value
+                            )
                         }
 
-                        Text {
-                            text: "滚动: " + ArtifactScan.anchorScrollProgress
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 14
-                            font.bold: true
-                            color: Theme.accent
-                            visible: ArtifactScan.anchorScrollProgress !== ""
-                        }
+
                     }
 
                     Connections {
@@ -542,9 +515,9 @@ Rectangle {
                         }
                     }
 
-                    // 滚到底部参数
+                    // 颜色检测区域（从底部向上倒查滑块颜色，屏幕绝对坐标）
                     Text {
-                        text: "或使用滚轮方式（锚点坐标 + 滚动次数 + 延迟）:"
+                        text: "颜色检测区域（从底部向上倒查滑块颜色，屏幕绝对坐标）:"
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
                         color: Theme.textSecondary
@@ -552,43 +525,53 @@ Rectangle {
 
                     RowLayout {
                         spacing: 4
-                        Text { text: "锚点X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: anchorScrollFlagX; from: 0; to: 9999; value: 230 }
-                        Text { text: "锚点Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: anchorScrollFlagY; from: 0; to: 9999; value: 335 }
-                        Text { text: "总次数:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: anchorTotalTicks; from: 10; to: 2000; value: 400 }
-                        Text { text: "延迟(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: anchorTickDelay; from: 10; to: 500; value: 20 }
+
+                        Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: detectRegionX; from: 0; to: 9999; value: 1292 }
+                        Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: detectRegionY; from: 0; to: 9999; value: 978 }
+                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: detectRegionW; from: 5; to: 999; value: 10 }
+                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: detectRegionH; from: 5; to: 999; value: 10 }
+                    }
+
+                    Text {
+                        text: "目标颜色: #D8D8D3 · #D8D6D0 · #DAD8D2（从起始Y向上逐行搜索匹配）"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        color: Theme.textSecondary
                     }
 
                     RowLayout {
                         spacing: 6
 
                         GButton {
-                            text: "滚到底部"
+                            text: "颜色检测是否到底"
                             colorType: "primary"
-                            enabled: !ArtifactScan.anchorScrollRunning && ArtifactScan.anchorFirstX > 0
-                            onClicked: ArtifactScan.startScrollToBottom(
-                                anchorScrollFlagX.value, anchorScrollFlagY.value,
-                                anchorTotalTicks.value, anchorTickDelay.value
+                            enabled: ArtifactScan.anchorFirstX > 0 && !ArtifactScan.anchorScrollRunning
+                            onClicked: ArtifactScan.checkScrollBottomByColor(
+                                detectRegionX.value, detectRegionY.value,
+                                detectRegionW.value, detectRegionH.value
                             )
                         }
+                    }
+
+                    // 灰度截图
+                    RowLayout {
+                        spacing: 6
 
                         GButton {
-                            text: "停止"
+                            text: "灰度截图"
                             colorType: "default"
-                            visible: ArtifactScan.anchorScrollRunning
-                            onClicked: ArtifactScan.stopScrollToBottom()
+                            onClicked: ArtifactScan.captureGrayscalePreview()
                         }
 
                         Text {
-                            text: "滚动: " + ArtifactScan.anchorScrollProgress
+                            text: "独立灰度截图，用于测量颜色值"
                             font.family: Theme.fontFamily
-                            font.pixelSize: 14
-                            font.bold: true
-                            color: Theme.accent
-                            visible: ArtifactScan.anchorScrollProgress !== ""
+                            font.pixelSize: 11
+                            color: Theme.textSecondary
                         }
                     }
 
@@ -636,13 +619,7 @@ Rectangle {
                         color: ArtifactScan.anchorTotalPages > 0 ? Theme.accent : Theme.textSecondary
                     }
 
-                    Text {
-                        text: ArtifactScan.clickResult
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textSecondary
-                        visible: ArtifactScan.clickResult !== ""
-                    }
+
                 }
             }
         }
