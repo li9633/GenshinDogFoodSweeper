@@ -198,12 +198,12 @@ class _AutoScrollWorker(QThread):
 
 
 class _SmartScrollToBottomWorker(QThread):
-    """智能拖拽到底部：灰度检测滑块 → 拖拽滑块 → 周期性检测是否停止"""
+    """智能拖拽到底部：计算滑轨长度 → 大距离拖拽 → 快速到底"""
 
-    DRAG_DISTANCE = 200
-    DRAG_STEPS = 8
-    DRAG_STEP_DELAY = 15
-    CHECK_INTERVAL = 3
+    DRAG_CHUNKS = 3  # 分3次拖拽
+    DRAG_STEPS = 10  # 每块拖拽步数
+    DRAG_STEP_DELAY = 15  # 每步延迟（ms）
+    DRAG_RATIO = 4  # 鼠标拖拽距离 / 滑块移动距离（经验值 ~3.5）
 
     progress = Signal(int)
     finished = Signal()
@@ -240,53 +240,71 @@ class _SmartScrollToBottomWorker(QThread):
 
         prev_y = self._initial_slider_y
         drag_x = self._ox + self._region_x + self._region_w // 2
-        drag_count = 0
 
-        while not self._stop:
+        # 计算滑块需要移动的总距离
+        slider_total = self._region_y - self._initial_slider_y
+        if slider_total <= 0:
+            log.info("智能拖拽: 滑块已在底部，跳过")
+            self.finished.emit()
+            return
+
+        # 鼠标需要拖拽的距离（补偿鼠标-滑块移动比例）
+        mouse_total = slider_total * self.DRAG_RATIO
+        chunk = mouse_total // self.DRAG_CHUNKS
+
+        log.info(
+            f"智能拖拽: 滑块需移动{slider_total}px, "
+            f"鼠标拖拽{mouse_total}px, 分{self.DRAG_CHUNKS}次"
+        )
+
+        for i in range(self.DRAG_CHUNKS):
+            if self._stop:
+                break
+
             drag_from_y = self._oy + prev_y + self._region_h // 2
-            drag_to_y = drag_from_y + self.DRAG_DISTANCE
+            drag_to_y = drag_from_y + chunk
+
             self._mouse.drag(
                 drag_x, drag_from_y,
                 drag_x, drag_to_y,
                 self.DRAG_STEPS, self.DRAG_STEP_DELAY,
             )
-            sleep(0.15)
-            drag_count += 1
-            self.progress.emit(drag_count)
+            sleep(0.2)
 
-            if drag_count % self.CHECK_INTERVAL == 0:
-                result = self._capture.capture()
-                if result is None:
-                    continue
-                img = result.image
-                current_y, _, _, _ = ArtifactScanPresenter._find_slider(
-                    img, self._region_x,
-                    max(0, self._region_y - ArtifactScanPresenter._BOTTOM_MAX_SEARCH),
-                    self._region_y,
-                    self._region_w, self._region_h,
-                )
-                if current_y is None:
-                    continue
-                if abs(current_y - prev_y) <= 5:
-                    log.info(
-                        f"智能拖拽: 滑块已停止 "
-                        f"(prev={prev_y}, cur={current_y}), 确认到底"
-                    )
-                    break
+            self.progress.emit(i + 1)
+
+            # 检查是否到底
+            result = self._capture.capture()
+            if result is None:
+                continue
+
+            current_y, _, _, _ = ArtifactScanPresenter._find_slider(
+                result.image, self._region_x,
+                max(0, self._region_y - ArtifactScanPresenter._BOTTOM_MAX_SEARCH),
+                self._region_y,
+                self._region_w, self._region_h,
+            )
+
+            if current_y is None:
+                continue
+
+            log.info(
+                f"智能拖拽: 第{i + 1}/{self.DRAG_CHUNKS}次 "
+                f"(prev={prev_y} → cur={current_y})"
+            )
+
+            if self._region_y - current_y <= 5:
+                log.info("智能拖拽: 已到底")
+                break
+
+            if abs(current_y - prev_y) <= 5:
                 log.info(
-                    f"智能拖拽: 滑块移动 "
-                    f"(prev={prev_y} → cur={current_y}), 继续..."
+                    f"智能拖拽: 滑块已停止 "
+                    f"(prev={prev_y}, cur={current_y}), 确认到底"
                 )
-                prev_y = current_y
+                break
 
-        if not self._stop:
-            for _ in range(5):
-                drag_from_y = self._oy + prev_y + self._region_h // 2
-                drag_to_y = drag_from_y + 20
-                self._mouse.drag(
-                    drag_x, drag_from_y, drag_x, drag_to_y, 4, 10
-                )
-                sleep(0.05)
+            prev_y = current_y
 
         self.finished.emit()
 
