@@ -30,7 +30,7 @@ Rectangle {
             }
 
             Repeater {
-                model: ["区域标记", "元素定位", "圣遗物识别", "状态栏"]
+                model: ["区域标记", "元素定位", "圣遗物识别", "圣遗物扫描", "状态栏"]
 
                 TabButton {
                     required property int index
@@ -74,6 +74,7 @@ Rectangle {
             RegionMarkerPanel {}
             ElementDetectionPanel {}
             ArtifactRecognitionPanel {}
+            ArtifactScanPanel {}
             StatusBarTestPanel {}
         }
 
@@ -84,16 +85,17 @@ Rectangle {
             color: Theme.border
         }
 
-        // -- 预览区（状态栏 Tab 不显示）--
+        // -- 预览区（状态栏/输入测试 Tab 不显示）--
         CapturePreview {
             id: preview
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: tabBar.currentIndex !== 3
+            visible: tabBar.currentIndex !== 3 && tabBar.currentIndex !== 4
             selectionMode: RegionMarker.selectionMode
 
-            onRegionSelected: function(x, y, w, h) {
+            onRegionSelected: (x, y, w, h) => {
                 RegionMarker.setCoords(x, y, w, h)
+                RegionMarker.selectionMode = false
             }
 
             onClearRequested: {

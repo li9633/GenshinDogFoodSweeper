@@ -8,6 +8,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 from PySide6.QtCore import Property, QObject, Signal, Slot
+from PySide6.QtWidgets import QApplication
 from utils.logger import log
 
 from backend.automation.color_sampler import sample_roi_color
@@ -31,7 +32,7 @@ class RegionMarkerPresenter(QObject):
     clearPreview = Signal()
     markingChanged = Signal()
     extractingChanged = Signal()
-    copyToClipboard = Signal(str)
+
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -106,13 +107,16 @@ class RegionMarkerPresenter(QObject):
 
     @Slot(int, int, int, int)
     def setCoords(self, x: int, y: int, w: int, h: int) -> None:
+        log.debug(f"setCoords called: ({x}, {y}, {w}, {h})  current: ({self._x}, {self._y}, {self._w}, {self._h})")
         if (x, y, w, h) == (self._x, self._y, self._w, self._h):
+            log.debug("setCoords: values unchanged, skipping")
             return
         self._x = x
         self._y = y
         self._w = w
         self._h = h
         self.coordsChanged.emit()
+        log.debug(f"setCoords: updated to ({self._x}, {self._y}, {self._w}, {self._h}), coordsChanged emitted")
 
     @Property(str)
     def coordsText(self) -> str:
@@ -188,7 +192,9 @@ class RegionMarkerPresenter(QObject):
     @Slot()
     def copyCoords(self) -> None:
         """复制坐标到剪贴板"""
-        self.copyToClipboard.emit(self.coordsText)
+        text = self.coordsText
+        QApplication.clipboard().setText(text)
+        log.info(f"已复制坐标到剪贴板: {text}")
 
     @Slot()
     def clear(self) -> None:

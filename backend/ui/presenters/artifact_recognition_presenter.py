@@ -134,6 +134,8 @@ class ArtifactRecognitionPresenter(QObject):
         worker.task_error.connect(self._on_ocr_task_error)
 
     def _on_ocr_task_done(self, result: dict, _callback_data: object) -> None:
+        if not isinstance(result, dict):
+            return
         data = result
         self._ocr_text = "\n".join(data["ocr_lines"])
         self._structured_text = "\n".join(data["structured_lines"])

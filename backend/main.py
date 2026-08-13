@@ -130,6 +130,16 @@ def main():
         log.error(f"StatusBar 初始化失败: {exc}")
 
     try:
+        from ui.presenters.artifact_scan_presenter import ArtifactScanPresenter
+
+        artifact_scan = ArtifactScanPresenter()
+        engine.rootContext().setContextProperty("ArtifactScan", artifact_scan)
+        log.debug("ArtifactScan 注册成功")
+    except Exception as exc:
+        traceback.print_exc()
+        log.error(f"ArtifactScan 初始化失败: {exc}")
+
+    try:
         from ui.presenters.game_detector import GameDetector
 
         game_detector = GameDetector()

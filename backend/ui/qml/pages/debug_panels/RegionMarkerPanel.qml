@@ -34,13 +34,13 @@ Rectangle {
                     RowLayout {
                         spacing: 4
                         Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: spinX; from: 0; to: 9999; value: RegionMarker.regionX; onValueChanged: RegionMarker.setCoords(value, spinY.value, spinW.value, spinH.value) }
+                        GSpinBox { id: spinX; from: 0; to: 9999; value: RegionMarker.regionX }
                         Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: spinY; from: 0; to: 9999; value: RegionMarker.regionY; onValueChanged: RegionMarker.setCoords(spinX.value, value, spinW.value, spinH.value) }
+                        GSpinBox { id: spinY; from: 0; to: 9999; value: RegionMarker.regionY }
                         Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: spinW; from: 1; to: 9999; value: RegionMarker.regionW; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, value, spinH.value) }
+                        GSpinBox { id: spinW; from: 1; to: 9999; value: RegionMarker.regionW }
                         Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: spinH; from: 1; to: 9999; value: RegionMarker.regionH; onValueChanged: RegionMarker.setCoords(spinX.value, spinY.value, spinW.value, value) }
+                        GSpinBox { id: spinH; from: 1; to: 9999; value: RegionMarker.regionH }
                     }
 
                     GButton {
@@ -65,7 +65,11 @@ Rectangle {
                         text: RegionMarker.marking ? "截图中…" : "截图并标记"
                         colorType: "primary"
                         enabled: !RegionMarker.marking
-                        onClicked: RegionMarker.mark()
+                        onClicked: {
+                            RegionMarker.setCoords(spinX.value, spinY.value, spinW.value, spinH.value);
+                            RegionMarker.clear();
+                            RegionMarker.mark();
+                        }
                     }
 
                     GButton {
@@ -169,16 +173,6 @@ Rectangle {
             filenameInput.text = ""
         }
 
-        function onCopyToClipboard(text) {
-            Clipboard.setText(text)
         }
-    }
 
-    // 初始化坐标
-    Component.onCompleted: {
-        spinX.value = RegionMarker.regionX
-        spinY.value = RegionMarker.regionY
-        spinW.value = RegionMarker.regionW
-        spinH.value = RegionMarker.regionH
-    }
 }

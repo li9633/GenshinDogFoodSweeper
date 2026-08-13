@@ -143,7 +143,7 @@ Rectangle {
                     anchors.centerIn: parent
                     source: root.source
                     visible: root.source !== null && root.source.toString() !== ""
-                    fillMode: root.fitToView ? Image.PreserveAspectFit : Image.Pad
+                    fillMode: Image.PreserveAspectFit
                     width: root.fitToView ? flickable.width : implicitWidth * root.zoomFactor
                     height: root.fitToView ? flickable.height : implicitHeight * root.zoomFactor
 
@@ -181,15 +181,29 @@ Rectangle {
                         onReleased: function (mouse) {
                             dragging = false;
                             rubberBand.visible = false;
-                            let x = Math.min(startPoint.x, mouse.x);
-                            let y = Math.min(startPoint.y, mouse.y);
-                            let w = Math.abs(mouse.x - startPoint.x);
-                            let h = Math.abs(mouse.y - startPoint.y);
-                            if (w > 5 && h > 5) {
+                            let sx = Math.min(startPoint.x, mouse.x);
+                            let sy = Math.min(startPoint.y, mouse.y);
+                            let sw = Math.abs(mouse.x - startPoint.x);
+                            let sh = Math.abs(mouse.y - startPoint.y);
+                            if (sw > 5 && sh > 5) {
+                                // 使用 paintedWidth/paintedHeight 获取 PreserveAspectFit 下的实际渲染区域
+                                let pw = imageItem.paintedWidth;
+                                let ph = imageItem.paintedHeight;
+                                let ox = (imageItem.width - pw) / 2;
+                                let oy = (imageItem.height - ph) / 2;
                                 // 映射回原始图像坐标
-                                let scaleX = imageItem.implicitWidth / imageItem.width;
-                                let scaleY = imageItem.implicitHeight / imageItem.height;
-                                root.regionSelected(Math.round(x * scaleX), Math.round(y * scaleY), Math.round(w * scaleX), Math.round(h * scaleY));
+                                let scaleX = imageItem.implicitWidth / pw;
+                                let scaleY = imageItem.implicitHeight / ph;
+                                let imgX = Math.round((sx - ox) * scaleX);
+                                let imgY = Math.round((sy - oy) * scaleY);
+                                let imgW = Math.round(sw * scaleX);
+                                let imgH = Math.round(sh * scaleY);
+                                console.log("CapturePreview: regionSelected",
+                                    "display=(" + sx + "," + sy + "," + sw + "x" + sh + ")",
+                                    "painted=(" + pw + "x" + ph + ") offset=(" + ox + "," + oy + ")",
+                                    "scale=(" + scaleX + "," + scaleY + ")",
+                                    "image=(" + imgX + "," + imgY + "," + imgW + "x" + imgH + ")");
+                                root.regionSelected(imgX, imgY, imgW, imgH);
                             }
                         }
                     }

@@ -5,6 +5,7 @@ import QtQuick.Layouts
 SpinBox {
     id: control
 
+    editable: true
     implicitHeight: 30
     Layout.preferredWidth: 100
 
