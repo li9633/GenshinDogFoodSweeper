@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import time
+from typing import ClassVar
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.datetime_helper import DateTimeHelper
@@ -38,6 +39,9 @@ class SettingsPresenter(QObject):
     modelStatusChanged = Signal()
     modelVersionChanged = Signal()
     modelReadyChanged = Signal()
+
+    # -- 圣遗物更新检查 --
+    versionCheckIntervalChanged = Signal()
 
     # -- 状态栏 --
     statusMessage = Signal(str, int, str)
@@ -68,6 +72,32 @@ class SettingsPresenter(QObject):
     @Slot(int)
     def setThemeByIndex(self, index: int) -> None:
         self.setTheme("dark" if index == 0 else "light")
+
+    # ========== 圣遗物更新检查 ==========
+
+    _VERSION_CHECK_INTERVALS: ClassVar[list[str]] = ["always", "12h", "1d", "7d"]
+    _VERSION_CHECK_LABELS: ClassVar[list[str]] = ["每次启动", "12小时", "1天", "一星期"]
+
+    @Property("QStringList", notify=versionCheckIntervalChanged)
+    def versionCheckIntervalLabels(self) -> list[str]:
+        return self._VERSION_CHECK_LABELS
+
+    @Property(int, notify=versionCheckIntervalChanged)
+    def versionCheckIntervalIndex(self) -> int:
+        key = settings.get("check.version_check_interval")
+        try:
+            return self._VERSION_CHECK_INTERVALS.index(key)
+        except ValueError:
+            return 0
+
+    @Slot(int)
+    def setVersionCheckIntervalByIndex(self, index: int) -> None:
+        if 0 <= index < len(self._VERSION_CHECK_INTERVALS):
+            new_key = self._VERSION_CHECK_INTERVALS[index]
+            if new_key == settings.get("check.version_check_interval"):
+                return
+            settings.set("check.version_check_interval", new_key)
+            self.versionCheckIntervalChanged.emit()
 
     # ========== 同步 ==========
 

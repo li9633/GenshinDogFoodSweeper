@@ -36,6 +36,10 @@ class SettingsManager:
             "last_sync_pieces": "0",
             "last_sync_expected": "0",
         },
+        "check": {
+            "version_check_interval": "always",
+            "last_version_check_ts": "0",
+        },
     }
 
     def __init__(self) -> None:

@@ -148,6 +148,31 @@ Rectangle {
                 }
             }
 
+            // ======== 圣遗物更新检查 ========
+            GCard {
+                title: "圣遗物更新检查"
+                Layout.fillWidth: true
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Text {
+                        text: "检查间隔:"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 14
+                        color: Theme.textPrimary
+                    }
+
+                    GComboBox {
+                        id: versionCheckCombo
+                        model: SettingsPresenter.versionCheckIntervalLabels
+                        currentIndex: SettingsPresenter.versionCheckIntervalIndex
+                        onCurrentIndexChanged: SettingsPresenter.setVersionCheckIntervalByIndex(currentIndex)
+                    }
+                }
+            }
+
             // ======== OCR 模型 ========
             GCard {
                 title: "OCR 模型"

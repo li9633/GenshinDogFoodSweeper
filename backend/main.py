@@ -15,7 +15,7 @@ os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
 sys.path.insert(0, str(Path(__file__).parent))
 
 from database.init_db import create_tables
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
@@ -139,8 +139,26 @@ def main():
         traceback.print_exc()
         log.error(f"GameDetector 初始化失败: {exc}")
 
+    try:
+        from ui.presenters.version_check_presenter import VersionCheckPresenter
+
+        version_check = VersionCheckPresenter()
+        engine.rootContext().setContextProperty("VersionCheck", version_check)
+        log.debug("VersionCheck 注册成功")
+
+        # 圣遗物更新检查结果 → QMessageBox 弹窗
+        from PySide6.QtWidgets import QMessageBox
+
+        version_check.updateNeeded.connect(
+            lambda title, msg: QMessageBox.warning(None, title, msg)
+        )
+
+        QTimer.singleShot(4000, version_check.checkVersion)
+    except Exception as exc:
+        traceback.print_exc()
+        log.error(f"VersionCheck 初始化失败: {exc}")
+
     # -- OCR 引擎预热（后台线程，不阻塞 UI） --
-    from PySide6.QtCore import QTimer
 
     def _start_ocr_worker():
         from backend.automation.ocr_worker import OcrWorker
