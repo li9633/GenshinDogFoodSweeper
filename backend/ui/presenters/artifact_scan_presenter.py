@@ -8,10 +8,14 @@ from __future__ import annotations
 
 import re
 
+import cv2
+import numpy as np
 from PySide6.QtCore import Property, QObject, QThread, Signal, Slot
 from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
+from backend.automation.template_manager import TemplateManager
+from backend.automation.template_matcher import find_all_matches, multi_scale_match
 from backend.utils.screen_capture import ScreenshotCapture
 
 
@@ -192,6 +196,130 @@ class _AutoScrollWorker(QThread):
         self.finished.emit()
 
 
+class _ScrollToBottomWorker(QThread):
+    """后台线程：快速滚动到底部"""
+
+    progress = Signal(int, int)  # (current_tick, total_ticks)
+    finished = Signal()
+
+    def __init__(
+        self,
+        mouse: MouseController,
+        origin_x: int,
+        origin_y: int,
+        flag_x: int,
+        flag_y: int,
+        total_ticks: int,
+        tick_delay_ms: int,
+    ):
+        super().__init__()
+        self._mouse = mouse
+        self._origin_x = origin_x
+        self._origin_y = origin_y
+        self._flag_x = flag_x
+        self._flag_y = flag_y
+        self._total_ticks = total_ticks
+        self._tick_delay_ms = tick_delay_ms
+        self._stop = False
+
+    def stop(self) -> None:
+        self._stop = True
+
+    def run(self) -> None:
+        from time import sleep
+
+        for i in range(1, self._total_ticks + 1):
+            if self._stop:
+                break
+            self._mouse.move_to(
+                self._origin_x + self._flag_x,
+                self._origin_y + self._flag_y,
+            )
+            self._mouse.scroll_one_tick()
+            self.progress.emit(i, self._total_ticks)
+            sleep(self._tick_delay_ms / 1000.0)
+
+        self.finished.emit()
+
+
+class _SmartScrollToBottomWorker(QThread):
+    """智能滚轮到底部：快速滚轮 + 周期性截图检测滑块位置"""
+
+    TICKS_PER_BATCH = 20
+    CHECK_INTERVAL_BATCHES = 2  # 每 N 批检测一次
+
+    progress = Signal(int)  # 已滚格数
+    finished = Signal()
+
+    def __init__(
+        self,
+        mouse: MouseController,
+        scroll_x: int,
+        scroll_y: int,
+        capture: ScreenshotCapture,
+        target_thumb_y: int,
+        tick_delay_ms: int = 20,
+    ):
+        super().__init__()
+        self._mouse = mouse
+        self._scroll_x = scroll_x
+        self._scroll_y = scroll_y
+        self._capture = capture
+        self._target_thumb_y = target_thumb_y
+        self._tick_delay_ms = tick_delay_ms
+        self._stop = False
+
+    def stop(self) -> None:
+        self._stop = True
+
+    def run(self) -> None:
+        from time import sleep
+
+        total_ticks = 0
+        batch_count = 0
+
+        while not self._stop:
+            # 滚一批
+            self._mouse.move_to(self._scroll_x, self._scroll_y)
+            for _ in range(self.TICKS_PER_BATCH):
+                if self._stop:
+                    break
+                self._mouse.scroll_one_tick()
+                total_ticks += 1
+                sleep(self._tick_delay_ms / 1000.0)
+
+            if self._stop:
+                break
+
+            self.progress.emit(total_ticks)
+            batch_count += 1
+
+            # 每 N 批检测一次滑块位置
+            if batch_count % self.CHECK_INTERVAL_BATCHES == 0:
+                sleep(0.15)  # 等 UI 稳定
+                result = self._capture.capture()
+                if result is not None:
+                    pos = ArtifactScanPresenter._find_scrollbar_thumb(result.image)
+                    if pos is not None:
+                        current_thumb_y = pos[1]
+                        if current_thumb_y >= self._target_thumb_y - 10:
+                            log.info(
+                                f"智能滚轮: 滑块已到达目标位置 "
+                                f"(current={current_thumb_y}, target={self._target_thumb_y})"
+                            )
+                            break
+
+        # 安全追加
+        if not self._stop:
+            for _ in range(5):
+                self._mouse.scroll_one_tick()
+                total_ticks += 1
+                sleep(0.03)
+
+        self.progress.emit(total_ticks)
+        self.finished.emit()
+
+
 class ArtifactScanPresenter(QObject):
     """圣遗物扫描 — 注册为 QML context property
 
@@ -209,6 +337,15 @@ class ArtifactScanPresenter(QObject):
     detectedTotalPagesChanged = Signal()
     autoScanProgressChanged = Signal()
     autoScanRunningChanged = Signal()
+
+    # 首尾锚点定位
+    anchorFirstMarked = Signal()
+    anchorLastFound = Signal()
+    anchorPagesCalculated = Signal()
+    anchorScrollRunningChanged = Signal()
+    anchorScrollProgressChanged = Signal()
+    scrollbarDragFinished = Signal()
+    scrollbarTrackHeightChanged = Signal()
 
     # 翻页
     SCROLL_TICKS_PER_ROW = 10
@@ -233,6 +370,24 @@ class ArtifactScanPresenter(QObject):
         self._auto_scan_progress = ""
         self._auto_scan_running = False
         self._ocr_connected = False
+
+        # 首尾锚点
+        self._anchor_first_x = 0
+        self._anchor_first_y = 0
+        self._anchor_first_w = 0
+        self._anchor_first_h = 0
+        self._anchor_last_x = 0
+        self._anchor_last_y = 0
+        self._anchor_total_pages = 0
+        self._anchor_total_rows = 0
+        self._anchor_scroll_worker: _ScrollToBottomWorker | None = None
+        self._anchor_scroll_running = False
+        self._anchor_scroll_progress = ""
+        self._anchor_first_template: np.ndarray | None = None
+
+        # 智能滚轮到底
+        self._scroll_to_bottom_worker: _SmartScrollToBottomWorker | None = None
+        self._scrollbar_track_height = 760
 
     # ========== 内部 ==========
 
@@ -620,3 +775,329 @@ class ArtifactScanPresenter(QObject):
         self._last_result = "自动翻页完成"
         self.clickResultChanged.emit()
         log.info("自动翻页完成")
+
+    # ========== 首尾锚点定位 ==========
+
+    @Property(int, notify=anchorFirstMarked)
+    def anchorFirstX(self) -> int:
+        return self._anchor_first_x
+
+    @Property(int, notify=anchorFirstMarked)
+    def anchorFirstY(self) -> int:
+        return self._anchor_first_y
+
+    @Property(int, notify=anchorFirstMarked)
+    def anchorFirstW(self) -> int:
+        return self._anchor_first_w
+
+    @Property(int, notify=anchorFirstMarked)
+    def anchorFirstH(self) -> int:
+        return self._anchor_first_h
+
+    @Property(int, notify=anchorLastFound)
+    def anchorLastX(self) -> int:
+        return self._anchor_last_x
+
+    @Property(int, notify=anchorLastFound)
+    def anchorLastY(self) -> int:
+        return self._anchor_last_y
+
+    @Property(int, notify=anchorPagesCalculated)
+    def anchorTotalPages(self) -> int:
+        return self._anchor_total_pages
+
+    @Property(int, notify=anchorPagesCalculated)
+    def anchorTotalRows(self) -> int:
+        return self._anchor_total_rows
+
+    @Property(bool, notify=anchorScrollRunningChanged)
+    def anchorScrollRunning(self) -> bool:
+        return self._anchor_scroll_running
+
+    @Property(str, notify=anchorScrollProgressChanged)
+    def anchorScrollProgress(self) -> str:
+        return self._anchor_scroll_progress
+
+    @Property(int, notify=scrollbarTrackHeightChanged)
+    def scrollbarTrackHeight(self) -> int:
+        return self._scrollbar_track_height
+
+    @scrollbarTrackHeight.setter
+    def scrollbarTrackHeight(self, value: int) -> None:
+        if self._scrollbar_track_height != value:
+            self._scrollbar_track_height = value
+            self.scrollbarTrackHeightChanged.emit()
+
+    @Slot(int, int, int, int)
+    def markFirstAnchor(self, x: int, y: int, w: int, h: int) -> None:
+        """标记第一个圣遗物（首锚点），保存位置和模板截图"""
+        self._anchor_first_x = x
+        self._anchor_first_y = y
+        self._anchor_first_w = w
+        self._anchor_first_h = h
+
+        result = self._capture.capture()
+        if result is not None:
+            img = result.image
+            roi = img[y:y + h, x:x + w].copy()
+            self._anchor_first_template = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+
+        self._anchor_last_x = 0
+        self._anchor_last_y = 0
+        self._anchor_total_pages = 0
+        self._anchor_total_rows = 0
+        self.anchorFirstMarked.emit()
+        self.anchorLastFound.emit()
+        self.anchorPagesCalculated.emit()
+        self._last_result = f"首锚点已标记: ({x}, {y}, {w}x{h})"
+        self.clickResultChanged.emit()
+        log.info(
+            f"首锚点已标记: ({x}, {y}, {w}x{h}), "
+            f"模板{'已保存' if self._anchor_first_template is not None else '保存失败'}"
+        )
+
+    @Slot(int, int, int, int)
+    def startScrollToBottom(
+        self, flag_x: int, flag_y: int, total_ticks: int, tick_delay_ms: int
+    ) -> None:
+        """开始快速滚动到底部"""
+        if self._anchor_scroll_running:
+            return
+
+        self.focusGame()
+
+        ox, oy = self._window_origin()
+        if ox == 0 and oy == 0:
+            self._last_result = "未检测到原神窗口"
+            self.clickResultChanged.emit()
+            return
+
+        self._anchor_scroll_worker = _ScrollToBottomWorker(
+            mouse=self._mouse,
+            origin_x=ox,
+            origin_y=oy,
+            flag_x=flag_x,
+            flag_y=flag_y,
+            total_ticks=total_ticks,
+            tick_delay_ms=tick_delay_ms,
+        )
+        self._anchor_scroll_worker.progress.connect(self._on_anchor_scroll_progress)
+        self._anchor_scroll_worker.finished.connect(self._on_anchor_scroll_finished)
+
+        self._anchor_scroll_running = True
+        self._anchor_scroll_progress = f"0/{total_ticks}"
+        self.anchorScrollRunningChanged.emit()
+        self.anchorScrollProgressChanged.emit()
+
+        self._anchor_scroll_worker.start()
+        log.info(f"快速滚动到底部: 共 {total_ticks} 次, 延迟={tick_delay_ms}ms")
+
+    @Slot()
+    def stopScrollToBottom(self) -> None:
+        """停止快速滚动"""
+        if self._anchor_scroll_worker is not None:
+            self._anchor_scroll_worker.stop()
+        log.info("快速滚动已停止")
+
+    def _on_anchor_scroll_progress(self, current: int, total: int) -> None:
+        self._anchor_scroll_progress = f"{current}/{total}"
+        self.anchorScrollProgressChanged.emit()
+
+    def _on_anchor_scroll_finished(self) -> None:
+        self._anchor_scroll_running = False
+        self._anchor_scroll_worker = None
+        self.anchorScrollRunningChanged.emit()
+        self._last_result = "已滚到底部，请点击「查找尾锚点」"
+        self.clickResultChanged.emit()
+        log.info("快速滚动到底部完成")
+
+    @Slot()
+    def findLastAnchor(self) -> None:
+        """模板匹配查找最后一个圣遗物（尾锚点）"""
+        if self._anchor_first_template is None:
+            self._last_result = "请先标记首锚点"
+            self.clickResultChanged.emit()
+            return
+
+        result = self._capture.capture()
+        if result is None:
+            self._last_result = "截图失败"
+            self.clickResultChanged.emit()
+            return
+
+        screen_gray = cv2.cvtColor(result.image, cv2.COLOR_RGB2GRAY)
+        matches = find_all_matches(screen_gray, self._anchor_first_template, threshold=0.7)
+
+        if not matches:
+            self._last_result = "未找到匹配，请手动标记尾锚点"
+            self.clickResultChanged.emit()
+            self.anchorLastFound.emit()
+            log.info("尾锚点查找: 模板匹配未找到结果")
+            return
+
+        # 取最底部（Y 最大）的匹配作为尾锚点
+        best = matches[-1]
+        score, x, y, w, h = best
+        self._anchor_last_x = x
+        self._anchor_last_y = y
+        self.anchorLastFound.emit()
+        self._last_result = f"尾锚点已找到: ({x}, {y}) 置信度={score:.2f}"
+        self.clickResultChanged.emit()
+        log.info(
+            f"尾锚点已找到: ({x}, {y}) 置信度={score:.2f}, "
+            f"共匹配到 {len(matches)} 个位置"
+        )
+
+        # 自动计算页数
+        self._calculate_anchor_pages()
+
+    @Slot(int, int)
+    def markLastAnchor(self, x: int, y: int) -> None:
+        """手动标记尾锚点"""
+        self._anchor_last_x = x
+        self._anchor_last_y = y
+        self.anchorLastFound.emit()
+        self._last_result = f"尾锚点已手动标记: ({x}, {y})"
+        self.clickResultChanged.emit()
+        log.info(f"尾锚点已手动标记: ({x}, {y})")
+        self._calculate_anchor_pages()
+
+    def _calculate_anchor_pages(self) -> None:
+        """根据首尾锚点计算总页数"""
+        if self._anchor_first_y == 0 or self._anchor_last_y == 0:
+            return
+
+        row_h = self._anchor_first_h
+        if row_h <= 0:
+            return
+
+        # 当前屏幕可见的锚点范围
+        visible_rows = (self._anchor_last_y - self._anchor_first_y) / row_h
+        total_rows = int(visible_rows) + 4  # 加上首锚点所在页的 4 行
+        self._anchor_total_rows = total_rows
+        self._anchor_total_pages = max(1, (total_rows + 3) // 4)  # 向上取整
+        self.anchorPagesCalculated.emit()
+        self._last_result = (
+            f"锚点计算: {total_rows} 行, {self._anchor_total_pages} 页"
+        )
+        self.clickResultChanged.emit()
+        log.info(
+            f"锚点计算: first=({self._anchor_first_x},{self._anchor_first_y}) "
+            f"last=({self._anchor_last_x},{self._anchor_last_y}) "
+            f"row_h={row_h} → {total_rows} 行, {self._anchor_total_pages} 页"
+        )
+
+    # ========== 滚动条拖拽 ==========
+
+    @staticmethod
+    def _find_scrollbar_thumb(
+        screenshot: np.ndarray,
+    ) -> tuple[int, int, int, int, int] | None:
+        """通过模板匹配在截图中查找滚动条滑块位置。
+
+        使用「背包滚动条滑块」模板在 region 内匹配当前滑块。
+        返回 (thumb_center_x, thumb_center_y, track_bottom, track_width, thumb_height)
+        均为截图内坐标，找不到返回 None。
+        """
+        tmpl_path = TemplateManager.get_path("背包滚动条滑块")
+        region = TemplateManager.get_region("背包滚动条滑块")
+        if tmpl_path is None or region is None:
+            log.warning("背包滚动条滑块模板未配置")
+            return None
+
+        tmpl = cv2.imread(str(tmpl_path), cv2.IMREAD_GRAYSCALE)
+        if tmpl is None:
+            log.warning(f"无法读取滚动条模板: {tmpl_path}")
+            return None
+
+        rx, ry, rw, rh = region
+        h, w = screenshot.shape[:2]
+        if ry + rh > h or rx + rw > w:
+            log.warning(
+                f"滚动条 region 超出截图范围: "
+                f"region=({rx},{ry},{rw}x{rh}), screenshot=({w}x{h})"
+            )
+            return None
+
+        search_area = screenshot[ry:ry + rh, rx:rx + rw]
+        search_gray = cv2.cvtColor(search_area, cv2.COLOR_RGB2GRAY)
+
+        score, (mx, my), _, (tw, th) = multi_scale_match(search_gray, tmpl)
+        if score < 0.5:
+            log.debug(f"滚动条滑块匹配得分过低: {score:.2f}")
+            return None
+
+        thumb_center_x = rx + mx + tw // 2
+        thumb_center_y = ry + my + th // 2
+        thumb_height = th
+        track_bottom = ry + rh
+
+        log.debug(
+            f"滚动条滑块: region=({rx},{ry},{rw}x{rh}), "
+            f"match=({mx},{my}) score={score:.2f}, "
+            f"thumb_center=({thumb_center_x},{thumb_center_y}), "
+            f"thumb_h={thumb_height}, track_bottom={track_bottom}"
+        )
+        return thumb_center_x, thumb_center_y, track_bottom, rw, thumb_height
+
+    @Slot()
+    def scrollToBottom(self) -> None:
+        """智能滚轮到底部：模板匹配滑块 → 计算目标位置 → 快速滚轮 → 周期性检测滑块位置"""
+        if self._scroll_to_bottom_worker is not None and self._scroll_to_bottom_worker.isRunning():
+            return
+
+        ox, oy = self._window_origin()
+        if ox == 0 and oy == 0:
+            self._last_result = "未检测到原神窗口"
+            self.clickResultChanged.emit()
+            return
+
+        result = self._capture.capture()
+        if result is None:
+            self._last_result = "截图失败"
+            self.clickResultChanged.emit()
+            return
+
+        pos = self._find_scrollbar_thumb(result.image)
+        if pos is None:
+            self._last_result = "未检测到滚动条滑块"
+            self.clickResultChanged.emit()
+            return
+
+        thumb_center_x, thumb_center_y, _, _, thumb_h = pos
+        track_height = self._scrollbar_track_height
+        target_thumb_y = thumb_center_y + track_height
+
+        abs_scroll_x = ox + thumb_center_x
+        abs_scroll_y = oy + thumb_center_y
+
+        log.info(
+            f"智能滚轮到底: thumb_y={thumb_center_y}, thumb_h={thumb_h}, "
+            f"track_height={track_height}, target_y={target_thumb_y}"
+        )
+
+        self._scroll_to_bottom_worker = _SmartScrollToBottomWorker(
+            mouse=self._mouse,
+            scroll_x=abs_scroll_x,
+            scroll_y=abs_scroll_y,
+            capture=self._capture,
+            target_thumb_y=target_thumb_y,
+            tick_delay_ms=20,
+        )
+        self._scroll_to_bottom_worker.progress.connect(self._onScrollToBottomProgress)
+        self._scroll_to_bottom_worker.finished.connect(self._onScrollToBottomFinished)
+        self._scroll_to_bottom_worker.start()
+        self._anchor_scroll_running = True
+        self.anchorScrollRunningChanged.emit()
+
+    def _onScrollToBottomProgress(self, ticks: int) -> None:
+        self._anchor_scroll_progress = f"{ticks} 格"
+        self.anchorScrollProgressChanged.emit()
+
+    def _onScrollToBottomFinished(self) -> None:
+        self._anchor_scroll_running = False
+        self.anchorScrollRunningChanged.emit()
+        self._last_result = "已滚动到底部"
+        self.clickResultChanged.emit()
+        log.info("智能滚轮到底完成")
+        self.scrollbarDragFinished.emit()

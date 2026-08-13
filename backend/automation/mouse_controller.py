@@ -195,3 +195,45 @@ class MouseController:
         except Exception as e:
             log.error(f"鼠标滚轮异常: {e}")
             return False
+
+    @staticmethod
+    def drag(
+        from_x: int,
+        from_y: int,
+        to_x: int,
+        to_y: int,
+        steps: int = 10,
+        step_delay_ms: int = 10,
+    ) -> bool:
+        """鼠标左键拖拽：从 (from_x, from_y) 拖到 (to_x, to_y)"""
+        try:
+            MouseController.move_to(from_x, from_y)
+            time.sleep(0.02)
+
+            inp_down = INPUT()
+            inp_down.type = INPUT_MOUSE
+            inp_down.mi.dwFlags = MOUSEEVENTF_LEFTDOWN
+            r = ctypes.windll.user32.SendInput(
+                1, ctypes.byref(inp_down), ctypes.sizeof(inp_down)
+            )
+            if r == 0:
+                return False
+            time.sleep(0.02)
+
+            for i in range(1, steps + 1):
+                x = from_x + (to_x - from_x) * i // steps
+                y = from_y + (to_y - from_y) * i // steps
+                MouseController.move_to(x, y)
+                time.sleep(step_delay_ms / 1000.0)
+
+            time.sleep(0.02)
+            inp_up = INPUT()
+            inp_up.type = INPUT_MOUSE
+            inp_up.mi.dwFlags = MOUSEEVENTF_LEFTUP
+            ctypes.windll.user32.SendInput(
+                1, ctypes.byref(inp_up), ctypes.sizeof(inp_up)
+            )
+            return True
+        except Exception as e:
+            log.error(f"鼠标拖拽异常: {e}")
+            return False

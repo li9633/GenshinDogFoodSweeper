@@ -48,3 +48,46 @@ def multi_scale_match(
             best_size = (new_w, new_h)
 
     return best_score, best_loc, best_scale, best_size
+
+
+def find_all_matches(
+    screen_gray: np.ndarray,
+    template: np.ndarray,
+    threshold: float = 0.8,
+    scales: tuple[float, ...] = DEFAULT_SCALES,
+    min_distance: int = 10,
+) -> list[tuple[float, int, int, int, int]]:
+    """查找所有匹配位置，返回 [(score, x, y, w, h), ...]，按 Y 坐标升序排列"""
+    th, tw = template.shape
+    sh, sw = screen_gray.shape
+    all_matches: list[tuple[float, int, int, int, int]] = []
+
+    for scale in scales:
+        new_w = int(tw * scale)
+        new_h = int(th * scale)
+        if new_w > sw or new_h > sh or new_w < 5 or new_h < 5:
+            continue
+        scaled = cv2.resize(template, (new_w, new_h))
+        result = cv2.matchTemplate(screen_gray, scaled, cv2.TM_CCOEFF_NORMED)
+        locations = np.where(result >= threshold)
+        for pt in zip(*locations[::-1]):
+            score = float(result[pt[1], pt[0]])
+            all_matches.append((score, pt[0], pt[1], new_w, new_h))
+
+    if not all_matches:
+        return []
+
+    # 非极大值抑制：按得分降序，移除重叠匹配
+    all_matches.sort(key=lambda m: m[0], reverse=True)
+    kept: list[tuple[float, int, int, int, int]] = []
+    for m in all_matches:
+        score, x, y, w, h = m
+        if not any(
+            abs(x - kx) < min_distance and abs(y - ky) < min_distance
+            for _, kx, ky, _, _ in kept
+        ):
+            kept.append(m)
+
+    # 按 Y 坐标升序返回
+    kept.sort(key=lambda m: m[2])
+    return kept

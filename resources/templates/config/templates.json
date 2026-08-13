@@ -63,5 +63,15 @@
       53,
       67
     ]
+  },
+  {
+    "display_name": "背包滚动条滑块",
+    "file": "images/backpack_scrollbar_thumb.png",
+    "region": [
+      1290,
+      201,
+      17,
+      707
+    ]
   }
 ]

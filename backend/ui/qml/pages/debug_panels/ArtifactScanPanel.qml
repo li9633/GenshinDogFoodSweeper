@@ -453,6 +453,198 @@ Rectangle {
                     }
                 }
             }
+
+            // ---- 首尾锚点定位 ----
+            GCard {
+                title: "首尾锚点定位"
+                Layout.fillWidth: true
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Text {
+                        text: "手动滚到顶部标记首锚点 → 自动滚到底部 → 查找尾锚点 → 计算页数"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        color: Theme.textSecondary
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    // 首锚点参数
+                    Text {
+                        text: "首锚点（假设已滚到顶部，固定位置 118,189）:"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.textSecondary
+                    }
+
+                    RowLayout {
+                        spacing: 4
+                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: anchorFirstW; from: 10; to: 999; value: 124 }
+                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: anchorFirstH; from: 10; to: 999; value: 155 }
+
+                        GButton {
+                            text: "标记首锚点"
+                            colorType: "primary"
+                            onClicked: ArtifactScan.markFirstAnchor(118, 189, anchorFirstW.value, anchorFirstH.value)
+                        }
+
+                        Text {
+                            text: "已标记: (118, 189) " + ArtifactScan.anchorFirstW + "x" + ArtifactScan.anchorFirstH
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            color: ArtifactScan.anchorFirstX > 0 ? Theme.accent : Theme.textSecondary
+                        }
+                    }
+
+                    // 滚动条拖拽（使用模板「背包滚动条滑块」的 region 自动定位）
+                    Text {
+                        text: "滚动条轨道高度（滑块从顶到底的像素距离）:"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.textSecondary
+                    }
+
+                    RowLayout {
+                        spacing: 6
+
+                        Text { text: "轨道高度(px):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: scrollbarTrackHeight; from: 100; to: 2000; value: 760 }
+
+                        GButton {
+                            text: "智能滚轮到底"
+                            colorType: "primary"
+                            enabled: ArtifactScan.anchorFirstX > 0 && !ArtifactScan.anchorScrollRunning
+                            onClicked: {
+                                ArtifactScan.scrollbarTrackHeight = scrollbarTrackHeight.value
+                                ArtifactScan.scrollToBottom()
+                            }
+                        }
+
+                        Text {
+                            text: "滚动: " + ArtifactScan.anchorScrollProgress
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 14
+                            font.bold: true
+                            color: Theme.accent
+                            visible: ArtifactScan.anchorScrollProgress !== ""
+                        }
+                    }
+
+                    Connections {
+                        target: ArtifactScan
+                        function onScrollbarDragFinished() {
+                            ArtifactScan.findLastAnchor()
+                        }
+                    }
+
+                    // 滚到底部参数
+                    Text {
+                        text: "或使用滚轮方式（锚点坐标 + 滚动次数 + 延迟）:"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.textSecondary
+                    }
+
+                    RowLayout {
+                        spacing: 4
+                        Text { text: "锚点X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: anchorScrollFlagX; from: 0; to: 9999; value: 230 }
+                        Text { text: "锚点Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: anchorScrollFlagY; from: 0; to: 9999; value: 335 }
+                        Text { text: "总次数:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: anchorTotalTicks; from: 10; to: 2000; value: 400 }
+                        Text { text: "延迟(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: anchorTickDelay; from: 10; to: 500; value: 20 }
+                    }
+
+                    RowLayout {
+                        spacing: 6
+
+                        GButton {
+                            text: "滚到底部"
+                            colorType: "primary"
+                            enabled: !ArtifactScan.anchorScrollRunning && ArtifactScan.anchorFirstX > 0
+                            onClicked: ArtifactScan.startScrollToBottom(
+                                anchorScrollFlagX.value, anchorScrollFlagY.value,
+                                anchorTotalTicks.value, anchorTickDelay.value
+                            )
+                        }
+
+                        GButton {
+                            text: "停止"
+                            colorType: "default"
+                            visible: ArtifactScan.anchorScrollRunning
+                            onClicked: ArtifactScan.stopScrollToBottom()
+                        }
+
+                        Text {
+                            text: "滚动: " + ArtifactScan.anchorScrollProgress
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 14
+                            font.bold: true
+                            color: Theme.accent
+                            visible: ArtifactScan.anchorScrollProgress !== ""
+                        }
+                    }
+
+                    // 尾锚点 + 计算结果
+                    RowLayout {
+                        spacing: 6
+
+                        GButton {
+                            text: "查找尾锚点"
+                            colorType: "primary"
+                            enabled: !ArtifactScan.anchorScrollRunning && ArtifactScan.anchorFirstX > 0
+                            onClicked: ArtifactScan.findLastAnchor()
+                        }
+
+                        Text {
+                            text: "尾锚点: (" + ArtifactScan.anchorLastX + ", " + ArtifactScan.anchorLastY + ")"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            color: ArtifactScan.anchorLastY > 0 ? Theme.accent : Theme.textSecondary
+                        }
+                    }
+
+                    // 手动尾锚点
+                    RowLayout {
+                        spacing: 4
+                        Text { text: "手动尾X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: anchorLastX; from: 0; to: 9999; value: 0 }
+                        Text { text: "手动尾Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: anchorLastY; from: 0; to: 9999; value: 0 }
+
+                        GButton {
+                            text: "手动标记尾锚点"
+                            colorType: "default"
+                            onClicked: ArtifactScan.markLastAnchor(anchorLastX.value, anchorLastY.value)
+                        }
+                    }
+
+                    // 计算结果
+                    Text {
+                        text: "计算结果: " + ArtifactScan.anchorTotalRows + " 行, "
+                              + ArtifactScan.anchorTotalPages + " 页"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 14
+                        font.bold: true
+                        color: ArtifactScan.anchorTotalPages > 0 ? Theme.accent : Theme.textSecondary
+                    }
+
+                    Text {
+                        text: ArtifactScan.clickResult
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.textSecondary
+                        visible: ArtifactScan.clickResult !== ""
+                    }
+                }
+            }
         }
     }
 }
