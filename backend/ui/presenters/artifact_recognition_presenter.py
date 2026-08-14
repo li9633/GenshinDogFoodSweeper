@@ -136,6 +136,8 @@ class ArtifactRecognitionPresenter(QObject):
     def _on_ocr_task_done(self, result: dict, _callback_data: object) -> None:
         if not isinstance(result, dict):
             return
+        if "ocr_lines" not in result:
+            return
         data = result
         self._ocr_text = "\n".join(data["ocr_lines"])
         self._structured_text = "\n".join(data["structured_lines"])

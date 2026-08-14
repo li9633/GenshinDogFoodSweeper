@@ -435,7 +435,7 @@ Rectangle {
                     spacing: 6
 
                     Text {
-                        text: "手动滚到顶部标记首锚点 → 智能拖拽到底 → 查找尾锚点 → 计算页数"
+                        text: "手动滚到顶部识别首锚点 → 智能拖拽到底 → 识别尾锚点 → 计算页数"
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
                         color: Theme.textSecondary
@@ -459,9 +459,9 @@ Rectangle {
                         GSpinBox { id: anchorFirstH; from: 10; to: 999; value: 155 }
 
                         GButton {
-                            text: "标记首锚点"
+                            text: "识别首锚点"
                             colorType: "primary"
-                            onClicked: ArtifactScan.markFirstAnchor(118, 189, anchorFirstW.value, anchorFirstH.value)
+                            onClicked: ArtifactScan.recognizeFirstAnchor(118, 189, anchorFirstW.value, anchorFirstH.value)
                         }
 
                         Text {
@@ -469,6 +469,16 @@ Rectangle {
                             font.family: Theme.fontFamily
                             font.pixelSize: 12
                             color: ArtifactScan.anchorFirstX > 0 ? Theme.accent : Theme.textSecondary
+                        }
+
+                        Text {
+                            visible: ArtifactScan.anchorFirstRecognized
+                            text: "首锚点识别结果:\n" + ArtifactScan.anchorFirstDisplayText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            color: Theme.accent
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
                         }
                     }
 
@@ -506,13 +516,6 @@ Rectangle {
                         }
 
 
-                    }
-
-                    Connections {
-                        target: ArtifactScan
-                        function onScrollbarDragFinished() {
-                            ArtifactScan.findLastAnchor()
-                        }
                     }
 
                     // 颜色检测区域（从底部向上倒查滑块颜色，屏幕绝对坐标）
@@ -580,10 +583,10 @@ Rectangle {
                         spacing: 6
 
                         GButton {
-                            text: "查找尾锚点"
+                            text: "识别尾锚点"
                             colorType: "primary"
-                            enabled: !ArtifactScan.anchorScrollRunning && ArtifactScan.anchorFirstX > 0
-                            onClicked: ArtifactScan.findLastAnchor()
+                            enabled: !ArtifactScan.anchorScrollRunning && (ArtifactScan.anchorLastX > 0 || ArtifactScan.anchorFirstX > 0)
+                            onClicked: ArtifactScan.recognizeLastAnchor()
                         }
 
                         Text {
@@ -592,6 +595,16 @@ Rectangle {
                             font.pixelSize: 12
                             color: ArtifactScan.anchorLastY > 0 ? Theme.accent : Theme.textSecondary
                         }
+                    }
+
+                    Text {
+                        visible: ArtifactScan.anchorTailRecognized
+                        text: "尾锚点识别结果:\n" + ArtifactScan.anchorTailDisplayText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.accent
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
                     }
 
                     // 手动尾锚点

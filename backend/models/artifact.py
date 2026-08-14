@@ -17,7 +17,7 @@ class ArtifactStat:
 
 @dataclass
 class ArtifactInfo:
-    """圣遗物完整信息"""
+    """圣遗物/强化材料 完整信息"""
 
     set_name: str | None = None
     set_id: int | None = None
@@ -30,3 +30,5 @@ class ArtifactInfo:
     is_locked: bool | None = None
     set_effects: dict[str, str] | None = None
     raw_texts: dict[str, str] = field(default_factory=dict)
+    is_material: bool = False
+    material_name: str | None = None

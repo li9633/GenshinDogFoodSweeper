@@ -16,6 +16,7 @@ from utils.logger import log
 from backend.automation.mouse_controller import MouseController
 from backend.automation.template_matcher import find_all_matches
 from backend.utils.screen_capture import ScreenshotCapture
+from models.artifact import ArtifactInfo
 
 from .image_provider import PreviewImageProvider
 
@@ -206,6 +207,7 @@ class _SmartScrollToBottomWorker(QThread):
     DRAG_RATIO = 4  # 鼠标拖拽距离 / 滑块移动距离（经验值 ~3.5）
 
     progress = Signal(int)
+    final_slider_y = Signal(int)
     finished = Signal()
 
     def __init__(
@@ -219,6 +221,7 @@ class _SmartScrollToBottomWorker(QThread):
         region_w: int,
         region_h: int,
         initial_slider_y: int,
+        window_bottom: int,
     ):
         super().__init__()
         self._mouse = mouse
@@ -230,6 +233,7 @@ class _SmartScrollToBottomWorker(QThread):
         self._region_w = region_w
         self._region_h = region_h
         self._initial_slider_y = initial_slider_y
+        self._window_bottom = window_bottom
         self._stop = False
 
     def stop(self) -> None:
@@ -245,6 +249,7 @@ class _SmartScrollToBottomWorker(QThread):
         slider_total = self._region_y - self._initial_slider_y
         if slider_total <= 0:
             log.info("智能拖拽: 滑块已在底部，跳过")
+            self.final_slider_y.emit(self._initial_slider_y)
             self.finished.emit()
             return
 
@@ -262,7 +267,7 @@ class _SmartScrollToBottomWorker(QThread):
                 break
 
             drag_from_y = self._oy + prev_y + self._region_h // 2
-            drag_to_y = drag_from_y + chunk
+            drag_to_y = min(drag_from_y + chunk, self._window_bottom - 10)
 
             self._mouse.drag(
                 drag_x, drag_from_y,
@@ -306,7 +311,18 @@ class _SmartScrollToBottomWorker(QThread):
 
             prev_y = current_y
 
+        self.final_slider_y.emit(prev_y)
         self.finished.emit()
+
+
+# 锚点识别 ROI 区域定义（相对于游戏窗口，用于识别圣遗物详情面板）
+_ANCHOR_ROI_DEFINITIONS = [
+    ("圣遗物等级", 1338, 452, 71, 44),
+    ("圣遗物星级", 1742, 159, 39, 40),
+    ("圣遗物名称", 1329, 144, 262, 62),
+    ("部位+主词条", 1339, 214, 160, 174),
+    ("副词条区", 1347, 498, 276, 166),
+]
 
 
 class ArtifactScanPresenter(QObject):
@@ -334,6 +350,10 @@ class ArtifactScanPresenter(QObject):
     scrollbarDragFinished = Signal()
     scrollbarTrackHeightChanged = Signal()
     debugPreviewReady = Signal(str)
+
+    # 锚点识别结果
+    anchorFirstRecognizedChanged = Signal()
+    anchorTailRecognizedChanged = Signal()
 
     # 翻页
     SCROLL_TICKS_PER_ROW = 10
@@ -365,14 +385,25 @@ class ArtifactScanPresenter(QObject):
         self._anchor_first_h = 0
         self._anchor_last_x = 0
         self._anchor_last_y = 0
+        self._anchor_tail_x = 0
+        self._anchor_tail_y = 0
+        self._anchor_tail_info: ArtifactInfo | None = None
         self._anchor_total_pages = 0
         self._anchor_total_rows = 0
         self._anchor_scroll_running = False
         self._anchor_first_template: np.ndarray | None = None
+        self._grid_gap = 24
 
         # 智能滚轮到底
         self._scroll_to_bottom_worker: _SmartScrollToBottomWorker | None = None
         self._scrollbar_track_height = 760
+
+        # 锚点OCR识别
+        self._anchor_ocr_connected = False
+        self._anchor_first_display_text = ""
+        self._anchor_tail_display_text = ""
+        self._anchor_first_recognized = False
+        self._anchor_tail_recognized = False
 
     # ========== 内部 ==========
 
@@ -760,6 +791,22 @@ class ArtifactScanPresenter(QObject):
     def anchorScrollRunning(self) -> bool:
         return self._anchor_scroll_running
 
+    @Property(str, notify=anchorFirstRecognizedChanged)
+    def anchorFirstDisplayText(self) -> str:
+        return self._anchor_first_display_text
+
+    @Property(str, notify=anchorTailRecognizedChanged)
+    def anchorTailDisplayText(self) -> str:
+        return self._anchor_tail_display_text
+
+    @Property(bool, notify=anchorFirstRecognizedChanged)
+    def anchorFirstRecognized(self) -> bool:
+        return self._anchor_first_recognized
+
+    @Property(bool, notify=anchorTailRecognizedChanged)
+    def anchorTailRecognized(self) -> bool:
+        return self._anchor_tail_recognized
+
     @Property(int, notify=scrollbarTrackHeightChanged)
     def scrollbarTrackHeight(self) -> int:
         return self._scrollbar_track_height
@@ -771,30 +818,29 @@ class ArtifactScanPresenter(QObject):
             self.scrollbarTrackHeightChanged.emit()
 
     @Slot(int, int, int, int)
-    def markFirstAnchor(self, x: int, y: int, w: int, h: int) -> None:
-        """标记第一个圣遗物（首锚点），保存位置和模板截图"""
+    def recognizeFirstAnchor(self, x: int, y: int, w: int, h: int) -> None:
+        """识别首锚点：标记位置 → 点击物品 → OCR识别圣遗物信息"""
         self._anchor_first_x = x
         self._anchor_first_y = y
         self._anchor_first_w = w
         self._anchor_first_h = h
 
-        result = self._capture.capture()
-        if result is not None:
-            img = result.image
-            roi = img[y:y + h, x:x + w].copy()
-            self._anchor_first_template = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
-
         self._anchor_last_x = 0
         self._anchor_last_y = 0
+        self._anchor_tail_x = 0
+        self._anchor_tail_y = 0
+        self._anchor_tail_info = None
         self._anchor_total_pages = 0
         self._anchor_total_rows = 0
+        self._anchor_first_display_text = ""
+        self._anchor_first_recognized = False
         self.anchorFirstMarked.emit()
         self.anchorLastFound.emit()
         self.anchorPagesCalculated.emit()
-        log.info(
-            f"首锚点已标记: ({x}, {y}, {w}x{h}), "
-            f"模板{'已保存' if self._anchor_first_template is not None else '保存失败'}"
-        )
+        self.anchorFirstRecognizedChanged.emit()
+        log.info(f"首锚点已标记: ({x}, {y}, {w}x{h}), 开始OCR识别...")
+
+        self._recognize_anchor_item(x + w // 2, y + h // 2, "first")
 
     @Slot(int, int, int, int)
     @Slot()
@@ -845,21 +891,272 @@ class ArtifactScanPresenter(QObject):
         if self._anchor_first_y == 0 or self._anchor_last_y == 0:
             return
 
-        row_h = self._anchor_first_h
-        if row_h <= 0:
+        item_h = self._anchor_first_h
+        gap = self._grid_gap
+        row_step = item_h + gap
+        if row_step <= 0:
             return
 
-        # 当前屏幕可见的锚点范围
-        visible_rows = (self._anchor_last_y - self._anchor_first_y) / row_h
-        total_rows = int(visible_rows) + 4  # 加上首锚点所在页的 4 行
+        first_center_y = self._anchor_first_y + item_h // 2
+        # 新尾锚点（动态定位）的 _anchor_last_y 已经是格子中心；
+        # 旧模板匹配的 _anchor_last_y 是格子左上角，需补偿
+        if self._anchor_tail_y != 0:
+            last_center_y = self._anchor_last_y
+        else:
+            last_center_y = self._anchor_last_y + item_h // 2
+
+        total_rows = int((last_center_y - first_center_y) / row_step) + 1
         self._anchor_total_rows = total_rows
-        self._anchor_total_pages = max(1, (total_rows + 3) // 4)  # 向上取整
+        self._anchor_total_pages = max(1, (total_rows + 3) // 4)
         self.anchorPagesCalculated.emit()
         log.info(
             f"锚点计算: first=({self._anchor_first_x},{self._anchor_first_y}) "
             f"last=({self._anchor_last_x},{self._anchor_last_y}) "
-            f"row_h={row_h} → {total_rows} 行, {self._anchor_total_pages} 页"
+            f"row_step={row_step} → {total_rows} 行, {self._anchor_total_pages} 页"
         )
+
+    # ========== 锚点 OCR 识别 ==========
+
+    @Slot()
+    def recognizeLastAnchor(self) -> None:
+        """识别尾锚点：点击已定位的尾锚点物品 → OCR识别圣遗物信息"""
+        tail_x = self._anchor_tail_x or self._anchor_last_x
+        tail_y = self._anchor_tail_y or self._anchor_last_y
+        if tail_x == 0 and tail_y == 0:
+            log.warning("尾锚点识别: 尚未定位尾锚点，请先执行智能拖拽到底")
+            return
+
+        self._anchor_tail_display_text = ""
+        self._anchor_tail_recognized = False
+        self.anchorTailRecognizedChanged.emit()
+        log.info(f"尾锚点识别: 点击({tail_x}, {tail_y})，开始OCR识别...")
+        self._recognize_anchor_item(tail_x, tail_y, "tail")
+
+    def _connect_anchor_ocr_worker(self) -> None:
+        if self._anchor_ocr_connected:
+            return
+        from backend.automation.ocr_worker import OcrWorker
+
+        worker = OcrWorker.instance()
+        worker.task_done.connect(self._on_anchor_ocr_done)
+        worker.task_error.connect(self._on_anchor_ocr_error)
+        self._anchor_ocr_connected = True
+
+    def _recognize_anchor_item(
+        self, cx: int, cy: int, anchor_type: str,
+    ) -> None:
+        """点击锚点物品 → 延迟等待详情面板 → 截图 → 提交OCR任务"""
+        self._connect_anchor_ocr_worker()
+        self.focusGame()
+        ax, ay = self._to_absolute(cx, cy)
+        self._mouse.move_and_click(ax, ay)
+
+        def _capture_and_ocr() -> None:
+            result = self._capture.capture()
+            if result is None:
+                log.warning(f"锚点识别({anchor_type}): 截图失败")
+                return
+
+            roi_configs = {
+                name: (dx, dy, dw, dh)
+                for name, dx, dy, dw, dh in _ANCHOR_ROI_DEFINITIONS
+            }
+            task = self._create_anchor_ocr_task(
+                result.image, roi_configs, anchor_type,
+            )
+            from backend.automation.ocr_worker import OcrWorker
+
+            OcrWorker.instance().submit(task, callback_data=anchor_type)
+
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(200, _capture_and_ocr)
+
+    @staticmethod
+    def _create_anchor_ocr_task(image, roi_configs, anchor_type):
+        def task(ocr) -> dict:
+            from backend.automation.recognizer import ArtifactRecognizer
+            from backend.ui.presenters.artifact_recognition_presenter import (
+                ArtifactRecognitionPresenter,
+            )
+
+            artifact = ArtifactRecognizer.recognize(image, roi_configs, ocr)
+            display_lines = (
+                ArtifactScanPresenter._format_artifact_display(artifact)
+            )
+            structured_lines = (
+                ArtifactRecognitionPresenter._format_structured(artifact)
+            )
+            return {
+                "anchor_type": anchor_type,
+                "artifact": artifact,
+                "display_lines": display_lines,
+                "structured_lines": structured_lines,
+            }
+
+        return task
+
+    @staticmethod
+    def _format_artifact_display(artifact) -> list[str]:
+        """将 ArtifactInfo 格式化为简洁的显示文本行"""
+        lines: list[str] = []
+
+        if artifact.is_material:
+            lines.append("【强化材料】")
+            if artifact.material_name:
+                lines.append(f"名称: {artifact.material_name}")
+            if artifact.rarity is not None:
+                lines.append(f"星级: {artifact.rarity}★")
+            return lines
+
+        if artifact.set_name:
+            lines.append(f"套装: {artifact.set_name}")
+        if artifact.piece_name:
+            lines.append(f"名称: {artifact.piece_name}")
+        if artifact.piece_type:
+            lines.append(f"部位: {artifact.piece_type}")
+        if artifact.rarity is not None:
+            lines.append(f"星级: {artifact.rarity}★")
+        if artifact.level is not None:
+            lines.append(f"等级: +{artifact.level}")
+        if artifact.main_stat:
+            ms = artifact.main_stat
+            pct = "%" if ms.is_percentage else ""
+            lines.append(f"主词条: {ms.name} +{ms.value}{pct}")
+        if artifact.sub_stats:
+            lines.append("副词条:")
+            for ss in artifact.sub_stats:
+                pct = "%" if ss.is_percentage else ""
+                lock = " (待激活)" if ss.is_locked else ""
+                lines.append(f"  • {ss.name} +{ss.value}{pct}{lock}")
+        else:
+            lines.append("副词条: 未识别")
+        return lines
+
+    def _on_anchor_ocr_done(
+        self, result: dict, callback_data: object,
+    ) -> None:
+        if not isinstance(result, dict) or "anchor_type" not in result:
+            return
+
+        anchor_type = result["anchor_type"]
+        display_text = "\n".join(result.get("display_lines", []))
+
+        if anchor_type == "first":
+            self._anchor_first_display_text = display_text
+            self._anchor_first_recognized = True
+            self.anchorFirstRecognizedChanged.emit()
+            log.info(f"首锚点识别完成:\n{display_text}")
+        elif anchor_type == "tail":
+            self._anchor_tail_display_text = display_text
+            self._anchor_tail_recognized = True
+            self.anchorTailRecognizedChanged.emit()
+            log.info(f"尾锚点识别完成:\n{display_text}")
+
+    def _on_anchor_ocr_error(
+        self, error: str, callback_data: object,
+    ) -> None:
+        log.error(f"锚点OCR识别失败({callback_data}): {error}")
+
+    # ========== 尾锚点动态定位（基于滑块位置） ==========
+
+    @Slot(int)
+    def _on_smart_scroll_final_slider_y(self, slider_y: int) -> None:
+        """智能拖拽完成后，根据滑块最终位置动态计算尾锚点坐标"""
+        tail = self._find_tail_anchor(slider_y)
+        if tail is None:
+            log.warning("尾锚点定位: 未能找到最后一个物品")
+            return
+        self._anchor_tail_x, self._anchor_tail_y = tail
+        self._anchor_last_x = tail[0]
+        self._anchor_last_y = tail[1]
+        self.anchorLastFound.emit()
+        self._calculate_anchor_pages()
+
+    def _find_tail_anchor(self, slider_y: int) -> tuple[int, int] | None:
+        """根据滑块 Y 坐标定位最后一个物品的格子中心
+
+        slider_y: 滑块在窗口中的 Y 坐标（顶部边缘）
+        返回: (tail_cx, tail_cy) 窗口相对坐标，或 None
+        """
+        if self._anchor_first_x == 0 and self._anchor_first_y == 0:
+            log.warning("尾锚点定位: 首锚点未标记")
+            return None
+
+        # 最后一行物品图标底部 = 滑块顶部 - 30px
+        tail_row_bottom = slider_y - 30
+
+        item_h = self._anchor_first_h
+        item_w = self._anchor_first_w
+        gap = self._grid_gap
+        first_y = self._anchor_first_y
+        first_x = self._anchor_first_x
+
+        # 当前页面每行的底部 Y 坐标
+        rows_bottom = [
+            first_y + (gap + item_h) * r + item_h
+            for r in range(4)
+        ]
+        # 找到最接近 tail_row_bottom 的行
+        best_row = min(
+            range(4),
+            key=lambda r: abs(rows_bottom[r] - tail_row_bottom),
+        )
+        row_bottom = rows_bottom[best_row]
+
+        log.info(
+            f"尾锚点定位: slider_y={slider_y}, "
+            f"tail_row_bottom={tail_row_bottom}, 匹配行{best_row} "
+            f"(row_bottom={row_bottom})"
+        )
+
+        # 截图用于空位检测
+        result = self._capture.capture()
+        if result is None:
+            log.warning("尾锚点定位: 截图失败")
+            return None
+
+        # 从右向左扫描该行，找到第一个非空格子
+        for col in range(7, -1, -1):
+            cx = first_x + (gap + item_w) * col + item_w // 2
+            cy = row_bottom - item_h // 2
+
+            if not self._is_empty_slot(cx, cy, result):
+                log.info(
+                    f"尾锚点找到: 行{best_row}, 列{col}, "
+                    f"坐标({cx}, {cy})"
+                )
+                return (cx, cy)
+
+        log.warning("尾锚点定位: 最后一行所有格子均为空")
+        return None
+
+    @staticmethod
+    def _is_empty_slot(
+        cx: int, cy: int, capture_result,
+    ) -> bool:
+        """检测格子是否为空位（无物品）
+
+        cx, cy: 格子中心坐标（窗口相对）
+        capture_result: ScreenshotCapture 的截图结果
+        """
+        img = capture_result.image
+        h, w = img.shape[:2]
+        half = 10
+        x1 = max(0, cx - half)
+        y1 = max(0, cy - half)
+        x2 = min(w, cx + half)
+        y2 = min(h, cy + half)
+
+        if x2 <= x1 or y2 <= y1:
+            return True
+
+        roi = img[y1:y2, x1:x2]
+        gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY) if roi.ndim == 3 else roi
+        mean_val = np.mean(gray)
+        std_val = np.std(gray)
+        # 空格子：灰度低且均匀；有物品：灰度高或有纹理变化
+        return bool(mean_val < 60 and std_val < 15)
 
     # ========== 滚动条拖拽 ==========
 
@@ -922,6 +1219,9 @@ class ArtifactScanPresenter(QObject):
             f"region=({region_x},{bottom_y},{bottom_w}x{bottom_h})"
         )
 
+        window = self._capture.find_genshin_window()
+        window_bottom = (oy + window.height) if window else (oy + 1000)
+
         self._scroll_to_bottom_worker = _SmartScrollToBottomWorker(
             mouse=self._mouse,
             capture=self._capture,
@@ -932,9 +1232,13 @@ class ArtifactScanPresenter(QObject):
             region_w=bottom_w,
             region_h=bottom_h,
             initial_slider_y=slider_y,
+            window_bottom=window_bottom,
         )
         self._scroll_to_bottom_worker.progress.connect(
             self._onScrollToBottomProgress
+        )
+        self._scroll_to_bottom_worker.final_slider_y.connect(
+            self._on_smart_scroll_final_slider_y
         )
         self._scroll_to_bottom_worker.finished.connect(
             self._onScrollToBottomFinished
@@ -1161,6 +1465,9 @@ class ArtifactScanPresenter(QObject):
         ox, oy = self._window_origin()
         drag_x = ox + region_x + region_w // 2
 
+        window = self._capture.find_genshin_window()
+        window_bottom = (oy + window.height) if window else (oy + 1000)
+
         log.info(
             f"颜色检测: 闯关开始, 初始滑块Y={prev_y}, "
             f"拖拽列X={drag_x}"
@@ -1169,7 +1476,10 @@ class ArtifactScanPresenter(QObject):
         for attempt in range(self._BOTTOM_VERIFY_MAX_ATTEMPTS):
             # 用 drag 直接拖拽滑块向下（比滚轮可靠）
             drag_from_y = oy + prev_y + region_h // 2
-            drag_to_y = drag_from_y + self._BOTTOM_DRAG_DISTANCE
+            drag_to_y = min(
+                drag_from_y + self._BOTTOM_DRAG_DISTANCE,
+                window_bottom - 10,
+            )
             self._mouse.drag(
                 drag_x, drag_from_y,
                 drag_x, drag_to_y,
@@ -1244,7 +1554,7 @@ class ArtifactScanPresenter(QObject):
 
         for attempt in range(self._BOTTOM_VERIFY_MAX_ATTEMPTS):
             drag_from_y = oy + prev_y + region_h // 2
-            drag_to_y = drag_from_y - self._BOTTOM_DRAG_DISTANCE
+            drag_to_y = max(drag_from_y - self._BOTTOM_DRAG_DISTANCE, oy + 10)
             self._mouse.drag(
                 drag_x, drag_from_y,
                 drag_x, drag_to_y,
@@ -1299,7 +1609,10 @@ class ArtifactScanPresenter(QObject):
         log.info(f"拖拽到顶: 追加{self._BOTTOM_EXTRA_TICKS}次拖拽确保100%到顶")
         for i in range(self._BOTTOM_EXTRA_TICKS):
             drag_from_y = oy + prev_y + region_h // 2
-            drag_to_y = drag_from_y - self._BOTTOM_DRAG_DISTANCE // 2
+            drag_to_y = max(
+                drag_from_y - self._BOTTOM_DRAG_DISTANCE // 2,
+                oy + 10,
+            )
             self._mouse.drag(
                 drag_x, drag_from_y,
                 drag_x, drag_to_y,

@@ -301,9 +301,29 @@ class ArtifactRecognizer:
         # 锁定状态
         lock_status = ArtifactRecognizer.match_lock_status(image)
 
+        # 强化材料检测：部位区域识别到材料关键字则提前返回
+        material_keywords = ["圣遗物强化素材", "圣遗物强化材料", "强化素材", "强化材料"]
+        main_texts = ocr_texts.get("部位+主词条", [])
+        for mt in main_texts:
+            for kw in material_keywords:
+                if kw in mt:
+                    elapsed = (time.perf_counter() - t0) * 1000
+                    log.info(
+                        f"[识别完成] 检测到强化材料 '{mt}' → 跳过圣遗物解析 "
+                        f"(耗时 {elapsed:.0f}ms)"
+                    )
+                    return ArtifactInfo(
+                        is_material=True,
+                        material_name=mt,
+                        rarity=matched_rarity,
+                        raw_texts={
+                            "部位+主词条": " | ".join(main_texts),
+                        },
+                    )
+
         # 结构化解析
         name_ocr = " | ".join(ocr_texts.get("圣遗物名称", []))
-        main_ocr = " | ".join(ocr_texts.get("部位+主词条", []))
+        main_ocr = " | ".join(main_texts)
         sub_ocr = " | ".join(ocr_texts.get("副词条区", []))
         level_ocr = " | ".join(ocr_texts.get("圣遗物等级", []))
         lock_ocr = (
