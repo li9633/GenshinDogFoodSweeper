@@ -17,6 +17,7 @@ from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.logger import log
 
 from backend.automation.recognizer import ArtifactRecognizer
+from backend.automation.roi_config import ANCHOR_ROI_DEFINITIONS
 from backend.utils.screen_capture import CaptureMethod, CaptureResult, ScreenshotCapture
 
 from .image_provider import PreviewImageProvider
@@ -33,16 +34,6 @@ class RoiDefinition:
 
     def to_dict(self) -> dict:
         return {"name": self.name, "dx": self.dx, "dy": self.dy, "dw": self.dw, "dh": self.dh}
-
-
-# 默认 ROI 区域定义（相对于游戏窗口）
-_DEFAULT_ROI_DEFINITIONS = [
-    RoiDefinition("圣遗物等级", 1338, 452, 71, 44),
-    RoiDefinition("圣遗物星级", 1742, 159, 39, 40),
-    RoiDefinition("圣遗物名称", 1329, 144, 262, 62),
-    RoiDefinition("部位+主词条", 1339, 214, 160, 174),
-    RoiDefinition("副词条区", 1347, 498, 276, 166),
-]
 
 
 class ArtifactRecognitionPresenter(QObject):
@@ -65,8 +56,8 @@ class ArtifactRecognitionPresenter(QObject):
         self._structured_text = ""
         self._recognizing = False
         self._roi_definitions: list[RoiDefinition] = [
-            RoiDefinition(r.name, r.dx, r.dy, r.dw, r.dh)
-            for r in _DEFAULT_ROI_DEFINITIONS
+            RoiDefinition(name, dx, dy, dw, dh)
+            for name, dx, dy, dw, dh in ANCHOR_ROI_DEFINITIONS
         ]
         self._connect_ocr_worker()
 

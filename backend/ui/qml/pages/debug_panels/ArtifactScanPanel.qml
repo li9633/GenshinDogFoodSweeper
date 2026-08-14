@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import GenshinUI
-import "../../components"
 
 // qmllint disable unqualified
 // ArtifactScan 是 Python 通过 setContextProperty 注入的上下文属性
@@ -635,6 +634,151 @@ Rectangle {
 
                 }
             }
+
+            // ---- 圣遗物扫描（全量） ----
+            GCard {
+                title: "圣遗物扫描"
+                Layout.fillWidth: true
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Text {
+                        text: "一键全量扫描：识别数量 → 锚点定位 → 逐格识别 → 自动翻页 → 数量验证"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        color: Theme.textSecondary
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    // 网格参数
+                    Text {
+                        text: "网格参数:"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.textSecondary
+                    }
+
+                    RowLayout {
+                        spacing: 4
+                        Text { text: "边距X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanMarginX; from: 0; to: 9999; value: 118 }
+                        Text { text: "边距Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanMarginY; from: 0; to: 9999; value: 189 }
+                    }
+
+                    RowLayout {
+                        spacing: 4
+                        Text { text: "宽:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanItemW; from: 1; to: 999; value: 124 }
+                        Text { text: "高:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanItemH; from: 1; to: 999; value: 155 }
+                        Text { text: "间距:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanGap; from: 0; to: 999; value: 24 }
+                        Text { text: "点击间隔(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanClickInterval; from: 50; to: 5000; value: 300 }
+                    }
+
+                    // 滑块检测区域
+                    Text {
+                        text: "滑块检测区域:"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.textSecondary
+                    }
+
+                    RowLayout {
+                        spacing: 4
+                        Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanSliderX; from: 0; to: 9999; value: 1292 }
+                        Text { text: "顶部Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanSliderTopY; from: 0; to: 9999; value: 184 }
+                        Text { text: "底部Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanSliderBottomY; from: 0; to: 9999; value: 978 }
+                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanSliderW; from: 5; to: 999; value: 10 }
+                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanSliderH; from: 5; to: 999; value: 10 }
+                    }
+
+                    // 滚动参数
+                    Text {
+                        text: "翻页参数:"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.textSecondary
+                    }
+
+                    RowLayout {
+                        spacing: 4
+                        Text { text: "锚点X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanScrollX; from: 0; to: 9999; value: 230 }
+                        Text { text: "锚点Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanScrollY; from: 0; to: 9999; value: 335 }
+                        Text { text: "每行次数:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanTicksPerRow; from: 5; to: 20; value: 10 }
+                        Text { text: "滚动延迟(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanTickDelay; from: 10; to: 500; value: 30 }
+                        Text { text: "页面等待(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: fullScanPageSettle; from: 100; to: 5000; value: 200 }
+                    }
+
+                    // 控制按钮
+                    RowLayout {
+                        spacing: 6
+
+                        GButton {
+                            text: ArtifactScan.fullScanRunning ? "扫描中…" : "开始圣遗物扫描"
+                            colorType: "primary"
+                            enabled: !ArtifactScan.fullScanRunning
+                            onClicked: ArtifactScan.startFullScan(
+                                fullScanMarginX.value, fullScanMarginY.value,
+                                fullScanItemW.value, fullScanItemH.value, fullScanGap.value,
+                                fullScanSliderX.value, fullScanSliderTopY.value, fullScanSliderBottomY.value,
+                                fullScanSliderW.value, fullScanSliderH.value,
+                                fullScanScrollX.value, fullScanScrollY.value,
+                                fullScanTicksPerRow.value, fullScanTickDelay.value, fullScanPageSettle.value,
+                                fullScanClickInterval.value
+                            )
+                        }
+
+                        GButton {
+                            text: "停止扫描"
+                            colorType: "default"
+                            visible: ArtifactScan.fullScanRunning
+                            onClicked: ArtifactScan.stopFullScan()
+                        }
+                    }
+
+                    // 进度显示
+                    Text {
+                        text: "步骤: " + ArtifactScan.fullScanStep
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: Theme.accent
+                        visible: ArtifactScan.fullScanStep !== ""
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    Text {
+                        text: "进度: " + ArtifactScan.fullScanProgress
+                              + (ArtifactScan.fullScanCurrentPage > 0 ? " | 第 " + ArtifactScan.fullScanCurrentPage + "/" + ArtifactScan.fullScanTotalPages + " 页" : "")
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                        color: Theme.accent
+                        visible: ArtifactScan.fullScanProgress !== ""
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+
+            // 底部留白
+            Item { Layout.fillHeight: true }
         }
     }
 }
