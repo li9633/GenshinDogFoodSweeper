@@ -327,6 +327,64 @@ class ArtifactScanPresenter(QObject):
         self.scrollStateChanged.emit()
         log.info(f"翻页完成: 滚了{self._scroll_ticks}格")
 
+    # 1 行 = 格子153px + 间距24px = 177px, 10 格/行 → 17.7px/格
+    _PX_PER_TICK = 17.7
+
+    @Slot(int, int, int)
+    def scrollPageByDetection(
+        self, flag_x: int, flag_y: int, scroll_delay_ms: int = 80
+    ) -> None:
+        """基于格子检测的精准翻页：让最后一行的底部滚动到 ROI 顶部。
+
+        流程：截图 → 检测格子 → 算最后一行的底部 Y → 滚轮滚动对应距离
+        """
+        self.focusGame()
+        ox, oy = self._window_origin()
+        if ox == 0 and oy == 0:
+            log.warning("未检测到原神窗口")
+            return
+
+        result = self._capture.capture()
+        if result is None:
+            log.warning("截图失败")
+            return
+
+        roi = (118, 193, 1170, 810)
+        slots = SlotDetector.detect(result.image, roi=roi)
+        if not slots:
+            log.warning("未检测到格子，无法计算翻页距离")
+            return
+
+        bottom_y = max(s[3] + s[5] for s in slots)
+        roi_top = roi[1]
+        scroll_px = bottom_y - roi_top
+        if scroll_px <= 0:
+            log.info("最后一行的底部已在ROI顶部之上，无需翻页")
+            return
+
+        ticks = max(1, int(scroll_px / self._PX_PER_TICK))
+        log.info(
+            f"格子翻页: 底部Y={bottom_y}, ROI顶={roi_top}, "
+            f"像素距离={scroll_px}px → {ticks}格"
+        )
+
+        self._scroll_running = True
+        self._scroll_ticks = 0
+        self.scrollStateChanged.emit()
+
+        self._scroll_worker = ScrollOneRowWorker(
+            mouse=self._mouse,
+            flag_x=flag_x,
+            flag_y=flag_y,
+            delay_ms=scroll_delay_ms,
+            origin_x=ox,
+            origin_y=oy,
+            ticks=ticks,
+        )
+        self._scroll_worker.progress.connect(self._on_scroll_progress)
+        self._scroll_worker.finished.connect(self._on_scroll_finished)
+        self._scroll_worker.start()
+
     @Slot()
     def resetScrollState(self) -> None:
         self._scroll_ticks = 0

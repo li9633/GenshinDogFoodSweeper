@@ -122,12 +122,10 @@ class BatchClickWorker(QThread):
 
 
 class ScrollOneRowWorker(QThread):
-    """后台线程：滚动固定格数（10 格 = 1 行）"""
+    """后台线程：滚动指定格数"""
 
     progress = Signal(int)
     finished = Signal()
-
-    TICKS_PER_ROW = 10
 
     def __init__(
         self,
@@ -137,6 +135,7 @@ class ScrollOneRowWorker(QThread):
         delay_ms: int,
         origin_x: int,
         origin_y: int,
+        ticks: int = 10,
     ):
         super().__init__()
         self._mouse = mouse
@@ -145,9 +144,10 @@ class ScrollOneRowWorker(QThread):
         self._delay_ms = delay_ms
         self._origin_x = origin_x
         self._origin_y = origin_y
+        self._ticks = ticks
 
     def run(self) -> None:
-        for i in range(1, self.TICKS_PER_ROW + 1):
+        for i in range(1, self._ticks + 1):
             self._mouse.move_to(
                 self._origin_x + self._flag_x,
                 self._origin_y + self._flag_y,

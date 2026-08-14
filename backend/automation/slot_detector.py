@@ -177,6 +177,7 @@ class SlotDetector:
         if roi is not None:
             rx, ry, rw, rh = roi
             cv2.rectangle(debug, (rx, ry), (rx + rw, ry + rh), (255, 255, 0), 2)
+            cv2.line(debug, (0, ry), (debug.shape[1], ry), (255, 255, 0), 1)
 
         for i, (cx, cy, x, y, w, h) in enumerate(slots):
             cv2.rectangle(debug, (x, y), (x + w, y + h), (0, 255, 0), 2)

@@ -202,6 +202,13 @@ Rectangle {
                         }
 
                         GButton {
+                            text: "格子翻页"
+                            colorType: "success"
+                            enabled: !ArtifactScan.scrollRunning
+                            onClicked: ArtifactScan.scrollPageByDetection(scrollFlagX.value, scrollFlagY.value, scrollDelay.value)
+                        }
+
+                        GButton {
                             text: "重置"
                             colorType: "default"
                             onClicked: ArtifactScan.resetScrollState()
