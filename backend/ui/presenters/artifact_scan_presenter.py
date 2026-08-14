@@ -750,7 +750,7 @@ class ArtifactScanPresenter(QObject):
     def fullScanTotalPages(self) -> int:
         return self._full_scan_total_pages
 
-    @Slot(int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)
+    @Slot(int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)
     def startFullScan(
         self,
         margin_x: int,
