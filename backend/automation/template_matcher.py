@@ -81,7 +81,7 @@ def find_all_matches(
     all_matches.sort(key=lambda m: m[0], reverse=True)
     kept: list[tuple[float, int, int, int, int]] = []
     for m in all_matches:
-        score, x, y, w, h = m
+        score, x, y, _w, _h = m
         if not any(
             abs(x - kx) < min_distance and abs(y - ky) < min_distance
             for _, kx, ky, _, _ in kept

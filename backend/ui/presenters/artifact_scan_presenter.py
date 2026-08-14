@@ -42,6 +42,7 @@ from backend.automation.mouse_controller import MouseController
 from backend.automation.roi_config import ANCHOR_ROI_DEFINITIONS
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
+from backend.automation.slot_detector import SlotDetector
 from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import ScreenshotCapture
 
@@ -1067,3 +1068,28 @@ class ArtifactScanPresenter(QObject):
         PreviewImageProvider.put(key, debug_rgb)
         self.debugPreviewReady.emit(key)
         log.info(f"灰度截图: {result.image.shape[1]}x{result.image.shape[0]}")
+
+    @Slot(int, int, int, int, int, int, int)
+    def detectSlots(
+        self,
+        roi_x: int, roi_y: int, roi_w: int, roi_h: int,
+        white_threshold: int, tolerance: int, top_offset: int,
+    ) -> None:
+        """截图并检测圣遗物格子，生成调试预览图"""
+        result = self._capture.capture()
+        if result is None:
+            log.warning("格子检测: 无法捕获原神窗口")
+            return
+
+        roi = (roi_x, roi_y, roi_w, roi_h) if roi_w > 0 and roi_h > 0 else None
+        slots = SlotDetector.detect(
+            result.image, roi=roi,
+            white_threshold=white_threshold, tolerance=tolerance,
+            top_offset=top_offset,
+        )
+        log.info(f"格子检测: 找到 {len(slots)} 个格子")
+
+        debug_rgb = SlotDetector.draw_debug(result.image, slots, roi=roi)
+        key = "slot_debug"
+        PreviewImageProvider.put(key, debug_rgb)
+        self.debugPreviewReady.emit(key)

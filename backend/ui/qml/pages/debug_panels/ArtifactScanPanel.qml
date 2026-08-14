@@ -577,6 +577,62 @@ Rectangle {
                         }
                     }
 
+                    // 格子检测
+                    ColumnLayout {
+                        spacing: 4
+
+                        Text {
+                            text: "格子检测"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 13
+                            font.bold: true
+                            color: Theme.textPrimary
+                        }
+
+                        RowLayout {
+                            spacing: 4
+                            Text { text: "ROI:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                            GSpinBox { id: slotRoiX; from: 0; to: 3000; value: 118 }
+                            GSpinBox { id: slotRoiY; from: 0; to: 3000; value: 193 }
+                            GSpinBox { id: slotRoiW; from: 0; to: 3000; value: 1170 }
+                            GSpinBox { id: slotRoiH; from: 0; to: 3000; value: 810 }
+                            Text {
+                                text: "(x, y, w, h) 0=整图"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 11
+                                color: Theme.textSecondary
+                            }
+                        }
+
+                        RowLayout {
+                            spacing: 4
+                            Text { text: "白色阈值:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                            GSpinBox { id: slotWhiteThreshold; from: 0; to: 255; value: 200 }
+                            Text { text: "容差:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                            GSpinBox { id: slotTolerance; from: 0; to: 50; value: 20 }
+                            Text { text: "上偏移:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                            GSpinBox { id: slotTopOffset; from: 0; to: 200; value: 90 }
+                        }
+
+                        RowLayout {
+                            spacing: 6
+                            GButton {
+                                text: "检测格子"
+                                colorType: "primary"
+                                onClicked: ArtifactScan.detectSlots(
+                                    slotRoiX.value, slotRoiY.value, slotRoiW.value, slotRoiH.value,
+                                    slotWhiteThreshold.value, slotTolerance.value, slotTopOffset.value
+                                )
+                            }
+                            Text {
+                                text: "检测圣遗物格子位置，结果绘制到预览窗口"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 11
+                                color: Theme.textSecondary
+                            }
+                        }
+                    }
+
                     // 尾锚点 + 计算结果
                     RowLayout {
                         spacing: 6
