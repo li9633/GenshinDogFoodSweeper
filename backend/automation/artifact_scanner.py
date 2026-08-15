@@ -9,7 +9,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from pathlib import Path
 from time import sleep
@@ -22,6 +21,7 @@ from backend.automation.anchor_locator import AnchorLocator
 from backend.automation.grid_calculator import GridCalculator
 from backend.automation.grid_click_config import GridClickConfig
 from backend.automation.mouse_controller import MouseController
+from backend.automation.page_scroller import PageScroller
 from backend.automation.recognizer import ArtifactRecognizer
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
@@ -75,6 +75,8 @@ def run_grid_click(
         sleep(config.interval_ms / 1000.0)
 
 
+from backend.automation.artifact_count_ocr import ocr_artifact_count
+
 # ====================================================================
 # 基础 Worker
 # ====================================================================
@@ -118,102 +120,6 @@ class BatchClickWorker(QThread):
             stop_check=lambda: self._stop,
             win=self._win,
         )
-        self.finished.emit()
-
-
-class ScrollOneRowWorker(QThread):
-    """后台线程：滚动指定格数"""
-
-    progress = Signal(int)
-    finished = Signal()
-
-    def __init__(
-        self,
-        mouse: MouseController,
-        flag_x: int,
-        flag_y: int,
-        delay_ms: int,
-        origin_x: int,
-        origin_y: int,
-        ticks: int = 10,
-    ):
-        super().__init__()
-        self._mouse = mouse
-        self._flag_x = flag_x
-        self._flag_y = flag_y
-        self._delay_ms = delay_ms
-        self._origin_x = origin_x
-        self._origin_y = origin_y
-        self._ticks = ticks
-
-    def run(self) -> None:
-        for i in range(1, self._ticks + 1):
-            self._mouse.move_to(
-                self._origin_x + self._flag_x,
-                self._origin_y + self._flag_y,
-            )
-            self._mouse.scroll_one_tick()
-            self.progress.emit(i)
-            sleep(self._delay_ms / 1000.0)
-
-        self.finished.emit()
-
-
-class AutoScrollWorker(QThread):
-    """后台线程：自动翻页，逐页滚动直到最后一页"""
-
-    progress = Signal(int, int)
-    finished = Signal()
-
-    ROWS_PER_PAGE = 4
-
-    def __init__(
-        self,
-        mouse: MouseController,
-        origin_x: int,
-        origin_y: int,
-        flag_x: int,
-        flag_y: int,
-        total_pages: int,
-        ticks_per_row: int,
-        tick_delay_ms: int,
-        page_settle_ms: int,
-    ):
-        super().__init__()
-        self._mouse = mouse
-        self._origin_x = origin_x
-        self._origin_y = origin_y
-        self._flag_x = flag_x
-        self._flag_y = flag_y
-        self._total_pages = total_pages
-        self._ticks_per_row = ticks_per_row
-        self._tick_delay_ms = tick_delay_ms
-        self._page_settle_ms = page_settle_ms
-        self._stop = False
-
-    def stop(self) -> None:
-        self._stop = True
-
-    def run(self) -> None:
-        ticks_per_page = self._ticks_per_row * self.ROWS_PER_PAGE
-
-        for page in range(1, self._total_pages + 1):
-            if self._stop:
-                break
-            self.progress.emit(page, self._total_pages)
-
-            for _ in range(ticks_per_page):
-                if self._stop:
-                    break
-                self._mouse.move_to(
-                    self._origin_x + self._flag_x,
-                    self._origin_y + self._flag_y,
-                )
-                self._mouse.scroll_one_tick()
-                sleep(self._tick_delay_ms / 1000.0)
-
-            sleep(self._page_settle_ms / 1000.0)
-
         self.finished.emit()
 
 
@@ -262,6 +168,7 @@ class SmartScrollToBottomWorker(QThread):
         self._window_bottom = window_bottom
         self._stop = False
         self._win = WindowHelper(self._capture, self._mouse)
+        self._page_scroller = PageScroller(self._mouse, self._capture)
         self._slider_scroller = SliderScroller(
             self._mouse, self._capture, self._win,
         )
@@ -381,7 +288,6 @@ class FullScanWorker(QThread):
         slider_region_h: int,
         scroll_flag_x: int,
         scroll_flag_y: int,
-        ticks_per_row: int,
         tick_delay_ms: int,
         page_settle_ms: int,
         click_interval_ms: int,
@@ -407,7 +313,6 @@ class FullScanWorker(QThread):
         self._slider_region_h = slider_region_h
         self._scroll_flag_x = scroll_flag_x
         self._scroll_flag_y = scroll_flag_y
-        self._ticks_per_row = ticks_per_row
         self._tick_delay_ms = tick_delay_ms
         self._page_settle_ms = page_settle_ms
         self._click_interval_ms = click_interval_ms
@@ -580,34 +485,7 @@ class FullScanWorker(QThread):
     # ========== OCR 数量识别 ==========
 
     def _ocr_count(self, ocr) -> int:
-        result = self._capture.capture()
-        if result is None:
-            return 0
-        img = result.image
-        h, w = img.shape[:2]
-        roi_x, roi_y = 1606, 52
-        roi_w, roi_h = 206, 49
-        x1 = max(0, roi_x)
-        y1 = max(0, roi_y)
-        x2 = min(w, roi_x + roi_w)
-        y2 = min(h, roi_y + roi_h)
-        if x2 <= x1 or y2 <= y1:
-            return 0
-        cropped = img[y1:y2, x1:x2].copy()
-        ocr_result = ocr.ocr(cropped)
-        texts: list[str] = []
-        if ocr_result and ocr_result[0]:
-            r = ocr_result[0]
-            if isinstance(r, dict):
-                texts = [t for t in r.get("rec_texts", []) if t and t.strip()]
-            elif hasattr(r, "rec_texts"):
-                texts = [t for t in r.rec_texts if t and t.strip()]
-        full_text = "".join(texts)
-        m = re.search(r"(\d+)\s*/\s*\d+", full_text)
-        if m:
-            return int(m.group(1))
-        m2 = re.search(r"\d+", full_text)
-        return int(m2.group(0)) if m2 else 0
+        return ocr_artifact_count(self._capture, ocr)
 
     # ========== 滑块操作 ==========
 
@@ -728,11 +606,8 @@ class FullScanWorker(QThread):
 
     def _scroll_one_page(self) -> None:
         ox, oy = self._win.get_origin()
-        ticks_per_page = self._ticks_per_row * self.ROWS
-        for _ in range(ticks_per_page):
-            if self._stop:
-                return
-            self._mouse.move_to(ox + self._scroll_flag_x, oy + self._scroll_flag_y)
-            self._mouse.scroll_one_tick()
-            sleep(self._tick_delay_ms / 1000.0)
-        sleep(self._page_settle_ms / 1000.0)
+        self._page_scroller.scroll_to_next_page(
+            ox, oy,
+            self._scroll_flag_x, self._scroll_flag_y,
+            self._tick_delay_ms, self._page_settle_ms,
+        )

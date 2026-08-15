@@ -18,7 +18,6 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from time import sleep
 
@@ -29,16 +28,17 @@ from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 from utils.logger import log
 
 from backend.automation.anchor_locator import AnchorLocator
+from backend.automation.artifact_count_ocr import ocr_artifact_count
 from backend.automation.artifact_scanner import (
-    AutoScrollWorker,
     BatchClickWorker,
     FullScanWorker,
-    ScrollOneRowWorker,
     SmartScrollToBottomWorker,
 )
 from backend.automation.debug_preview import DebugPreview
 from backend.automation.grid_click_config import GridClickConfig
 from backend.automation.mouse_controller import MouseController
+from backend.automation.ocr_engine import OcrEngine
+from backend.automation.page_scroller import PageScroller
 from backend.automation.roi_config import ANCHOR_ROI_DEFINITIONS
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
@@ -60,14 +60,6 @@ class ArtifactScanPresenter(QObject):
 
     batchProgressChanged = Signal()
     batchRunningChanged = Signal()
-    scrollStateChanged = Signal()
-
-    # 自动翻页
-    detectedCountChanged = Signal()
-    detectedTotalPagesChanged = Signal()
-    autoScanProgressChanged = Signal()
-    autoScanRunningChanged = Signal()
-
     # 首尾锚点定位
     anchorFirstMarked = Signal()
     anchorLastFound = Signal()
@@ -89,11 +81,6 @@ class ArtifactScanPresenter(QObject):
     fullScanFinished = Signal()
     fullScanArtifactScanned = Signal()
 
-    # ========== 常量 ==========
-
-    SCROLL_TICKS_PER_ROW = 10
-    ARTIFACTS_PER_PAGE = 32  # 4 行 × 8 列
-
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
         self._mouse = MouseController()
@@ -109,18 +96,7 @@ class ArtifactScanPresenter(QObject):
         self._batch_running = False
         self._batch_worker: BatchClickWorker | None = None
 
-        # 精准翻页
-        self._scroll_worker: ScrollOneRowWorker | None = None
-        self._scroll_ticks = 0
-        self._scroll_running = False
-
-        # 自动翻页
-        self._auto_scroll_worker: AutoScrollWorker | None = None
-        self._detected_count = 0
-        self._detected_total_pages = 0
-        self._auto_scan_progress = ""
-        self._auto_scan_running = False
-        self._ocr_connected = False
+        self._page_scroller = PageScroller(self._mouse, self._capture)
 
         # 首尾锚点
         self._anchor_first_x = 0
@@ -279,272 +255,52 @@ class ArtifactScanPresenter(QObject):
         log.info("批量点击完成")
 
     # ==================================================================
-    # 精准翻页（固定 10 格 = 1 行）
+    # 基于格子检测的精准翻页
     # ==================================================================
-
-    @Property(int, notify=scrollStateChanged)
-    def scrollTicks(self) -> int:
-        return self._scroll_ticks
-
-    @Property(bool, notify=scrollStateChanged)
-    def scrollRunning(self) -> bool:
-        return self._scroll_running
-
-    @Slot(int, int, int)
-    def scrollOneRow(
-        self, flag_x: int, flag_y: int, scroll_delay_ms: int = 80
-    ) -> None:
-        self.focusGame()
-        ox, oy = self._window_origin()
-        if ox == 0 and oy == 0:
-            log.warning("未检测到原神窗口")
-            return
-
-        self._scroll_running = True
-        self._scroll_ticks = 0
-        self.scrollStateChanged.emit()
-
-        self._scroll_worker = ScrollOneRowWorker(
-            mouse=self._mouse,
-            flag_x=flag_x,
-            flag_y=flag_y,
-            delay_ms=scroll_delay_ms,
-            origin_x=ox,
-            origin_y=oy,
-        )
-        self._scroll_worker.progress.connect(self._on_scroll_progress)
-        self._scroll_worker.finished.connect(self._on_scroll_finished)
-        self._scroll_worker.start()
-        log.info(f"精准翻页开始: 锚点({flag_x},{flag_y}), 延迟={scroll_delay_ms}ms")
-
-    def _on_scroll_progress(self, ticks: int) -> None:
-        self._scroll_ticks = ticks
-        self.scrollStateChanged.emit()
-
-    def _on_scroll_finished(self) -> None:
-        self._scroll_running = False
-        self._scroll_worker = None
-        self.scrollStateChanged.emit()
-        log.info(f"翻页完成: 滚了{self._scroll_ticks}格")
-
-    # 1 行 = 格子153px + 间距24px = 177px, 10 格/行 → 17.7px/格
-    _PX_PER_TICK = 17.7
 
     @Slot(int, int, int)
     def scrollPageByDetection(
         self, flag_x: int, flag_y: int, scroll_delay_ms: int = 80
     ) -> None:
-        """基于格子检测的精准翻页：让最后一行的底部滚动到 ROI 顶部。
-
-        流程：截图 → 检测格子 → 算最后一行的底部 Y → 滚轮滚动对应距离
-        """
+        """格子翻页：截图 → 检测 → 计算 → 滚动，全部委托 PageScroller。"""
         self.focusGame()
         ox, oy = self._window_origin()
         if ox == 0 and oy == 0:
             log.warning("未检测到原神窗口")
             return
-
-        result = self._capture.capture()
-        if result is None:
-            log.warning("截图失败")
-            return
-
-        roi = (118, 193, 1170, 810)
-        slots = SlotDetector.detect(result.image, roi=roi)
-        if not slots:
-            log.warning("未检测到格子，无法计算翻页距离")
-            return
-
-        bottom_y = max(s[3] + s[5] for s in slots)
-        roi_top = roi[1]
-        scroll_px = bottom_y - roi_top
-        if scroll_px <= 0:
-            log.info("最后一行的底部已在ROI顶部之上，无需翻页")
-            return
-
-        ticks = max(1, int(scroll_px / self._PX_PER_TICK))
-        log.info(
-            f"格子翻页: 底部Y={bottom_y}, ROI顶={roi_top}, "
-            f"像素距离={scroll_px}px → {ticks}格"
+        self._page_scroller.scroll_to_next_page(
+            ox, oy, flag_x, flag_y,
+            tick_delay_ms=scroll_delay_ms,
         )
+        log.info("格子翻页完成")
 
-        self._scroll_running = True
-        self._scroll_ticks = 0
-        self.scrollStateChanged.emit()
-
-        self._scroll_worker = ScrollOneRowWorker(
-            mouse=self._mouse,
-            flag_x=flag_x,
-            flag_y=flag_y,
-            delay_ms=scroll_delay_ms,
-            origin_x=ox,
-            origin_y=oy,
-            ticks=ticks,
-        )
-        self._scroll_worker.progress.connect(self._on_scroll_progress)
-        self._scroll_worker.finished.connect(self._on_scroll_finished)
-        self._scroll_worker.start()
-
-    @Slot()
-    def resetScrollState(self) -> None:
-        self._scroll_ticks = 0
-        self._scroll_running = False
-        self.scrollStateChanged.emit()
-        log.info("翻页状态已重置")
-
-    # ==================================================================
-    # 自动翻页（OCR 识别数量 + 逐页滚动）
-    # ==================================================================
-
-    @Property(int, notify=detectedCountChanged)
-    def detectedCount(self) -> int:
-        return self._detected_count
-
-    @Property(int, notify=detectedTotalPagesChanged)
-    def detectedTotalPages(self) -> int:
-        return self._detected_total_pages
-
-    @Property(str, notify=autoScanProgressChanged)
-    def autoScanProgress(self) -> str:
-        return self._auto_scan_progress
-
-    @Property(bool, notify=autoScanRunningChanged)
-    def autoScanRunning(self) -> bool:
-        return self._auto_scan_running
-
-    def _connect_ocr(self) -> None:
-        if self._ocr_connected:
-            return
-        from backend.automation.ocr_worker import OcrWorker
-
-        worker = OcrWorker.instance()
-        worker.task_done.connect(self._on_ocr_count_done)
-        worker.task_error.connect(self._on_ocr_count_error)
-        self._ocr_connected = True
-
-    @Slot(int, int, int, int)
-    def ocrCount(self, roi_x: int, roi_y: int, roi_w: int, roi_h: int) -> None:
-        self._connect_ocr()
-        window = self._capture.find_genshin_window()
-        if window is None:
-            log.warning("未检测到原神窗口")
-            return
-        result = self._capture.capture()
-        if result is None:
-            log.warning("截图失败")
-            return
-        img = result.image
-        h, w = img.shape[:2]
-        x1 = max(0, roi_x)
-        y1 = max(0, roi_y)
-        x2 = min(w, roi_x + roi_w)
-        y2 = min(h, roi_y + roi_h)
-        if x2 <= x1 or y2 <= y1:
-            log.warning("ROI 区域无效")
-            return
-        cropped = img[y1:y2, x1:x2].copy()
-
-        def _ocr_task(ocr):
-            ocr_result = ocr.ocr(cropped)
-            texts: list[str] = []
-            if ocr_result and ocr_result[0]:
-                r = ocr_result[0]
-                if isinstance(r, dict):
-                    texts = [t for t in r.get("rec_texts", []) if t and t.strip()]
-                elif hasattr(r, "rec_texts"):
-                    texts = [t for t in r.rec_texts if t and t.strip()]
-            full_text = "".join(texts)
-            log.debug(f"OCR 数量识别原始文本: {texts} → \"{full_text}\"")
-            m = re.search(r"(\d+)\s*/\s*\d+", full_text)
-            if m:
-                return int(m.group(1))
-            m2 = re.search(r"\d+", full_text)
-            return int(m2.group(0)) if m2 else 0
-
-        from backend.automation.ocr_worker import OcrWorker
-
-        OcrWorker.instance().submit(_ocr_task, callback_data="artifact_count")
-        log.info(f"OCR 数量识别: ROI=({roi_x},{roi_y},{roi_w},{roi_h})")
-
-    def _on_ocr_count_done(self, count: int, callback_data: object) -> None:
-        if callback_data != "artifact_count":
-            return
-        if not isinstance(count, int):
-            return
-        self._detected_count = count
-        self._detected_total_pages = (
-            max(1, (count + self.ARTIFACTS_PER_PAGE - 1) // self.ARTIFACTS_PER_PAGE)
-            if count > 0
-            else 0
-        )
-        self.detectedCountChanged.emit()
-        self.detectedTotalPagesChanged.emit()
-        log.info(
-            f"OCR 数量识别完成: {count} 个, {self._detected_total_pages} 页"
-        )
-
-    def _on_ocr_count_error(self, error: str, _callback_data: object) -> None:
-        log.error(f"OCR 数量识别失败: {error}")
-
-    @Slot(int, int, int, int, int)
-    def startAutoScroll(
-        self, flag_x: int, flag_y: int, ticks_per_row: int,
-        tick_delay_ms: int, page_settle_ms: int,
+    @Slot(int, int, int)
+    def scrollPageToBottom(
+        self, flag_x: int, flag_y: int, scroll_delay_ms: int = 80
     ) -> None:
-        if self._auto_scan_running:
-            return
-        if self._detected_total_pages <= 1:
-            log.warning("请先 OCR 识别圣遗物数量")
-            return
+        """自动翻到底：OCR 识别数量 → 计算总页数 → 循环 截图→检测→滚动。"""
         self.focusGame()
         ox, oy = self._window_origin()
         if ox == 0 and oy == 0:
             log.warning("未检测到原神窗口")
             return
 
-        self._auto_scroll_worker = AutoScrollWorker(
-            mouse=self._mouse,
-            origin_x=ox,
-            origin_y=oy,
-            flag_x=flag_x,
-            flag_y=flag_y,
-            total_pages=self._detected_total_pages,
-            ticks_per_row=ticks_per_row,
-            tick_delay_ms=tick_delay_ms,
-            page_settle_ms=page_settle_ms,
-        )
-        self._auto_scroll_worker.progress.connect(self._on_auto_scan_progress)
-        self._auto_scroll_worker.finished.connect(self._on_auto_scan_finished)
-
-        self._auto_scan_running = True
-        self._auto_scan_progress = f"1/{self._detected_total_pages}"
-        self.autoScanRunningChanged.emit()
-        self.autoScanProgressChanged.emit()
-        self._auto_scroll_worker.start()
+        # OCR 识别圣遗物数量，计算总页数
+        engines_dir = Path(__file__).resolve().parents[3] / "engines"
+        ocr = OcrEngine._create_paddle_ocr(engines_dir)
+        count = ocr_artifact_count(self._capture, ocr)
+        total_pages = max(1, (count + 31) // 32) if count > 0 else 0
+        max_pages = total_pages - 1 if total_pages > 0 else 0
         log.info(
-            f"自动翻页开始: 共 {self._detected_total_pages} 页, "
-            f"每行={ticks_per_row}次, 每页={ticks_per_row * 4}次, "
-            f"锚点({flag_x},{flag_y}), 滚动延迟={tick_delay_ms}ms, "
-            f"页面等待={page_settle_ms}ms"
+            f"自动翻到底开始... 圣遗物数量={count}, 总页数={total_pages}, 安全上限={max_pages}"
         )
-
-    @Slot()
-    def stopAutoScroll(self) -> None:
-        if self._auto_scroll_worker is not None:
-            self._auto_scroll_worker.stop()
-        log.info("自动翻页已停止")
-
-    def _on_auto_scan_progress(self, current: int, total: int) -> None:
-        self._auto_scan_progress = f"{current}/{total}"
-        self.autoScanProgressChanged.emit()
-
-    def _on_auto_scan_finished(self) -> None:
-        self._auto_scan_running = False
-        self._auto_scroll_worker = None
-        self._auto_scan_progress = "完成"
-        self.autoScanRunningChanged.emit()
-        self.autoScanProgressChanged.emit()
-        log.info("自动翻页完成")
+        pages = self._page_scroller.scroll_to_bottom(
+            ox, oy, flag_x, flag_y,
+            tick_delay_ms=scroll_delay_ms,
+            max_pages=max_pages,
+            total_pages=total_pages,
+        )
+        log.info(f"自动翻到底完成: 共翻页 {pages} 次")
 
     # ==================================================================
     # 首尾锚点定位
@@ -809,7 +565,7 @@ class ArtifactScanPresenter(QObject):
     def fullScanTotalPages(self) -> int:
         return self._full_scan_total_pages
 
-    @Slot(int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)
+    @Slot(int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)
     def startFullScan(
         self,
         margin_x: int,
@@ -824,7 +580,6 @@ class ArtifactScanPresenter(QObject):
         slider_region_h: int,
         scroll_flag_x: int,
         scroll_flag_y: int,
-        ticks_per_row: int,
         tick_delay_ms: int,
         page_settle_ms: int,
         click_interval_ms: int,
@@ -866,7 +621,6 @@ class ArtifactScanPresenter(QObject):
             slider_region_h=slider_region_h,
             scroll_flag_x=scroll_flag_x,
             scroll_flag_y=scroll_flag_y,
-            ticks_per_row=ticks_per_row,
             tick_delay_ms=tick_delay_ms,
             page_settle_ms=page_settle_ms,
             click_interval_ms=click_interval_ms,

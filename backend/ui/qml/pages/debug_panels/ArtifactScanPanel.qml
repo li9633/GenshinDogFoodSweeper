@@ -152,9 +152,9 @@ Rectangle {
             // 底部留白
             Item { Layout.fillHeight: true }
 
-            // ---- 精准翻页（yas 视觉锚点状态机） ----
+            // ---- 格子翻页（基于格子检测，动态计算滚动距离） ----
             GCard {
-                title: "精准翻页"
+                title: "格子翻页"
                 Layout.fillWidth: true
 
                 ColumnLayout {
@@ -162,7 +162,7 @@ Rectangle {
                     spacing: 6
 
                     Text {
-                        text: "固定滚 10 格 = 1 行（4 行为一页时需滚 40 格）"
+                        text: "截图 → 检测格子 → 计算最后一行底部Y坐标 → 自动滚动"
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
                         color: Theme.textSecondary
@@ -181,164 +181,25 @@ Rectangle {
                         GSpinBox { id: scrollDelay; from: 10; to: 500; value: 80 }
                     }
 
-                    // 进度
-                    Text {
-                        text: "已滚 " + ArtifactScan.scrollTicks + " / 10 格"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textSecondary
-                        visible: ArtifactScan.scrollTicks > 0
-                    }
-
                     // 按钮
                     RowLayout {
                         spacing: 6
 
                         GButton {
-                            text: "精准滚一行"
-                            colorType: "primary"
-                            enabled: !ArtifactScan.scrollRunning
-                            onClicked: ArtifactScan.scrollOneRow(scrollFlagX.value, scrollFlagY.value, scrollDelay.value)
-                        }
-
-                        GButton {
                             text: "格子翻页"
                             colorType: "success"
-                            enabled: !ArtifactScan.scrollRunning
                             onClicked: ArtifactScan.scrollPageByDetection(scrollFlagX.value, scrollFlagY.value, scrollDelay.value)
                         }
 
                         GButton {
-                            text: "重置"
-                            colorType: "default"
-                            onClicked: ArtifactScan.resetScrollState()
-                        }
-                    }
-
-                    Text {
-                        text: "提示：先聚焦原神窗口，再点击\"精准滚一行\"自动滚动 10 格"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 11
-                        color: Theme.textSecondary
-                        wrapMode: Text.WordWrap
-                        Layout.fillWidth: true
-                    }
-                }
-            }
-
-            // ---- 自动翻页（OCR 识别数量 + 逐页滚动） ----
-            GCard {
-                title: "自动翻页"
-                Layout.fillWidth: true
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
-
-                    Text {
-                        text: "每页: 4 行 × 8 列 = 32 个圣遗物"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 11
-                        color: Theme.textSecondary
-                    }
-
-                    // ROI 区域（背包右上角圣遗物数量显示区域）
-                    Text {
-                        text: "ROI 区域（背包右上角数量显示，屏幕绝对坐标）:"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textSecondary
-                    }
-
-                    RowLayout {
-                        spacing: 4
-
-                        Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: roiX; from: 0; to: 9999; value: 1606 }
-                        Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: roiY; from: 0; to: 9999; value: 52 }
-                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: roiW; from: 10; to: 9999; value: 206 }
-                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: roiH; from: 10; to: 9999; value: 49 }
-                    }
-
-                    RowLayout {
-                        spacing: 6
-
-                        GButton {
-                            text: "OCR 识别数量"
+                            text: "自动翻到底"
                             colorType: "primary"
-                            onClicked: ArtifactScan.ocrCount(roiX.value, roiY.value, roiW.value, roiH.value)
-                        }
-
-                        Text {
-                            text: "识别结果: " + ArtifactScan.detectedCount + " 个，共 "
-                                  + ArtifactScan.detectedTotalPages + " 页"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 13
-                            font.bold: true
-                            color: Theme.accent
-                            visible: ArtifactScan.detectedCount > 0
-                        }
-                    }
-
-                    // 滚动参数
-                    Text {
-                        text: "滚动参数:"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textSecondary
-                    }
-
-                    RowLayout {
-                        spacing: 4
-
-                        Text { text: "锚点X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: autoScrollFlagX; from: 0; to: 9999; value: 230 }
-                        Text { text: "锚点Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: autoScrollFlagY; from: 0; to: 9999; value: 335 }
-                        Text { text: "每行次数:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: ticksPerRow; from: 5; to: 20; value: 10 }
-                        Text { text: "滚动延迟(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: autoTickDelay; from: 10; to: 500; value: 30 }
-                        Text { text: "页面等待(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: pageSettleMs; from: 100; to: 5000; value: 200 }
-                    }
-
-                    // 控制按钮 + 进度
-                    RowLayout {
-                        spacing: 6
-
-                        GButton {
-                            text: "开始自动翻页"
-                            colorType: "primary"
-                            enabled: !ArtifactScan.autoScanRunning && ArtifactScan.detectedCount > 0
-                            onClicked: ArtifactScan.startAutoScroll(
-                                    autoScrollFlagX.value, autoScrollFlagY.value,
-                                    ticksPerRow.value, autoTickDelay.value, pageSettleMs.value
-                                )
-                        }
-
-                        GButton {
-                            text: "停止"
-                            colorType: "default"
-                            visible: ArtifactScan.autoScanRunning
-                            onClicked: ArtifactScan.stopAutoScroll()
-                        }
-
-                        Text {
-                            text: "进度: " + ArtifactScan.autoScanProgress
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 14
-                            font.bold: true
-                            color: Theme.accent
-                            visible: ArtifactScan.autoScanProgress !== ""
+                            onClicked: ArtifactScan.scrollPageToBottom(scrollFlagX.value, scrollFlagY.value, scrollDelay.value)
                         }
                     }
 
                     Text {
-                        text: "提示：先点击「OCR 识别数量」获取总页数，再点击「开始自动翻页」逐页滚动到底"
+                        text: "提示：「格子翻页」翻一页，「自动翻到底」循环翻页直到检测到底部"
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
                         color: Theme.textSecondary
@@ -780,8 +641,6 @@ Rectangle {
                         GSpinBox { id: fullScanScrollX; from: 0; to: 9999; value: 230 }
                         Text { text: "锚点Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
                         GSpinBox { id: fullScanScrollY; from: 0; to: 9999; value: 335 }
-                        Text { text: "每行次数:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanTicksPerRow; from: 5; to: 20; value: 10 }
                         Text { text: "滚动延迟(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
                         GSpinBox { id: fullScanTickDelay; from: 10; to: 500; value: 30 }
                         Text { text: "页面等待(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
@@ -802,7 +661,7 @@ Rectangle {
                                 fullScanSliderX.value, fullScanSliderTopY.value, fullScanSliderBottomY.value,
                                 fullScanSliderW.value, fullScanSliderH.value,
                                 fullScanScrollX.value, fullScanScrollY.value,
-                                fullScanTicksPerRow.value, fullScanTickDelay.value, fullScanPageSettle.value,
+                                fullScanTickDelay.value, fullScanPageSettle.value,
                                 fullScanClickInterval.value
                             )
                         }
