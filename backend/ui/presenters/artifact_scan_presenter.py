@@ -762,23 +762,22 @@ class ArtifactScanPresenter(QObject):
 
     @Slot(int)
     def _on_smart_scroll_final_slider_y(self, slider_y: int) -> None:
-        """智能拖拽完成后，根据滑块最终位置动态计算尾锚点坐标"""
+        """智能拖拽完成后，根据格子检测定位尾锚点（最后一页最后一个物品）"""
         result = self._capture.capture()
         if result is None:
             log.warning("尾锚点定位: 截图失败")
             return
-        tail = AnchorLocator.find_tail_anchor(
-            result.image, slider_y,
-            self._anchor_first_x, self._anchor_first_y,
-            self._anchor_first_w, self._anchor_first_h,
-            self._grid_gap,
-        )
-        if tail is None:
-            log.warning("尾锚点定位: 未能找到最后一个物品")
+        slots = SlotDetector.detect(result.image, roi=PageScroller._ROI)
+        if not slots:
+            log.warning("尾锚点定位: 未检测到格子")
             return
-        self._anchor_tail_x, self._anchor_tail_y = tail
-        self._anchor_last_x = tail[0]
-        self._anchor_last_y = tail[1]
+        # slots 按 y 再 x 排序，最后一个即为右下角尾锚点
+        last_slot = slots[-1]
+        tail_cx, tail_cy = last_slot[0], last_slot[1]
+        log.info(f"尾锚点定位: 格子检测 → 最后一个格子 ({tail_cx}, {tail_cy})")
+        self._anchor_tail_x, self._anchor_tail_y = tail_cx, tail_cy
+        self._anchor_last_x = tail_cx
+        self._anchor_last_y = tail_cy
         self.anchorLastFound.emit()
         self._calculate_anchor_pages()
 

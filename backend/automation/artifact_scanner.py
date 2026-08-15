@@ -25,6 +25,7 @@ from backend.automation.page_scroller import PageScroller
 from backend.automation.recognizer import ArtifactRecognizer
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
+from backend.automation.slot_detector import SlotDetector
 from backend.automation.window_helper import WindowHelper
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
 from backend.utils.screen_capture import ScreenshotCapture
@@ -184,6 +185,8 @@ class SmartScrollToBottomWorker(QThread):
         self._slider_scroller = SliderScroller(
             self._mouse, self._capture, self._win,
         )
+        self._page_scroller: PageScroller = PageScroller(self._mouse, self._capture)
+        self._page_scroller = PageScroller(self._mouse, self._capture)
 
     def stop(self) -> None:
         self._stop = True
@@ -334,6 +337,7 @@ class FullScanWorker(QThread):
         self._slider_scroller = SliderScroller(
             self._mouse, self._capture, self._win,
         )
+        self._page_scroller: PageScroller = PageScroller(self._mouse, self._capture)
 
     def stop(self) -> None:
         self._stop = True
@@ -398,16 +402,12 @@ class FullScanWorker(QThread):
             if result is None:
                 self.errorOccurred.emit("截图失败")
                 return
-            tail_pos = AnchorLocator.find_tail_anchor(
-                result.image, slider_y,
-                self._anchor_first_x, self._anchor_first_y,
-                self._anchor_first_w, self._anchor_first_h,
-                self._gap,
-            )
+            slots = SlotDetector.detect(result.image, roi=PageScroller._ROI)
             if self._stop:
                 return
-            if tail_pos:
-                tail_cx, tail_cy = tail_pos
+            if slots:
+                last_slot = slots[-1]
+                tail_cx, tail_cy = last_slot[0], last_slot[1]
                 self.stepChanged.emit("正在识别尾锚点...")
                 tail_info = self._click_and_recognize_artifact(tail_cx, tail_cy, ocr)
                 if self._stop:
