@@ -26,7 +26,19 @@ from backend.automation.recognizer import ArtifactRecognizer
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
 from backend.automation.window_helper import WindowHelper
+from backend.models.artifact_recognition_field import ArtifactRecognitionField
 from backend.utils.screen_capture import ScreenshotCapture
+
+# 扫描识别策略：全部识别，仅跳过套装效果查询（省 DB 开销）
+_SCAN_FIELDS: frozenset[ArtifactRecognitionField] = frozenset({
+    ArtifactRecognitionField.SET_NAME,
+    ArtifactRecognitionField.PIECE_TYPE,
+    ArtifactRecognitionField.MAIN_STAT,
+    ArtifactRecognitionField.SUB_STATS,
+    ArtifactRecognitionField.LEVEL,
+    ArtifactRecognitionField.RARITY,
+    ArtifactRecognitionField.LOCK_STATUS,
+})
 
 # ====================================================================
 # 网格点击核心函数
@@ -597,7 +609,10 @@ class FullScanWorker(QThread):
         if result is None:
             return None
         try:
-            return ArtifactRecognizer.recognize(result.image, self._roi_configs, ocr)
+            return ArtifactRecognizer.recognize(
+                result.image, self._roi_configs, ocr,
+                fields=_SCAN_FIELDS,
+            )
         except Exception as exc:
             log.error(f"圣遗物识别失败: {exc}")
             return None

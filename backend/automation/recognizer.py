@@ -14,12 +14,17 @@ from backend.automation.color_sampler import sample_roi_color
 from backend.automation.template_manager import TemplateManager
 from backend.automation.template_matcher import multi_scale_match
 from backend.models.artifact import ArtifactInfo
+from backend.models.artifact_recognition_field import ArtifactRecognitionField
 
 
 class ArtifactRecognizer:
     """圣遗物识别：OCR 解析 + 套装/部位匹配 + 星级颜色分类 + 锁定状态检测"""
 
     PIECE_TYPES: ClassVar[set[str]] = {"生之花", "死之羽", "时之沙", "空之杯", "理之冠"}
+
+    STRATEGY: ClassVar[frozenset[ArtifactRecognitionField]] = frozenset(
+        {ArtifactRecognitionField.ALL}
+    )
 
     RARITY_COLORS: ClassVar[tuple[tuple[int, int, int], ...]] = (
         (113, 118, 138),  # 1★ #71768A
@@ -212,6 +217,7 @@ class ArtifactRecognizer:
         image: np.ndarray,
         roi_configs: dict[str, tuple[int, int, int, int]],
         ocr,
+        fields: frozenset[ArtifactRecognitionField] | None = None,
     ) -> ArtifactInfo:
         """执行完整圣遗物识别流程：OCR → 匹配 → 解析 → 返回 ArtifactInfo
 
@@ -219,6 +225,7 @@ class ArtifactRecognizer:
             image: 截图 RGB 图像
             roi_configs: {区域名: (x, y, w, h), ...}
             ocr: PaddleOCR 实例
+            fields: 识别策略，None 则使用类变量 STRATEGY
 
         Returns:
             ArtifactInfo: 包含所有识别结果的结构化对象
@@ -231,6 +238,19 @@ class ArtifactRecognizer:
 
         t0 = time.perf_counter()
 
+        if fields is None:
+            fields = ArtifactRecognizer.STRATEGY
+        is_all = ArtifactRecognitionField.ALL in fields
+
+        need_set_name = is_all or ArtifactRecognitionField.SET_NAME in fields
+        need_piece_type = is_all or ArtifactRecognitionField.PIECE_TYPE in fields
+        need_main_stat = is_all or ArtifactRecognitionField.MAIN_STAT in fields
+        need_piece_or_main = need_piece_type or need_main_stat
+        need_sub_stats = is_all or ArtifactRecognitionField.SUB_STATS in fields
+        need_level = is_all or ArtifactRecognitionField.LEVEL in fields
+        need_rarity = is_all or ArtifactRecognitionField.RARITY in fields
+        need_lock = is_all or ArtifactRecognitionField.LOCK_STATUS in fields
+
         ocr_texts: dict[str, list[str]] = {}
         matched_set_name: str | None = None
         matched_set_id: int | None = None
@@ -242,7 +262,18 @@ class ArtifactRecognizer:
 
         db_empty = ArtifactRecognizer.is_db_empty()
 
+        # 根据策略过滤需要 OCR 的 ROI
+        _ocr_required = {"圣遗物名称": need_set_name}
+        if need_piece_or_main:
+            _ocr_required["部位+主词条"] = True
+        if need_sub_stats:
+            _ocr_required["副词条区"] = True
+        if need_level:
+            _ocr_required["圣遗物等级"] = True
+
         for name, (x, y, w, h) in roi_configs.items():
+            if not _ocr_required.get(name, False):
+                continue
             roi = image[y : y + h, x : x + w]
             if roi.size == 0:
                 continue
@@ -279,13 +310,13 @@ class ArtifactRecognizer:
                         break
 
         # 星级识别
-        if not db_empty and matched_set_id is not None:
+        if need_rarity and not db_empty and matched_set_id is not None:
             from database.repository.artifact_set_repo import ArtifactSetRepo
 
             set_obj = ArtifactSetRepo.find_by_id(matched_set_id)
             if set_obj:
                 matched_set_rarities = set_obj.rarity
-        if "圣遗物星级" in roi_configs:
+        if need_rarity and "圣遗物星级" in roi_configs:
             sx, sy, sw, sh = roi_configs["圣遗物星级"]
             star_roi = image[sy : sy + sh, sx : sx + sw]
             if star_roi.size > 0:
@@ -299,7 +330,9 @@ class ArtifactRecognizer:
                         matched_rarity = detected
 
         # 锁定状态
-        lock_status = ArtifactRecognizer.match_lock_status(image)
+        lock_status = (
+            ArtifactRecognizer.match_lock_status(image) if need_lock else None
+        )
 
         # 强化材料检测：部位区域识别到材料关键字则提前返回
         material_keywords = ["圣遗物强化素材", "圣遗物强化材料", "强化素材", "强化材料"]
@@ -340,6 +373,7 @@ class ArtifactRecognizer:
             level_ocr=level_ocr,
             lock_ocr=lock_ocr,
             set_id=matched_set_id,
+            fields=fields,
         )
 
         artifact.rarity = matched_rarity

@@ -10,6 +10,8 @@ from typing import ClassVar
 from models.artifact import ArtifactInfo, ArtifactStat
 from utils.logger import log
 
+from backend.models.artifact_recognition_field import ArtifactRecognitionField
+
 # ========== 加载词条模板 ==========
 
 _STATS_JSON = Path(__file__).parent.parent.parent / "resources" / "templates" / "config" / "artifact_stats.json"
@@ -58,8 +60,20 @@ class ArtifactTextParser:
         level_ocr: str = "",
         lock_ocr: str = "",
         set_id: int | None = None,
+        fields: frozenset[ArtifactRecognitionField] | None = None,
     ) -> ArtifactInfo:
-        """从 OCR 文本解析圣遗物完整信息"""
+        """从 OCR 文本解析圣遗物信息。
+
+        Args:
+            fields: 识别策略，None 则全部解析
+        """
+        is_all = fields is None or ArtifactRecognitionField.ALL in fields
+        need_main = is_all or ArtifactRecognitionField.MAIN_STAT in fields
+        need_sub = is_all or ArtifactRecognitionField.SUB_STATS in fields
+        need_level = is_all or ArtifactRecognitionField.LEVEL in fields
+        need_lock = is_all or ArtifactRecognitionField.LOCK_STATUS in fields
+        need_effects = is_all or ArtifactRecognitionField.SET_EFFECTS in fields
+
         info = ArtifactInfo(
             set_name=set_name,
             piece_type=piece_type,
@@ -72,15 +86,15 @@ class ArtifactTextParser:
                 "圣遗物锁定状态": lock_ocr,
             },
         )
-        if set_id is not None:
+        if need_effects and set_id is not None:
             info.set_effects = cls._lookup_set_effects(set_id)
-        if piece_type and main_ocr:
+        if need_main and piece_type and main_ocr:
             info.main_stat = cls._parse_main_stat(main_ocr, piece_type)
-        if sub_ocr:
+        if need_sub and sub_ocr:
             info.sub_stats = cls._parse_sub_stats(sub_ocr)
-        if level_ocr:
+        if need_level and level_ocr:
             info.level = cls._parse_level(level_ocr)
-        if lock_ocr:
+        if need_lock and lock_ocr:
             info.is_locked = cls._parse_lock_status(lock_ocr)
         # 规则校验
         info = cls._validate(info)
