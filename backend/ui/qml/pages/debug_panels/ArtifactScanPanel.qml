@@ -375,63 +375,7 @@ Rectangle {
 
                     // 智能拖拽到底（检测顶部 → 拖拽 → 检测底部 → 完成）
                     Text {
-                        text: "顶部检测区域（确认滑块在顶部，X与底部共用）:"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textSecondary
-                    }
-
-                    RowLayout {
-                        spacing: 4
-
-                        Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: topRegionY; from: 0; to: 9999; value: 184 }
-                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: topRegionW; from: 5; to: 999; value: 7 }
-                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: topRegionH; from: 5; to: 999; value: 23 }
-                    }
-
-                    RowLayout {
-                        spacing: 6
-
-                        GButton {
-                            text: "智能拖拽到底"
-                            colorType: "primary"
-                            enabled: ArtifactScan.anchorFirstX > 0 && !ArtifactScan.anchorScrollRunning
-                            onClicked: ArtifactScan.scrollToBottom(
-                                detectRegionX.value, detectRegionY.value,
-                                detectRegionW.value, detectRegionH.value,
-                                topRegionY.value, topRegionW.value, topRegionH.value
-                            )
-                        }
-
-
-                    }
-
-                    // 颜色检测区域（从底部向上倒查滑块颜色，屏幕绝对坐标）
-                    Text {
-                        text: "颜色检测区域（从底部向上倒查滑块颜色，屏幕绝对坐标）:"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textSecondary
-                    }
-
-                    RowLayout {
-                        spacing: 4
-
-                        Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: detectRegionX; from: 0; to: 9999; value: 1292 }
-                        Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: detectRegionY; from: 0; to: 9999; value: 978 }
-                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: detectRegionW; from: 5; to: 999; value: 10 }
-                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: detectRegionH; from: 5; to: 999; value: 10 }
-                    }
-
-                    Text {
-                        text: "目标颜色: #D8D8D3 · #D8D6D0 · #DAD8D2（从起始Y向上逐行搜索匹配）"
+                        text: "滑轨区域由当前格子检测配置自动计算"
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
                         color: Theme.textSecondary
@@ -441,13 +385,17 @@ Rectangle {
                         spacing: 6
 
                         GButton {
+                            text: "智能拖拽到底"
+                            colorType: "primary"
+                            enabled: ArtifactScan.anchorFirstX > 0 && !ArtifactScan.anchorScrollRunning
+                            onClicked: ArtifactScan.scrollToBottom()
+                        }
+
+                        GButton {
                             text: "颜色检测是否到底"
                             colorType: "primary"
                             enabled: ArtifactScan.anchorFirstX > 0 && !ArtifactScan.anchorScrollRunning
-                            onClicked: ArtifactScan.checkScrollBottomByColor(
-                                detectRegionX.value, detectRegionY.value,
-                                detectRegionW.value, detectRegionH.value
-                            )
+                            onClicked: ArtifactScan.checkScrollBottomByColor()
                         }
                     }
 
@@ -629,28 +577,6 @@ Rectangle {
                         GSpinBox { id: fullScanClickInterval; from: 50; to: 5000; value: 300 }
                     }
 
-                    // 滑块检测区域
-                    Text {
-                        text: "滑块检测区域:"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textSecondary
-                    }
-
-                    RowLayout {
-                        spacing: 4
-                        Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanSliderX; from: 0; to: 9999; value: 1292 }
-                        Text { text: "顶部Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanSliderTopY; from: 0; to: 9999; value: 184 }
-                        Text { text: "底部Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanSliderBottomY; from: 0; to: 9999; value: 978 }
-                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanSliderW; from: 5; to: 999; value: 10 }
-                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanSliderH; from: 5; to: 999; value: 10 }
-                    }
-
                     // 滚动参数
                     Text {
                         text: "翻页参数:"
@@ -682,8 +608,6 @@ Rectangle {
                             onClicked: ArtifactScan.startFullScan(
                                 fullScanMarginX.value, fullScanMarginY.value,
                                 fullScanItemW.value, fullScanItemH.value, fullScanGap.value,
-                                fullScanSliderX.value, fullScanSliderTopY.value, fullScanSliderBottomY.value,
-                                fullScanSliderW.value, fullScanSliderH.value,
                                 fullScanScrollX.value, fullScanScrollY.value,
                                 fullScanTickDelay.value, fullScanPageSettle.value,
                                 fullScanClickInterval.value

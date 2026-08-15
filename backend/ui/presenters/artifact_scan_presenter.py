@@ -93,8 +93,14 @@ class ArtifactScanPresenter(QObject):
         self._mouse = MouseController()
         self._capture = ScreenshotCapture()
         self._win_helper = WindowHelper(self._capture, self._mouse)
+
+        self._available_configs = ALL_SLOT_CONFIGS
+        self._active_config = BAG_SLOT_CONFIG
+        self._active_config_index = 0
+
         self._slider_scroller = SliderScroller(
             self._mouse, self._capture, self._win_helper,
+            self._active_config,
             debug_callback=self._emit_slider_debug,
         )
 
@@ -143,8 +149,6 @@ class ArtifactScanPresenter(QObject):
 
         # 格子检测配置
         self._available_configs = ALL_SLOT_CONFIGS
-        self._active_config = BAG_SLOT_CONFIG
-        self._active_config_index = 0
 
     # ==================================================================
     # 内部工具
@@ -664,7 +668,7 @@ class ArtifactScanPresenter(QObject):
     def fullScanTotalPages(self) -> int:
         return self._full_scan_total_pages
 
-    @Slot(int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)
+    @Slot(int, int, int, int, int, int, int, int, int, int)
     def startFullScan(
         self,
         margin_x: int,
@@ -672,11 +676,6 @@ class ArtifactScanPresenter(QObject):
         item_w: int,
         item_h: int,
         gap: int,
-        slider_region_x: int,
-        slider_top_y: int,
-        slider_bottom_y: int,
-        slider_region_w: int,
-        slider_region_h: int,
         scroll_flag_x: int,
         scroll_flag_y: int,
         tick_delay_ms: int,
@@ -713,11 +712,7 @@ class ArtifactScanPresenter(QObject):
             anchor_first_y=self._anchor_first_y or 189,
             anchor_first_w=self._anchor_first_w or item_w,
             anchor_first_h=self._anchor_first_h or item_h,
-            slider_region_x=slider_region_x,
-            slider_top_y=slider_top_y,
-            slider_bottom_y=slider_bottom_y,
-            slider_region_w=slider_region_w,
-            slider_region_h=slider_region_h,
+            slot_config=self._active_config,
             scroll_flag_x=scroll_flag_x,
             scroll_flag_y=scroll_flag_y,
             tick_delay_ms=tick_delay_ms,
@@ -797,16 +792,7 @@ class ArtifactScanPresenter(QObject):
             self.scrollbarTrackHeightChanged.emit()
 
     @Slot(int, int, int, int, int, int, int)
-    def scrollToBottom(
-        self,
-        region_x: int,
-        bottom_y: int,
-        bottom_w: int,
-        bottom_h: int,
-        top_y: int,
-        top_w: int,
-        top_h: int,
-    ) -> None:
+    def scrollToBottom(self) -> None:
         """智能拖拽到底：检测顶部 → 拖拽 → 检测底部 → 完成"""
         if (
             self._scroll_to_bottom_worker is not None
@@ -824,10 +810,7 @@ class ArtifactScanPresenter(QObject):
             log.warning("截图失败")
             return
 
-        # Step 1: 确保滑块在顶部
-        slider_y = self._slider_scroller.ensure_at_top(
-            region_x, top_y, bottom_y, bottom_w, bottom_h
-        )
+        slider_y = self._slider_scroller.ensure_at_top()
         if slider_y is None:
             return
 
@@ -839,10 +822,7 @@ class ArtifactScanPresenter(QObject):
             capture=self._capture,
             ox=ox,
             oy=oy,
-            region_x=region_x,
-            region_y=bottom_y,
-            region_w=bottom_w,
-            region_h=bottom_h,
+            slot_config=self._active_config,
             initial_slider_y=slider_y,
             window_bottom=window_bottom,
         )
@@ -893,17 +873,17 @@ class ArtifactScanPresenter(QObject):
     # 颜色检测到底（滑块检测委托给 SliderDetector）
     # ==================================================================
 
-    @Slot(int, int, int, int)
-    def checkScrollBottomByColor(
-        self, region_x: int, region_y: int, region_w: int, region_h: int
-    ) -> None:
+    @Slot()
+    def checkScrollBottomByColor(self) -> None:
         """颜色检测是否到底 — 委托 SliderScroller"""
-        slider_y, is_at_bottom = self._slider_scroller.check_bottom_by_color(
-            region_x, region_y, region_w, region_h
-        )
+        slider_y, is_at_bottom = self._slider_scroller.check_bottom_by_color()
         if slider_y is None:
             return
         if is_at_bottom:
+            sr = self._active_config.slider_region()
+            if sr is None:
+                return
+            region_x, _top_y, region_y, region_w, region_h = sr
             log.info(f"追加{SliderDetector.EXTRA_TICKS}次滚动确保100%到底")
             ox, oy = self._window_origin()
             if ox != 0 or oy != 0:
@@ -914,31 +894,6 @@ class ArtifactScanPresenter(QObject):
                     self._mouse.scroll_one_tick()
                     sleep(0.03)
             log.info("颜色检测: 已确认到底，追加滚动完成")
-
-    def _scroll_verify_bottom(
-        self,
-        region_x: int,
-        region_y: int,
-        region_w: int,
-        region_h: int,
-        initial_slider_y: int,
-    ) -> int | None:
-        return self._slider_scroller.verify_bottom(
-            region_x, region_y, region_w, region_h, initial_slider_y
-        )
-
-    def _scroll_verify_top(
-        self,
-        region_x: int,
-        top_y: int,
-        bottom_y: int,
-        region_w: int,
-        region_h: int,
-        initial_slider_y: int,
-    ) -> int | None:
-        return self._slider_scroller.verify_top(
-            region_x, top_y, bottom_y, region_w, region_h, initial_slider_y
-        )
 
     # ==================================================================
     # 调试预览
@@ -993,7 +948,10 @@ class ArtifactScanPresenter(QObject):
         )
         log.info(f"格子检测: 找到 {len(det_result.slots)} 个格子 [{cfg.name}]")
 
-        debug_rgb = SlotDetector.draw_debug(result.image, det_result.slots, config=cfg)
+        debug_rgb = SlotDetector.draw_debug(
+            result.image, det_result.slots, config=cfg,
+            page_bottom=det_result.bottom_y,
+        )
         key = "slot_debug"
         PreviewImageProvider.put(key, debug_rgb)
         self.debugPreviewReady.emit(key)

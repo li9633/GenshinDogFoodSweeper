@@ -15,6 +15,7 @@ from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
 from backend.automation.slider_detector import SliderDetector
+from backend.automation.slot_detector import SlotDetectorConfig
 from backend.utils.screen_capture import ScreenshotCapture
 
 
@@ -29,11 +30,13 @@ class SliderScroller:
         mouse: MouseController,
         capture: ScreenshotCapture,
         window_helper,
+        config: SlotDetectorConfig,
         debug_callback: Callable[..., None] | None = None,
     ):
         self._mouse = mouse
         self._capture = capture
         self._win = window_helper
+        self._config = config
         self._debug_cb = debug_callback or (lambda *a, **kw: None)
 
     def _emit_debug(
@@ -58,30 +61,29 @@ class SliderScroller:
     # 确保滑块在顶部
     # ==================================================================
 
-    def ensure_at_top(
-        self,
-        region_x: int,
-        top_y: int,
-        bottom_y: int,
-        bottom_w: int,
-        bottom_h: int,
-    ) -> int | None:
+    def ensure_at_top(self) -> int | None:
         """检测滑块位置，不在顶部则闯关拖拽到顶。
 
         Returns:
             slider_y 或 None
         """
+        sr = self._config.slider_region()
+        if sr is None:
+            log.warning("确保到顶: 无效的滑轨区域配置")
+            return None
+        region_x, top_y, bottom_y, region_w, region_h = sr
+
         result = self._capture.capture()
         if result is None:
             log.warning("确保到顶: 截图失败")
             return None
 
         slider_y, best_ratio, best_y, _ = SliderDetector.find_slider(
-            result.image, region_x, top_y, bottom_y, bottom_w, bottom_h
+            result.image, region_x, top_y, bottom_y, region_w, region_h
         )
         self._emit_debug(
             result.image, region_x, top_y, bottom_y,
-            bottom_w, bottom_h, slider_y, "初始检测", best_ratio, best_y,
+            region_w, region_h, slider_y, "初始检测", best_ratio, best_y,
         )
 
         if slider_y is None:
@@ -93,9 +95,7 @@ class SliderScroller:
             log.info(
                 f"确保到顶: 滑块距顶部{distance_from_top}px, 开始闯关拖拽到顶..."
             )
-            slider_y = self.verify_top(
-                region_x, top_y, bottom_y, bottom_w, bottom_h, slider_y
-            )
+            slider_y = self.verify_top(slider_y)
 
         log.info(f"确保到顶: 已确认在顶部 (slider_y={slider_y})")
         return slider_y
@@ -104,18 +104,18 @@ class SliderScroller:
     # 颜色检测是否到底
     # ==================================================================
 
-    def check_bottom_by_color(
-        self,
-        region_x: int,
-        region_y: int,
-        region_w: int,
-        region_h: int,
-    ) -> tuple[int | None, bool]:
+    def check_bottom_by_color(self) -> tuple[int | None, bool]:
         """颜色检测是否到底。
 
         Returns:
             (slider_y, is_at_bottom)
         """
+        sr = self._config.slider_region()
+        if sr is None:
+            log.warning("颜色检测: 无效的滑轨区域配置")
+            return (None, False)
+        region_x, _top_y, region_y, region_w, region_h = sr
+
         result = self._capture.capture()
         if result is None:
             log.warning("颜色检测: 截图失败")
@@ -141,9 +141,7 @@ class SliderScroller:
                 f"颜色检测: 滑块接近底部 y={slider_y}, "
                 f"距起始={distance_from_bottom}px, 开始闯关验证..."
             )
-            confirmed_y = self.verify_bottom(
-                region_x, region_y, region_w, region_h, slider_y
-            )
+            confirmed_y = self.verify_bottom(slider_y)
             if confirmed_y is None:
                 log.warning("颜色检测: 闯关验证超时，未确认到底")
                 return (None, False)
@@ -161,19 +159,20 @@ class SliderScroller:
     # 闯关验证：到底
     # ==================================================================
 
-    def verify_bottom(
-        self,
-        region_x: int,
-        region_y: int,
-        region_w: int,
-        region_h: int,
-        initial_slider_y: int,
-    ) -> int | None:
-        """闯关验证：拖拽滑块向下，观察是否停止移动。
+    def verify_bottom(self, initial_slider_y: int) -> int | None:
+        """闯关验证到底。
+
+        反复拖拽到底，直到滑块不再移动。
 
         Returns:
-            最终滑块Y坐标，或 None（超时）
+            最终 slider_y 或 None
         """
+        sr = self._config.slider_region()
+        if sr is None:
+            log.warning("验证到底: 无效的滑轨区域配置")
+            return None
+        region_x, _top_y, region_y, region_w, region_h = sr
+
         prev_y = initial_slider_y
         self._win.focus()
         ox, oy = self._win.get_origin()
@@ -238,20 +237,20 @@ class SliderScroller:
     # 闯关验证：到顶
     # ==================================================================
 
-    def verify_top(
-        self,
-        region_x: int,
-        top_y: int,
-        bottom_y: int,
-        region_w: int,
-        region_h: int,
-        initial_slider_y: int,
-    ) -> int | None:
-        """闯关验证：拖拽滑块向上，直到撞到顶部滑轨墙壁。
+    def verify_top(self, initial_slider_y: int) -> int | None:
+        """闯关验证到顶。
+
+        反复拖拽到顶，直到滑块不再移动。
 
         Returns:
-            最终滑块Y坐标
+            最终 slider_y 或 None
         """
+        sr = self._config.slider_region()
+        if sr is None:
+            log.warning("验证到顶: 无效的滑轨区域配置")
+            return None
+        region_x, top_y, bottom_y, region_w, region_h = sr
+
         prev_y = initial_slider_y
         self._win.focus()
         ox, oy = self._win.get_origin()

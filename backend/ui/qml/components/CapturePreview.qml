@@ -86,6 +86,13 @@ Rectangle {
             }
 
             GButton {
+                text: "全屏"
+                colorType: "primary"
+                visible: root.source !== null && root.source.toString() !== ""
+                onClicked: fullscreenPreview.open()
+            }
+
+            GButton {
                 text: "清除"
                 visible: root.source !== null && root.source.toString() !== ""
                 colorType: "warning"
@@ -230,5 +237,11 @@ Rectangle {
                 }
             }
         }
+    }
+
+    // ---- 全屏预览 ----
+    FullscreenPreview {
+        id: fullscreenPreview
+        source: root.source
     }
 }

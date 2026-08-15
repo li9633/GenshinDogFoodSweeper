@@ -10,71 +10,10 @@ from __future__ import annotations
 import cv2
 import numpy as np
 from models.artifact import ArtifactInfo
-from utils.logger import log
 
 
 class AnchorLocator:
     """锚点定位器 — 纯函数，无状态，无 Qt 依赖"""
-
-    TAIL_ROW_OFFSET = 30  # 尾锚点行底部距滑块顶部的偏移
-    ROWS = 4
-    COLS = 8
-
-    # ---- 尾锚点定位 ----
-
-    @staticmethod
-    def find_tail_anchor(
-        img: np.ndarray,
-        slider_y: int,
-        anchor_first_x: int,
-        anchor_first_y: int,
-        anchor_first_w: int,
-        anchor_first_h: int,
-        gap: int,
-    ) -> tuple[int, int] | None:
-        """根据滑块Y坐标定位最后一个物品的格子中心
-
-        Args:
-            img: 当前屏幕截图
-            slider_y: 滑块在窗口中的Y坐标
-            anchor_first_x/y: 首锚点格子左上角坐标
-            anchor_first_w/h: 首锚点格子宽高
-            gap: 格子间距
-
-        Returns:
-            (cx, cy) 窗口相对坐标，或 None
-        """
-        tail_row_bottom = slider_y - AnchorLocator.TAIL_ROW_OFFSET
-        item_h = anchor_first_h
-        item_w = anchor_first_w
-        first_y = anchor_first_y
-        first_x = anchor_first_x
-
-        rows_bottom = [
-            first_y + (gap + item_h) * r + item_h
-            for r in range(AnchorLocator.ROWS)
-        ]
-        best_row = min(
-            range(AnchorLocator.ROWS),
-            key=lambda r: abs(rows_bottom[r] - tail_row_bottom),
-        )
-        row_bottom = rows_bottom[best_row]
-
-        log.info(
-            f"尾锚点定位: slider_y={slider_y}, "
-            f"tail_row_bottom={tail_row_bottom}, 匹配行{best_row}"
-        )
-
-        # 从右向左扫描该行，找到第一个非空格子
-        for col in range(AnchorLocator.COLS - 1, -1, -1):
-            cx = first_x + (gap + item_w) * col + item_w // 2
-            cy = row_bottom - item_h // 2
-            if not AnchorLocator.is_empty_slot(cx, cy, img):
-                log.info(f"尾锚点找到: 行{best_row}, 列{col}, ({cx}, {cy})")
-                return (cx, cy)
-
-        log.warning("尾锚点定位: 最后一行所有格子均为空")
-        return None
 
     # ---- 空格子检测 ----
 

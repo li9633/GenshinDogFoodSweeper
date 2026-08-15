@@ -25,7 +25,11 @@ from backend.automation.page_scroller import PageScroller
 from backend.automation.recognizer import ArtifactRecognizer
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
-from backend.automation.slot_detector import BAG_SLOT_CONFIG, SlotDetector
+from backend.automation.slot_detector import (
+    BAG_SLOT_CONFIG,
+    SlotDetector,
+    SlotDetectorConfig,
+)
 from backend.automation.window_helper import WindowHelper
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
 from backend.utils.screen_capture import ScreenshotCapture
@@ -161,10 +165,7 @@ class SmartScrollToBottomWorker(QThread):
         capture: ScreenshotCapture,
         ox: int,
         oy: int,
-        region_x: int,
-        region_y: int,
-        region_w: int,
-        region_h: int,
+        slot_config: SlotDetectorConfig,
         initial_slider_y: int,
         window_bottom: int,
     ):
@@ -173,37 +174,36 @@ class SmartScrollToBottomWorker(QThread):
         self._capture = capture
         self._ox = ox
         self._oy = oy
-        self._region_x = region_x
-        self._region_y = region_y
-        self._region_w = region_w
-        self._region_h = region_h
+        self._slot_config = slot_config
         self._initial_slider_y = initial_slider_y
         self._window_bottom = window_bottom
         self._stop = False
         self._win = WindowHelper(self._capture, self._mouse)
         self._page_scroller = PageScroller(self._mouse, self._capture)
         self._slider_scroller = SliderScroller(
-            self._mouse, self._capture, self._win,
+            self._mouse, self._capture, self._win, self._slot_config,
         )
-        self._page_scroller: PageScroller = PageScroller(self._mouse, self._capture)
-        self._page_scroller = PageScroller(self._mouse, self._capture)
 
     def stop(self) -> None:
         self._stop = True
 
     def run(self) -> None:
+        sr = self._slot_config.slider_region()
+        if sr is None:
+            return
+        slider_x, _slider_top, slider_bottom, slider_w, slider_h = sr
+
         window_bottom = self._window_bottom
-        drag_x = self._ox + self._region_x + self._region_w // 2
-        mouse_total = (self._region_y - self._initial_slider_y) * 4
+        drag_x = self._ox + slider_x + slider_w // 2
+        mouse_total = (slider_bottom - self._initial_slider_y) * 4
         chunks = 3
         chunk = mouse_total // chunks
         prev_y = self._initial_slider_y
 
-        # 阶段1：逐段拖拽
         for i in range(chunks):
             if self._stop:
                 return
-            drag_from_y = self._oy + prev_y + self._region_h // 2
+            drag_from_y = self._oy + prev_y + slider_h // 2
             drag_to_y = min(drag_from_y + chunk, window_bottom - 10)
             self._mouse.drag(
                 drag_x, drag_from_y, drag_x, drag_to_y,
@@ -216,16 +216,16 @@ class SmartScrollToBottomWorker(QThread):
                 continue
             current_y, _, _, _ = SliderDetector.find_slider(
                 result.image,
-                self._region_x,
-                max(0, self._region_y - SliderDetector.MAX_SEARCH),
-                self._region_y,
-                self._region_w,
-                self._region_h,
+                slider_x,
+                max(0, slider_bottom - SliderDetector.MAX_SEARCH),
+                slider_bottom,
+                slider_w,
+                slider_h,
             )
             if current_y is None:
                 continue
             self.progress.emit(i + 1, chunks)
-            if self._region_y - current_y <= 5:
+            if slider_bottom - current_y <= 5:
                 prev_y = current_y
                 break
             if abs(current_y - prev_y) <= 5:
@@ -233,17 +233,12 @@ class SmartScrollToBottomWorker(QThread):
                 break
             prev_y = current_y
 
-        # 阶段2：闯关验证 — 委托 SliderScroller
-        confirmed = self._slider_scroller.verify_bottom(
-            self._region_x, self._region_y,
-            self._region_w, self._region_h, prev_y,
-        )
+        confirmed = self._slider_scroller.verify_bottom(prev_y)
         if confirmed is not None:
             prev_y = confirmed
 
-        # 追加滚动确保到底
-        abs_x = self._ox + self._region_x + self._region_w // 2
-        abs_y = self._oy + self._region_y + self._region_h // 2
+        abs_x = self._ox + slider_x + slider_w // 2
+        abs_y = self._oy + slider_bottom + slider_h // 2
         self._mouse.move_to(abs_x, abs_y)
         for _ in range(SliderDetector.EXTRA_TICKS):
             if self._stop:
@@ -296,11 +291,7 @@ class FullScanWorker(QThread):
         anchor_first_y: int,
         anchor_first_w: int,
         anchor_first_h: int,
-        slider_region_x: int,
-        slider_top_y: int,
-        slider_bottom_y: int,
-        slider_region_w: int,
-        slider_region_h: int,
+        slot_config: SlotDetectorConfig,
         scroll_flag_x: int,
         scroll_flag_y: int,
         tick_delay_ms: int,
@@ -321,11 +312,7 @@ class FullScanWorker(QThread):
         self._anchor_first_y = anchor_first_y
         self._anchor_first_w = anchor_first_w
         self._anchor_first_h = anchor_first_h
-        self._slider_region_x = slider_region_x
-        self._slider_top_y = slider_top_y
-        self._slider_bottom_y = slider_bottom_y
-        self._slider_region_w = slider_region_w
-        self._slider_region_h = slider_region_h
+        self._slot_config = slot_config
         self._scroll_flag_x = scroll_flag_x
         self._scroll_flag_y = scroll_flag_y
         self._tick_delay_ms = tick_delay_ms
@@ -335,7 +322,7 @@ class FullScanWorker(QThread):
         self._results: list[ArtifactInfo] = []
         self._win = WindowHelper(self._capture, self._mouse)
         self._slider_scroller = SliderScroller(
-            self._mouse, self._capture, self._win,
+            self._mouse, self._capture, self._win, self._slot_config,
         )
         self._page_scroller: PageScroller = PageScroller(self._mouse, self._capture)
 
@@ -502,12 +489,14 @@ class FullScanWorker(QThread):
     # ========== 滑块操作 ==========
 
     def _scroll_to_top(self) -> None:
-        self._slider_scroller.ensure_at_top(
-            self._slider_region_x, self._slider_top_y,
-            self._slider_bottom_y, self._slider_region_w, self._slider_region_h,
-        )
+        self._slider_scroller.ensure_at_top()
 
     def _scroll_to_bottom(self) -> int | None:
+        sr = self._slot_config.slider_region()
+        if sr is None:
+            return None
+        slider_x, slider_top, slider_bottom, slider_w, slider_h = sr
+
         self._win.focus()
         ox, oy = self._win.get_origin()
         result = self._capture.capture()
@@ -515,13 +504,13 @@ class FullScanWorker(QThread):
             return None
         slider_y, _, _, _ = SliderDetector.find_slider(
             result.image,
-            self._slider_region_x, self._slider_top_y,
-            self._slider_bottom_y, self._slider_region_w, self._slider_region_h,
+            slider_x, slider_top,
+            slider_bottom, slider_w, slider_h,
         )
         if slider_y is None:
             log.warning("滚动到底: 未检测到滑块")
             return None
-        if slider_y - self._slider_top_y > SliderDetector.PROXIMITY:
+        if slider_y - slider_top > SliderDetector.PROXIMITY:
             log.info("滚动到底: 先回到顶部...")
             self._scroll_to_top()
             result = self._capture.capture()
@@ -529,20 +518,20 @@ class FullScanWorker(QThread):
                 return None
             slider_y, _, _, _ = SliderDetector.find_slider(
                 result.image,
-                self._slider_region_x, self._slider_top_y,
-                self._slider_bottom_y, self._slider_region_w, self._slider_region_h,
+                slider_x, slider_top,
+                slider_bottom, slider_w, slider_h,
             )
             if slider_y is None:
                 return None
 
-        slider_total = self._slider_bottom_y - slider_y
+        slider_total = slider_bottom - slider_y
         if slider_total <= 0:
             log.info("滚动到底: 滑块已在底部")
             return slider_y
 
         window = self._capture.find_genshin_window()
         window_bottom = (oy + window.height) if window else (oy + 1000)
-        drag_x = ox + self._slider_region_x + self._slider_region_w // 2
+        drag_x = ox + slider_x + slider_w // 2
         mouse_total = slider_total * 4
         chunks = 3
         chunk = mouse_total // chunks
@@ -551,7 +540,7 @@ class FullScanWorker(QThread):
         for _ in range(chunks):
             if self._stop:
                 return None
-            drag_from_y = oy + prev_y + self._slider_region_h // 2
+            drag_from_y = oy + prev_y + slider_h // 2
             drag_to_y = min(drag_from_y + chunk, window_bottom - 10)
             self._mouse.drag(
                 drag_x, drag_from_y, drag_x, drag_to_y,
@@ -563,14 +552,14 @@ class FullScanWorker(QThread):
                 continue
             current_y, _, _, _ = SliderDetector.find_slider(
                 result.image,
-                self._slider_region_x,
-                max(0, self._slider_bottom_y - SliderDetector.MAX_SEARCH),
-                self._slider_bottom_y,
-                self._slider_region_w, self._slider_region_h,
+                slider_x,
+                max(0, slider_bottom - SliderDetector.MAX_SEARCH),
+                slider_bottom,
+                slider_w, slider_h,
             )
             if current_y is None:
                 continue
-            if self._slider_bottom_y - current_y <= 5:
+            if slider_bottom - current_y <= 5:
                 prev_y = current_y
                 break
             if abs(current_y - prev_y) <= 5:
@@ -578,15 +567,12 @@ class FullScanWorker(QThread):
                 break
             prev_y = current_y
 
-        confirmed = self._slider_scroller.verify_bottom(
-            self._slider_region_x, self._slider_bottom_y,
-            self._slider_region_w, self._slider_region_h, prev_y,
-        )
+        confirmed = self._slider_scroller.verify_bottom(prev_y)
         if confirmed is not None:
             prev_y = confirmed
 
-        abs_x = ox + self._slider_region_x + self._slider_region_w // 2
-        abs_y = oy + self._slider_bottom_y + self._slider_region_h // 2
+        abs_x = ox + slider_x + slider_w // 2
+        abs_y = oy + slider_bottom + slider_h // 2
         self._mouse.move_to(abs_x, abs_y)
         for _ in range(SliderDetector.EXTRA_TICKS):
             if self._stop:

@@ -13,12 +13,9 @@ import cv2
 import numpy as np
 from utils.logger import log
 
-# ---- 滑块检测 ROI 参数（与游戏窗口坐标系相关） ----
-_SLIDER_REGION_X = 1292
-_SLIDER_TOP_Y = 184
-_SLIDER_BOTTOM_Y = 978
-_SLIDER_REGION_W = 10
-_SLIDER_REGION_H = 10
+# ---- 滑块检测 ROI 参数 ----
+_SLIDER_DETECT_W = 10  # 检测窗口宽度
+_SLIDER_DETECT_H = 10  # 检测窗口高度
 
 # ---- 滑块颜色参数 ----
 # 目标灰度值（滑块有两种状态：
@@ -52,6 +49,8 @@ class SliderDetector:
     MAX_SEARCH = _SLIDER_MAX_SEARCH
     PROXIMITY = _SLIDER_PROXIMITY
     TRACK_GRAY = _SLIDER_TRACK_GRAY
+    DETECT_W = _SLIDER_DETECT_W
+    DETECT_H = _SLIDER_DETECT_H
     DRAG_DIST = _SLIDER_DRAG_DIST
     DRAG_STEPS = _SLIDER_DRAG_STEPS
     DRAG_DELAY = _SLIDER_DRAG_DELAY
@@ -66,8 +65,8 @@ class SliderDetector:
         region_x: int,
         top_y: int,
         bottom_y: int,
-        region_w: int = _SLIDER_REGION_W,
-        region_h: int = _SLIDER_REGION_H,
+        region_w: int = _SLIDER_DETECT_W,
+        region_h: int = _SLIDER_DETECT_H,
     ) -> tuple[int | None, float, int, list[int]]:
         """双向查找滑块位置：从顶部向下 + 从底部向上，取最佳匹配。
 
@@ -157,8 +156,8 @@ class SliderDetector:
         img: np.ndarray,
         rx: int,
         ry: int,
-        rw: int = _SLIDER_REGION_W,
-        rh: int = _SLIDER_REGION_H,
+        rw: int = _SLIDER_DETECT_W,
+        rh: int = _SLIDER_DETECT_H,
     ) -> bool:
         """检测指定位置是否为滑轨颜色（滑块消失后用于确认到底）"""
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -186,8 +185,8 @@ class SliderDetector:
         region_x: int,
         top_y: int,
         bottom_y: int,
-        region_w: int = _SLIDER_REGION_W,
-        region_h: int = _SLIDER_REGION_H,
+        region_w: int = _SLIDER_DETECT_W,
+        region_h: int = _SLIDER_DETECT_H,
         slider_y: int | None = None,
         label: str = "",
         best_ratio: float = 0.0,
