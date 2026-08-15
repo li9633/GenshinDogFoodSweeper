@@ -7,8 +7,16 @@
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 import cv2
 import numpy as np
+
+
+class DetectResult(NamedTuple):
+    """格子检测结果。"""
+    slots: list[tuple[int, int, int, int, int, int]]
+    bottom_y: int  # 最后一行底部边缘的 Y 坐标
 
 
 class SlotDetector:
@@ -53,7 +61,7 @@ class SlotDetector:
         white_threshold: int = 200,
         tolerance: int = 20,
         top_offset: int = 90,
-    ) -> list[tuple[int, int, int, int, int, int]]:
+    ) -> DetectResult:
         """检测格子位置。
 
         检测原理：每个圣遗物格子底部有白色等级条(#E3E3E3≈227)，
@@ -68,7 +76,9 @@ class SlotDetector:
             top_offset: 白色条顶部到格子上边缘的距离 (px)
 
         Returns:
-            [(cx, cy, x, y, w, h), ...] 按 y 再 x 排序
+            DetectResult(slots, bottom_y)
+            slots: [(cx, cy, x, y, w, h), ...] 按 y 再 x 排序
+            bottom_y: 最后一行底部边缘的 Y 坐标
         """
         if roi is not None:
             rx, ry, rw, rh = roi
@@ -86,28 +96,35 @@ class SlotDetector:
 
         contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        level_bars: list[tuple[int, int, int, int]] = []
+        # 计算期望列中心 x 坐标（在 crop 坐标系内）
+        span_w = rw - SlotDetector.ROI_LEFT_OFFSET - SlotDetector.ROI_RIGHT_OFFSET
+        col_step = (span_w - SlotDetector.SLOT_W) / (SlotDetector.COLS - 1)
+        expected_cx = [
+            SlotDetector.ROI_LEFT_OFFSET + c * col_step + SlotDetector.SLOT_W / 2
+            for c in range(SlotDetector.COLS)
+        ]
+
+        # 将轮廓匹配到最近的列，每列每行只保留一个最佳匹配
+        col_bars: dict[tuple[int, int], tuple[int, int, int, int]] = {}
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
-            if abs(w - SlotDetector.SLOT_W) <= tolerance and abs(h - SlotDetector.LEVEL_H) <= tolerance:
-                level_bars.append((x, y, w, h))
+            if abs(w - SlotDetector.SLOT_W) > tolerance or abs(h - SlotDetector.LEVEL_H) > tolerance:
+                continue
+            bar_cx = x + w // 2
+            # 找最近的期望列
+            col_idx = min(range(len(expected_cx)), key=lambda i: abs(bar_cx - expected_cx[i]))
+            if abs(bar_cx - expected_cx[col_idx]) > tolerance:
+                continue
+            row_key = y // 50
+            key = (col_idx, row_key)
+            # 同一列同一行只保留第一个（或距离更近的）
+            if key not in col_bars:
+                col_bars[key] = (x, y, w, h)
 
-        level_bars.sort(key=lambda b: (b[1] // 50, b[0]))
-
+        level_bars = sorted(col_bars.values(), key=lambda b: (b[1] // 50, b[0]))
         slots = SlotDetector._bars_to_slots(level_bars, offset_x, offset_y, top_offset)
-        slots = SlotDetector._dedup(slots)
-        return slots
-
-    @staticmethod
-    def _dedup(
-        slots: list[tuple[int, int, int, int, int, int]],
-        threshold: int = 30,
-    ) -> list[tuple[int, int, int, int, int, int]]:
-        result: list[tuple[int, int, int, int, int, int]] = []
-        for s in sorted(slots, key=lambda s: (s[1] // 50, s[0])):
-            if not any(abs(s[0] - r[0]) < threshold and abs(s[1] - r[1]) < threshold for r in result):
-                result.append(s)
-        return result
+        bottom_y = max(s[3] + s[5] for s in slots) if slots else 0
+        return DetectResult(slots, bottom_y)
 
     @staticmethod
     def _bars_to_slots(

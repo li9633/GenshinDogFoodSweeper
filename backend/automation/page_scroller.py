@@ -53,11 +53,11 @@ class PageScroller:
         if result is None:
             return False
 
-        slots = SlotDetector.detect(result.image, roi=self._ROI)
-        if not slots:
+        det_result = SlotDetector.detect(result.image, roi=self._ROI)
+        if not det_result.slots:
             return False
 
-        bottom_y = max(s[3] + s[5] for s in slots)
+        bottom_y = det_result.bottom_y
         roi_top = self._ROI[1]
         scroll_px = bottom_y - roi_top
 
@@ -128,8 +128,7 @@ class PageScroller:
         result = self._capture.capture()
         if result is None:
             return None
-        slots = SlotDetector.detect(result.image, roi=self._ROI)
-        if not slots:
+        det_result = SlotDetector.detect(result.image, roi=self._ROI)
+        if not det_result.slots:
             return None
-        bottom_y = max(s[3] + s[5] for s in slots)
-        return slots, bottom_y
+        return det_result.slots, det_result.bottom_y

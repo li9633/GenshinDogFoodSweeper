@@ -767,12 +767,12 @@ class ArtifactScanPresenter(QObject):
         if result is None:
             log.warning("尾锚点定位: 截图失败")
             return
-        slots = SlotDetector.detect(result.image, roi=PageScroller._ROI)
-        if not slots:
+        det_result = SlotDetector.detect(result.image, roi=PageScroller._ROI)
+        if not det_result.slots:
             log.warning("尾锚点定位: 未检测到格子")
             return
         # slots 按 y 再 x 排序，最后一个即为右下角尾锚点
-        last_slot = slots[-1]
+        last_slot = det_result.slots[-1]
         tail_cx, tail_cy = last_slot[0], last_slot[1]
         log.info(f"尾锚点定位: 格子检测 → 最后一个格子 ({tail_cx}, {tail_cy})")
         self._anchor_tail_x, self._anchor_tail_y = tail_cx, tail_cy
@@ -893,14 +893,14 @@ class ArtifactScanPresenter(QObject):
             return
 
         roi = (roi_x, roi_y, roi_w, roi_h) if roi_w > 0 and roi_h > 0 else None
-        slots = SlotDetector.detect(
+        det_result = SlotDetector.detect(
             result.image, roi=roi,
             white_threshold=white_threshold, tolerance=tolerance,
             top_offset=top_offset,
         )
-        log.info(f"格子检测: 找到 {len(slots)} 个格子")
+        log.info(f"格子检测: 找到 {len(det_result.slots)} 个格子")
 
-        debug_rgb = SlotDetector.draw_debug(result.image, slots, roi=roi)
+        debug_rgb = SlotDetector.draw_debug(result.image, det_result.slots, roi=roi)
         key = "slot_debug"
         PreviewImageProvider.put(key, debug_rgb)
         self.debugPreviewReady.emit(key)

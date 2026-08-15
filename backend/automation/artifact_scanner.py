@@ -402,11 +402,11 @@ class FullScanWorker(QThread):
             if result is None:
                 self.errorOccurred.emit("截图失败")
                 return
-            slots = SlotDetector.detect(result.image, roi=PageScroller._ROI)
+            det_result = SlotDetector.detect(result.image, roi=PageScroller._ROI)
             if self._stop:
                 return
-            if slots:
-                last_slot = slots[-1]
+            if det_result.slots:
+                last_slot = det_result.slots[-1]
                 tail_cx, tail_cy = last_slot[0], last_slot[1]
                 self.stepChanged.emit("正在识别尾锚点...")
                 tail_info = self._click_and_recognize_artifact(tail_cx, tail_cy, ocr)
