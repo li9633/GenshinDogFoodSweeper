@@ -42,7 +42,11 @@ from backend.automation.page_scroller import PageScroller
 from backend.automation.roi_config import ANCHOR_ROI_DEFINITIONS
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
-from backend.automation.slot_detector import SlotDetector
+from backend.automation.slot_detector import (
+    ALL_SLOT_CONFIGS,
+    BAG_SLOT_CONFIG,
+    SlotDetector,
+)
 from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import ScreenshotCapture
 
@@ -80,6 +84,9 @@ class ArtifactScanPresenter(QObject):
     fullScanRunningChanged = Signal()
     fullScanFinished = Signal()
     fullScanArtifactScanned = Signal()
+
+    # 格子检测配置切换
+    activeConfigChanged = Signal()
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -133,6 +140,11 @@ class ArtifactScanPresenter(QObject):
         self._full_scan_current_page = 0
         self._full_scan_total_pages = 0
         self._full_scan_results: list[ArtifactInfo] = []
+
+        # 格子检测配置
+        self._available_configs = ALL_SLOT_CONFIGS
+        self._active_config = BAG_SLOT_CONFIG
+        self._active_config_index = 0
 
     # ==================================================================
     # 内部工具
@@ -268,6 +280,7 @@ class ArtifactScanPresenter(QObject):
         if ox == 0 and oy == 0:
             log.warning("未检测到原神窗口")
             return
+        self._page_scroller.set_config(self._active_config)
         self._page_scroller.scroll_to_next_page(
             ox, oy, flag_x, flag_y,
             tick_delay_ms=scroll_delay_ms,
@@ -294,6 +307,7 @@ class ArtifactScanPresenter(QObject):
         log.info(
             f"自动翻到底开始... 圣遗物数量={count}, 总页数={total_pages}, 安全上限={max_pages}"
         )
+        self._page_scroller.set_config(self._active_config)
         pages = self._page_scroller.scroll_to_bottom(
             ox, oy, flag_x, flag_y,
             tick_delay_ms=scroll_delay_ms,
@@ -301,6 +315,91 @@ class ArtifactScanPresenter(QObject):
             total_pages=total_pages,
         )
         log.info(f"自动翻到底完成: 共翻页 {pages} 次")
+
+    # ==================================================================
+    # 格子检测配置切换
+    # ==================================================================
+
+    @Property("QVariantList", notify=activeConfigChanged)
+    def availableConfigNames(self) -> list[str]:
+        return [c.name for c in self._available_configs]
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigIndex(self) -> int:
+        return self._active_config_index
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigRoiX(self) -> int:
+        roi = self._active_config.roi
+        return roi[0] if roi else 0
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigRoiY(self) -> int:
+        roi = self._active_config.roi
+        return roi[1] if roi else 0
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigRoiW(self) -> int:
+        roi = self._active_config.roi
+        return roi[2] if roi else 0
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigRoiH(self) -> int:
+        roi = self._active_config.roi
+        return roi[3] if roi else 0
+
+    @Property(bool, notify=activeConfigChanged)
+    def activeConfigHasCount(self) -> bool:
+        return self._active_config.has_artifact_count
+
+    @Property(str, notify=activeConfigChanged)
+    def activeConfigName(self) -> str:
+        return self._active_config.name
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigCols(self) -> int:
+        return self._active_config.cols
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigRows(self) -> int:
+        return self._active_config.rows
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigSlotW(self) -> int:
+        return self._active_config.slot_w
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigSlotH(self) -> int:
+        return self._active_config.slot_h
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigLeftOffset(self) -> int:
+        return self._active_config.roi_left_offset
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigRightOffset(self) -> int:
+        return self._active_config.roi_right_offset
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigTopOffset(self) -> int:
+        return self._active_config.top_offset
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigWhiteThreshold(self) -> int:
+        return self._active_config.white_threshold
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigTolerance(self) -> int:
+        return self._active_config.tolerance
+
+    @Slot(int)
+    def setActiveConfigByIndex(self, index: int) -> None:
+        if 0 <= index < len(self._available_configs):
+            self._active_config = self._available_configs[index]
+            self._active_config_index = index
+            self._page_scroller.set_config(self._active_config)
+            log.info(f"格子检测配置切换: {self._active_config.name}")
+            self.activeConfigChanged.emit()
 
     # ==================================================================
     # 首尾锚点定位
@@ -767,7 +866,7 @@ class ArtifactScanPresenter(QObject):
         if result is None:
             log.warning("尾锚点定位: 截图失败")
             return
-        det_result = SlotDetector.detect(result.image, roi=PageScroller._ROI)
+        det_result = SlotDetector.detect(result.image, config=self._active_config)
         if not det_result.slots:
             log.warning("尾锚点定位: 未检测到格子")
             return
@@ -880,27 +979,21 @@ class ArtifactScanPresenter(QObject):
         self.debugPreviewReady.emit(key)
         log.info(f"灰度截图: {result.image.shape[1]}x{result.image.shape[0]}")
 
-    @Slot(int, int, int, int, int, int, int)
-    def detectSlots(
-        self,
-        roi_x: int, roi_y: int, roi_w: int, roi_h: int,
-        white_threshold: int, tolerance: int, top_offset: int,
-    ) -> None:
-        """截图并检测圣遗物格子，生成调试预览图"""
+    @Slot()
+    def detectSlots(self) -> None:
+        """截图并检测圣遗物格子，使用当前选中配置，生成调试预览图"""
         result = self._capture.capture()
         if result is None:
             log.warning("格子检测: 无法捕获原神窗口")
             return
 
-        roi = (roi_x, roi_y, roi_w, roi_h) if roi_w > 0 and roi_h > 0 else None
+        cfg = self._active_config
         det_result = SlotDetector.detect(
-            result.image, roi=roi,
-            white_threshold=white_threshold, tolerance=tolerance,
-            top_offset=top_offset,
+            result.image, config=cfg,
         )
-        log.info(f"格子检测: 找到 {len(det_result.slots)} 个格子")
+        log.info(f"格子检测: 找到 {len(det_result.slots)} 个格子 [{cfg.name}]")
 
-        debug_rgb = SlotDetector.draw_debug(result.image, det_result.slots, roi=roi)
+        debug_rgb = SlotDetector.draw_debug(result.image, det_result.slots, config=cfg)
         key = "slot_debug"
         PreviewImageProvider.put(key, debug_rgb)
         self.debugPreviewReady.emit(key)

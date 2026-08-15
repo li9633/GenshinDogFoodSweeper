@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import NamedTuple
 
 import cv2
@@ -15,8 +16,62 @@ import numpy as np
 
 class DetectResult(NamedTuple):
     """格子检测结果。"""
+
     slots: list[tuple[int, int, int, int, int, int]]
     bottom_y: int  # 最后一行底部边缘的 Y 坐标
+
+
+@dataclass(frozen=True)
+class SlotDetectorConfig:
+    """圣遗物格子检测的几何配置。
+
+    如果原神 UI 改版导致格子尺寸或间距变化，只需创建新的配置实例传入即可，
+    检测算法本身无需改动。
+    """
+
+    name: str = "未命名"  # 配置名称，调试面板下拉显示用
+    slot_w: int = 125  # 格子宽度
+    slot_h: int = 153  # 格子高度（含底部白色等级条）
+    level_h: int = 36  # 底部白色等级条高度
+    cols: int = 8  # 每行列数
+    rows: int = 4  # 每页行数
+    roi_left_offset: int = 6  # ROI 左侧到第一列左边缘的偏移
+    roi_right_offset: int = 15  # ROI 右侧到最后一列右边缘的偏移
+    top_offset: int = 90  # 白色条顶部到格子上边缘的距离
+    white_threshold: int = 200  # 白色二值化阈值
+    tolerance: int = 20  # 等级条尺寸容差 (px)
+    roi: tuple[int, int, int, int] | None = None  # 截图裁剪区域 (x, y, w, h)
+    has_artifact_count: bool = True  # 页面是否显示圣遗物数量（背包: True, 分解: False）
+
+    def col_step(self, roi_w: int) -> float:
+        """根据 ROI 宽度和左右 offset 计算列步长。"""
+        span = roi_w - self.roi_left_offset - self.roi_right_offset
+        return (span - self.slot_w) / (self.cols - 1)
+
+    def row_step(self, roi_h: int) -> float:
+        """根据 ROI 高度计算行步长。"""
+        return (roi_h - self.slot_h) / (self.rows - 1)
+
+
+## 背包圣遗物列表格子配置（已实测：左offset=6, 右offset=15）
+BAG_SLOT_CONFIG = SlotDetectorConfig(
+    name="背包圣遗物列表",
+    roi=(118, 193, 1170, 810)
+)
+
+# 分解页面格子配置（待实测，当前沿用背包默认值）
+SALVAGE_SLOT_CONFIG = SlotDetectorConfig(
+    name="圣遗物分解",
+    roi=(50, 131, 1255, 780),
+    has_artifact_count=False,
+    rows=4,
+    cols=9,
+    roi_left_offset=9,
+    roi_right_offset=7,
+)
+
+# 所有可用配置列表（调试面板下拉切换用）
+ALL_SLOT_CONFIGS: list[SlotDetectorConfig] = [BAG_SLOT_CONFIG, SALVAGE_SLOT_CONFIG]
 
 
 class SlotDetector:
@@ -27,40 +82,17 @@ class SlotDetector:
     2. 灰度化 → 高阈值二值化 → 提取白色等级条区域
     3. 按等级条尺寸过滤 → 向上扩展为完整格子
     4. 排序 → 返回格子中心坐标
+
+    所有几何参数由 SlotDetectorConfig 提供，调用方可通过 config 参数自定义。
     """
-
-    # 圣遗物格子尺寸常量
-    SLOT_W = 125   # 格子宽度
-    SLOT_H = 153   # 格子高度（含底部白色等级条）
-    LEVEL_H = 36   # 底部白色等级条高度
-    COLS = 8       # 每行列数
-    ROWS = 4       # 每页行数
-    ROI_LEFT_OFFSET = 6    # ROI 左侧到第一列左边缘的偏移
-    ROI_RIGHT_OFFSET = 15  # ROI 右侧到最后一列右边缘的偏移
-
-    @classmethod
-    def col_step(cls, roi_w: int) -> float:
-        """根据 ROI 宽度和左右 offset 计算列步长。
-
-        span = roi_w - 6 - 15  # 第1列左到第8列右的实际距离
-        span = 8 × SLOT_W + 7 × gap  →  gap = (span - 8×SLOT_W) / 7
-        col_step = SLOT_W + gap = (span - SLOT_W) / 7
-        """
-        span = roi_w - cls.ROI_LEFT_OFFSET - cls.ROI_RIGHT_OFFSET
-        return (span - cls.SLOT_W) / (cls.COLS - 1)
-
-    @classmethod
-    def row_step(cls, roi_h: int) -> float:
-        """根据 ROI 高度计算行步长。"""
-        return (roi_h - cls.SLOT_H) / (cls.ROWS - 1)
 
     @staticmethod
     def detect(
         image: np.ndarray,
         roi: tuple[int, int, int, int] | None = None,
-        white_threshold: int = 200,
-        tolerance: int = 20,
-        top_offset: int = 90,
+        config: SlotDetectorConfig = BAG_SLOT_CONFIG,
+        white_threshold: int | None = None,
+        tolerance: int | None = None,
     ) -> DetectResult:
         """检测格子位置。
 
@@ -80,9 +112,16 @@ class SlotDetector:
             slots: [(cx, cy, x, y, w, h), ...] 按 y 再 x 排序
             bottom_y: 最后一行底部边缘的 Y 坐标
         """
+        if white_threshold is None:
+            white_threshold = config.white_threshold
+        if tolerance is None:
+            tolerance = config.tolerance
+
+        if roi is None:
+            roi = config.roi
         if roi is not None:
             rx, ry, rw, rh = roi
-            crop = image[ry:ry + rh, rx:rx + rw].copy()
+            crop = image[ry : ry + rh, rx : rx + rw].copy()
             offset_x, offset_y = rx, ry
         else:
             crop = image.copy()
@@ -94,50 +133,59 @@ class SlotDetector:
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
         binary = cv2.erode(binary, kernel, iterations=2)
 
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
 
         # 计算期望列中心 x 坐标（在 crop 坐标系内）
-        span_w = rw - SlotDetector.ROI_LEFT_OFFSET - SlotDetector.ROI_RIGHT_OFFSET
-        col_step = (span_w - SlotDetector.SLOT_W) / (SlotDetector.COLS - 1)
+        span_w = rw - config.roi_left_offset - config.roi_right_offset
+        col_step = (span_w - config.slot_w) / (config.cols - 1)
         expected_cx = [
-            SlotDetector.ROI_LEFT_OFFSET + c * col_step + SlotDetector.SLOT_W / 2
-            for c in range(SlotDetector.COLS)
+            config.roi_left_offset + c * col_step + config.slot_w / 2
+            for c in range(config.cols)
         ]
 
         # 将轮廓匹配到最近的列，每列每行只保留一个最佳匹配
         col_bars: dict[tuple[int, int], tuple[int, int, int, int]] = {}
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
-            if abs(w - SlotDetector.SLOT_W) > tolerance or abs(h - SlotDetector.LEVEL_H) > tolerance:
+            if (
+                abs(w - config.slot_w) > tolerance
+                or abs(h - config.level_h) > tolerance
+            ):
                 continue
             bar_cx = x + w // 2
             # 找最近的期望列
-            col_idx = min(range(len(expected_cx)), key=lambda i: abs(bar_cx - expected_cx[i]))
+            col_idx = min(
+                range(len(expected_cx)), key=lambda i: abs(bar_cx - expected_cx[i])
+            )
             if abs(bar_cx - expected_cx[col_idx]) > tolerance:
                 continue
             row_key = y // 50
             key = (col_idx, row_key)
-            # 同一列同一行只保留第一个（或距离更近的）
+            # 同一列同一行只保留第一个
             if key not in col_bars:
                 col_bars[key] = (x, y, w, h)
 
         level_bars = sorted(col_bars.values(), key=lambda b: (b[1] // 50, b[0]))
-        slots = SlotDetector._bars_to_slots(level_bars, offset_x, offset_y, top_offset)
+        slots = SlotDetector._bars_to_slots(level_bars, offset_x, offset_y, config)
         bottom_y = max(s[3] + s[5] for s in slots) if slots else 0
         return DetectResult(slots, bottom_y)
 
     @staticmethod
     def _bars_to_slots(
         level_bars: list[tuple[int, int, int, int]],
-        offset_x: int, offset_y: int, top_offset: int,
+        offset_x: int,
+        offset_y: int,
+        config: SlotDetectorConfig,
     ) -> list[tuple[int, int, int, int, int, int]]:
         slots: list[tuple[int, int, int, int, int, int]] = []
         seen: set[tuple[int, int]] = set()
         for bx, by, bw, bh in level_bars:
             sx = offset_x + bx
-            sy = offset_y + by - top_offset
-            sw = SlotDetector.SLOT_W
-            sh = top_offset + SlotDetector.LEVEL_H
+            sy = offset_y + by - config.top_offset
+            sw = config.slot_w
+            sh = config.top_offset + config.level_h
             cx = sx + sw // 2
             cy = sy + sh // 2
             key = (cx // 10, cy // 10)
@@ -152,50 +200,74 @@ class SlotDetector:
         image: np.ndarray,
         slots: list[tuple[int, int, int, int, int, int]],
         roi: tuple[int, int, int, int] | None = None,
+        config: SlotDetectorConfig = BAG_SLOT_CONFIG,
     ) -> np.ndarray:
         """在灰度图上绘制检测结果，返回 RGB 预览图。"""
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         debug = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
+        if roi is None:
+            roi = config.roi
         if roi is not None:
             rx, ry, rw, rh = roi
             cv2.rectangle(debug, (rx, ry), (rx + rw, ry + rh), (255, 255, 0), 2)
 
-            # 6px 参考线：ROI 左侧 + 6px = 最左列格子左边缘
-            x_offset = 6
-            ref_left = rx + x_offset
+            # 左侧 offset 参考线
+            ref_left = rx + config.roi_left_offset
             cv2.line(debug, (ref_left, ry), (ref_left, ry + rh), (255, 255, 0), 1)
-            cv2.putText(debug, f"+{x_offset}", (ref_left + 2, ry + 15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 0), 1)
+            cv2.putText(
+                debug,
+                f"+{config.roi_left_offset}",
+                (ref_left + 2, ry + 15),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.35,
+                (255, 255, 0),
+                1,
+            )
 
-            # 15px 参考线：ROI 右侧 - 15px = 最右列格子右边缘
-            x_offset = 15
-            ref_right = rx + rw - x_offset
+            # 右侧 offset 参考线
+            ref_right = rx + rw - config.roi_right_offset
             cv2.line(debug, (ref_right, ry), (ref_right, ry + rh), (255, 255, 0), 1)
-            cv2.putText(debug, f"-{x_offset}", (ref_right + 2, ry + 15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 0), 1)
+            cv2.putText(
+                debug,
+                f"-{config.roi_right_offset}",
+                (ref_right + 2, ry + 15),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.35,
+                (255, 255, 0),
+                1,
+            )
 
             # 每列左右边框竖线（绝对位置计算，无累积误差）
-            span_w = rw - SlotDetector.ROI_LEFT_OFFSET - SlotDetector.ROI_RIGHT_OFFSET
-            for c in range(SlotDetector.COLS):
-                col_left = int(ref_left + c * (span_w - SlotDetector.SLOT_W) / (SlotDetector.COLS - 1))
-                col_right = col_left + SlotDetector.SLOT_W
+            span_w = rw - config.roi_left_offset - config.roi_right_offset
+            for c in range(config.cols):
+                col_left = int(
+                    ref_left + c * (span_w - config.slot_w) / (config.cols - 1)
+                )
+                col_right = col_left + config.slot_w
                 cv2.line(debug, (col_left, ry), (col_left, ry + rh), (255, 0, 0), 1)
                 cv2.line(debug, (col_right, ry), (col_right, ry + rh), (0, 0, 255), 1)
             # 行分隔横线（绝对位置计算）
-            for r in range(SlotDetector.ROWS + 1):
-                gy = int(ry + r * (rh - SlotDetector.SLOT_H) / SlotDetector.ROWS)
+            for r in range(config.rows + 1):
+                gy = int(ry + r * (rh - config.slot_h) / config.rows)
                 cv2.line(debug, (rx, gy), (rx + rw, gy), (255, 0, 255), 1)
 
         for i, (cx, cy, x, y, w, h) in enumerate(slots):
             cv2.rectangle(debug, (x, y), (x + w, y + h), (0, 255, 0), 2)
             cv2.putText(
-                debug, str(i + 1), (cx - 12, cy + 8),
-                cv2.FONT_HERSHEY_DUPLEX, 0.55, (0, 0, 255), 2,
+                debug,
+                str(i + 1),
+                (cx - 12, cy + 8),
+                cv2.FONT_HERSHEY_DUPLEX,
+                0.55,
+                (0, 0, 255),
+                2,
             )
 
         if slots:
             last_bottom = max(s[3] + s[5] for s in slots)
-            cv2.line(debug, (0, last_bottom), (debug.shape[1], last_bottom), (0, 0, 255), 2)
+            cv2.line(
+                debug, (0, last_bottom), (debug.shape[1], last_bottom), (0, 0, 255), 2
+            )
 
         return cv2.cvtColor(debug, cv2.COLOR_BGR2RGB)

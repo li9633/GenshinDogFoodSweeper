@@ -25,7 +25,7 @@ from backend.automation.page_scroller import PageScroller
 from backend.automation.recognizer import ArtifactRecognizer
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
-from backend.automation.slot_detector import SlotDetector
+from backend.automation.slot_detector import BAG_SLOT_CONFIG, SlotDetector
 from backend.automation.window_helper import WindowHelper
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
 from backend.utils.screen_capture import ScreenshotCapture
@@ -402,7 +402,7 @@ class FullScanWorker(QThread):
             if result is None:
                 self.errorOccurred.emit("截图失败")
                 return
-            det_result = SlotDetector.detect(result.image, roi=PageScroller._ROI)
+            det_result = SlotDetector.detect(result.image, config=BAG_SLOT_CONFIG)
             if self._stop:
                 return
             if det_result.slots:

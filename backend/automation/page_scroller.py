@@ -5,7 +5,11 @@ from time import sleep
 from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
-from backend.automation.slot_detector import SlotDetector
+from backend.automation.slot_detector import (
+    BAG_SLOT_CONFIG,
+    SlotDetector,
+    SlotDetectorConfig,
+)
 from backend.utils.screen_capture import ScreenshotCapture
 
 
@@ -21,16 +25,19 @@ class PageScroller:
     # 1 行 = 格子153px + 间距24px = 177px, 10 格/行 → 17.7px/格
     _PX_PER_TICK = 17.7
 
-    # 圣遗物列表 ROI 区域
-    _ROI = (118, 193, 1170, 810)
-
     def __init__(
         self,
         mouse: MouseController,
         capture: ScreenshotCapture,
+        config: SlotDetectorConfig = BAG_SLOT_CONFIG,
     ) -> None:
         self._mouse = mouse
         self._capture = capture
+        self._config = config
+
+    def set_config(self, config: SlotDetectorConfig) -> None:
+        """运行时切换格子检测配置（调试面板切换页面时使用）。"""
+        self._config = config
 
     # ==================================================================
     # 翻页
@@ -53,12 +60,12 @@ class PageScroller:
         if result is None:
             return False
 
-        det_result = SlotDetector.detect(result.image, roi=self._ROI)
+        det_result = SlotDetector.detect(result.image, config=self._config)
         if not det_result.slots:
             return False
 
         bottom_y = det_result.bottom_y
-        roi_top = self._ROI[1]
+        roi_top = self._config.roi[1]
         scroll_px = bottom_y - roi_top
 
         if scroll_px <= 0:
@@ -128,7 +135,7 @@ class PageScroller:
         result = self._capture.capture()
         if result is None:
             return None
-        det_result = SlotDetector.detect(result.image, roi=self._ROI)
+        det_result = SlotDetector.detect(result.image, config=self._config)
         if not det_result.slots:
             return None
         return det_result.slots, det_result.bottom_y

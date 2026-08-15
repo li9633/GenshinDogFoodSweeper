@@ -161,6 +161,30 @@ Rectangle {
                     Layout.fillWidth: true
                     spacing: 6
 
+                    // 配置选择
+                    RowLayout {
+                        spacing: 4
+                        Text {
+                            text: "检测配置:"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 14
+                            color: Theme.textSecondary
+                        }
+                        GComboBox {
+                            id: configCombo
+                            implicitWidth: 160
+                            model: ArtifactScan.availableConfigNames
+                            currentIndex: ArtifactScan.activeConfigIndex
+                            onActivated: (index) => ArtifactScan.setActiveConfigByIndex(index)
+                        }
+                        Text {
+                            text: ArtifactScan.activeConfigHasCount ? "" : "(无数量显示)"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            color: Theme.warning
+                        }
+                    }
+
                     Text {
                         text: "截图 → 检测格子 → 计算最后一行底部Y坐标 → 自动滚动"
                         font.family: Theme.fontFamily
@@ -457,29 +481,32 @@ Rectangle {
                             color: Theme.textPrimary
                         }
 
-                        RowLayout {
-                            spacing: 4
-                            Text { text: "ROI:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                            GSpinBox { id: slotRoiX; from: 0; to: 3000; value: 118 }
-                            GSpinBox { id: slotRoiY; from: 0; to: 3000; value: 193 }
-                            GSpinBox { id: slotRoiW; from: 0; to: 3000; value: 1170 }
-                            GSpinBox { id: slotRoiH; from: 0; to: 3000; value: 810 }
-                            Text {
-                                text: "(x, y, w, h) 0=整图"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 11
-                                color: Theme.textSecondary
-                            }
+                        Text {
+                            text: "当前配置: " + ArtifactScan.activeConfigName
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            color: Theme.accent
                         }
 
-                        RowLayout {
-                            spacing: 4
-                            Text { text: "白色阈值:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                            GSpinBox { id: slotWhiteThreshold; from: 0; to: 255; value: 200 }
-                            Text { text: "容差:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                            GSpinBox { id: slotTolerance; from: 0; to: 50; value: 20 }
-                            Text { text: "上偏移:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                            GSpinBox { id: slotTopOffset; from: 0; to: 200; value: 90 }
+                        Text {
+                            text: "ROI: (" + ArtifactScan.activeConfigRoiX + ", " + ArtifactScan.activeConfigRoiY
+                                  + ", " + ArtifactScan.activeConfigRoiW + ", " + ArtifactScan.activeConfigRoiH + ")"
+                                  + " | " + ArtifactScan.activeConfigCols + "×" + ArtifactScan.activeConfigRows
+                                  + " | 格子: " + ArtifactScan.activeConfigSlotW + "×" + ArtifactScan.activeConfigSlotH
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            color: Theme.textSecondary
+                        }
+
+                        Text {
+                            text: "左offset: " + ArtifactScan.activeConfigLeftOffset + "px"
+                                  + " | 右offset: " + ArtifactScan.activeConfigRightOffset + "px"
+                                  + " | 上offset: " + ArtifactScan.activeConfigTopOffset + "px"
+                                  + " | 白色阈值: " + ArtifactScan.activeConfigWhiteThreshold
+                                  + " | 容差: " + ArtifactScan.activeConfigTolerance
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            color: Theme.textSecondary
                         }
 
                         RowLayout {
@@ -487,13 +514,10 @@ Rectangle {
                             GButton {
                                 text: "检测格子"
                                 colorType: "primary"
-                                onClicked: ArtifactScan.detectSlots(
-                                    slotRoiX.value, slotRoiY.value, slotRoiW.value, slotRoiH.value,
-                                    slotWhiteThreshold.value, slotTolerance.value, slotTopOffset.value
-                                )
+                                onClicked: ArtifactScan.detectSlots()
                             }
                             Text {
-                                text: "检测圣遗物格子位置，结果绘制到预览窗口"
+                                text: "使用当前选中配置检测格子，结果绘制到预览窗口"
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 11
                                 color: Theme.textSecondary
