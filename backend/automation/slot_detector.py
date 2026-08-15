@@ -42,6 +42,12 @@ class SlotDetectorConfig:
     tolerance: int = 20  # 等级条尺寸容差 (px)
     roi: tuple[int, int, int, int] | None = None  # 截图裁剪区域 (x, y, w, h)
     has_artifact_count: bool = True  # 页面是否显示圣遗物数量（背包: True, 分解: False）
+    # 滑轨区域（相对于格子 ROI，用于滚动条检测）
+    slider_x_offset: int = 4  # 滑轨 X = ROI右边缘 + 此值
+    slider_top_offset: int = -9  # 滑轨顶部 = ROI顶部 + 此值
+    slider_bottom_offset: int = -25  # 滑轨底部 = ROI底部 + 此值
+    slider_region_w: int = 10  # 滑块检测区域宽度
+    slider_region_h: int = 10  # 滑块检测区域高度
 
     def col_step(self, roi_w: int) -> float:
         """根据 ROI 宽度和左右 offset 计算列步长。"""
@@ -52,14 +58,30 @@ class SlotDetectorConfig:
         """根据 ROI 高度计算行步长。"""
         return (roi_h - self.slot_h) / (self.rows - 1)
 
+    def slider_region(self) -> tuple[int, int, int, int, int] | None:
+        """返回滑轨检测区域 (x, top_y, bottom_y, w, h)。
 
-## 背包圣遗物列表格子配置（已实测：左offset=6, 右offset=15）
+        基于格子 ROI 和偏移量动态计算，切换配置时自动跟随。
+        """
+        if self.roi is None:
+            return None
+        rx, ry, rw, rh = self.roi
+        return (
+            rx + rw + self.slider_x_offset,
+            ry + self.slider_top_offset,
+            ry + rh + self.slider_bottom_offset,
+            self.slider_region_w,
+            self.slider_region_h,
+        )
+
+
+## 背包圣遗物列表格子配置
 BAG_SLOT_CONFIG = SlotDetectorConfig(
     name="背包圣遗物列表",
     roi=(118, 193, 1170, 810)
 )
 
-# 分解页面格子配置（待实测，当前沿用背包默认值）
+# 分解页面格子配置
 SALVAGE_SLOT_CONFIG = SlotDetectorConfig(
     name="圣遗物分解",
     roi=(50, 131, 1255, 780),
@@ -68,6 +90,9 @@ SALVAGE_SLOT_CONFIG = SlotDetectorConfig(
     cols=9,
     roi_left_offset=9,
     roi_right_offset=7,
+    slider_x_offset=8,
+    slider_top_offset=2,
+    slider_bottom_offset=-22,
 )
 
 # 所有可用配置列表（调试面板下拉切换用）
@@ -251,6 +276,16 @@ class SlotDetector:
             for r in range(config.rows + 1):
                 gy = int(ry + r * (rh - config.slot_h) / config.rows)
                 cv2.line(debug, (rx, gy), (rx + rw, gy), (255, 0, 255), 1)
+
+            # 金色滑轨区域（动态计算）
+            sr = config.slider_region()
+            if sr is not None:
+                sx, stop_y, sbot_y, sw, sh = sr
+                cv2.rectangle(debug, (sx, stop_y), (sx + sw, sbot_y), (0, 215, 255), 1)
+                cv2.putText(
+                    debug, "滑轨", (sx + sw + 4, (stop_y + sbot_y) // 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 215, 255), 1,
+                )
 
         for i, (cx, cy, x, y, w, h) in enumerate(slots):
             cv2.rectangle(debug, (x, y), (x + w, y + h), (0, 255, 0), 2)
