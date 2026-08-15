@@ -166,7 +166,7 @@ class SlotDetector:
         CARD_SAMPLE_ABOVE = 15
         CARD_SAMPLE_H = 10
         LVL_MARGIN = 3
-        bar_threshold = 220
+        bar_threshold = 205
 
         # 多特征融合投票阈值
         SAT_THRESHOLD = 20  # HSV S通道：>20 表示有颜色（非灰色空格子）
@@ -258,7 +258,7 @@ class SlotDetector:
                 bar_mean = round(max(bar_left, bar_right))
 
                 # 综合判断：卡片投票 >= 2 AND 等级条白色
-                if votes >= 2 and bar_mean >= bar_threshold:
+                if votes >= 1 and bar_mean >= bar_threshold:
                     sx = offset_x + col_left
                     sy = offset_y + (row_bottom - config.slot_h)
                     cx = sx + config.slot_w // 2
@@ -388,7 +388,7 @@ class SlotDetector:
                     cv2.circle(debug, (info.rx, info.bly), 2, (255, 255, 0), -1)
 
                     # 三特征值 + 投票（绿=通过 红=未通过）
-                    vote_color = (0, 255, 0) if info.votes >= 2 else (0, 0, 255)
+                    vote_color = (0, 255, 0) if info.votes >= 1 else (0, 0, 255)
                     cv2.putText(
                         debug,
                         f"S{info.sat_val:.0f} D{info.std_val:.0f} E{info.edge_val * 100:.0f}% V{info.votes}/3",
@@ -417,7 +417,12 @@ class SlotDetector:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (200, 200, 200), 1,
                     )
                     log.debug(
-                        f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r})"
+                        f"[{info.row},{info.col}] "
+                        f"S{info.sat_val:.0f} D{info.std_val:.0f} "
+                        f"E{info.edge_val * 100:.0f}% V{info.votes}/3 "
+                        f"b{info.bar_mean:.0f}({info.bar_margin:+.0f}) "
+                        f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r}) "
+                        f"R{info.rarity}"
                     )
 
         for i, (cx, cy, x, y, w, h) in enumerate(slots):
