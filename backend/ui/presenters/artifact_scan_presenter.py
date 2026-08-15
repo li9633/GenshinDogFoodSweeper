@@ -951,6 +951,7 @@ class ArtifactScanPresenter(QObject):
         debug_rgb = SlotDetector.draw_debug(
             result.image, det_result.slots, config=cfg,
             page_bottom=det_result.bottom_y,
+            debug_infos=det_result.debug_infos,
         )
         key = "slot_debug"
         PreviewImageProvider.put(key, debug_rgb)

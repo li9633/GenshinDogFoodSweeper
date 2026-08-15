@@ -7,96 +7,57 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import NamedTuple
+from pathlib import Path
 
 import cv2
 import numpy as np
+from utils.logger import log
 
-
-class DetectResult(NamedTuple):
-    """格子检测结果。"""
-
-    slots: list[tuple[int, int, int, int, int, int]]
-    bottom_y: int  # 最后一行底部边缘的 Y 坐标
-
-
-@dataclass(frozen=True)
-class SlotDetectorConfig:
-    """圣遗物格子检测的几何配置。
-
-    如果原神 UI 改版导致格子尺寸或间距变化，只需创建新的配置实例传入即可，
-    检测算法本身无需改动。
-    """
-
-    name: str = "未命名"  # 配置名称，调试面板下拉显示用
-    slot_w: int = 125  # 格子宽度
-    slot_h: int = 153  # 格子高度（含底部白色等级条）
-    level_h: int = 36  # 底部白色等级条高度
-    cols: int = 8  # 每行列数
-    rows: int = 4  # 每页行数
-    roi_left_offset: int = 6  # ROI 左侧到第一列左边缘的偏移
-    roi_right_offset: int = 15  # ROI 右侧到最后一列右边缘的偏移
-    top_offset: int = 90  # 白色条顶部到格子上边缘的距离
-    white_threshold: int = 226  # 白色二值化阈值 (E3E3E3=227 vs 空格子 DEDEDE=222)
-    tolerance: int = 20  # 等级条尺寸容差 (px)
-    roi: tuple[int, int, int, int] | None = None  # 截图裁剪区域 (x, y, w, h)
-    has_artifact_count: bool = True  # 页面是否显示圣遗物数量（背包: True, 分解: False）
-    # 滑轨区域（相对于格子 ROI，用于滚动条检测）
-    slider_x_offset: int = 4  # 滑轨 X = ROI右边缘 + 此值
-    slider_top_offset: int = -9  # 滑轨顶部 = ROI顶部 + 此值
-    slider_bottom_offset: int = -25  # 滑轨底部 = ROI底部 + 此值
-    slider_region_w: int = 10  # 滑块检测区域宽度
-    slider_region_h: int = 10  # 滑块检测区域高度
-
-    def col_step(self, roi_w: int) -> float:
-        """根据 ROI 宽度和左右 offset 计算列步长。"""
-        span = roi_w - self.roi_left_offset - self.roi_right_offset
-        return (span - self.slot_w) / (self.cols - 1)
-
-    def row_step(self, roi_h: int) -> float:
-        """根据 ROI 高度计算行步长。"""
-        return (roi_h - self.slot_h) / (self.rows - 1)
-
-    def slider_region(self) -> tuple[int, int, int, int, int] | None:
-        """返回滑轨检测区域 (x, top_y, bottom_y, w, h)。
-
-        基于格子 ROI 和偏移量动态计算，切换配置时自动跟随。
-        """
-        if self.roi is None:
-            return None
-        rx, ry, rw, rh = self.roi
-        return (
-            rx + rw + self.slider_x_offset,
-            ry + self.slider_top_offset,
-            ry + rh + self.slider_bottom_offset,
-            self.slider_region_w,
-            self.slider_region_h,
-        )
-
-
-## 背包圣遗物列表格子配置
-BAG_SLOT_CONFIG = SlotDetectorConfig(
-    name="背包圣遗物列表",
-    roi=(118, 193, 1170, 810)
+from backend.models.slot_models import (
+    ALL_RARITY_THRESHOLDS,  # noqa: F401
+    ALL_SLOT_CONFIGS,  # noqa: F401
+    BAG_SLOT_CONFIG,
+    FIVE_STAR_GOLDEN,  # noqa: F401
+    FOUR_STAR_PURPLE,  # noqa: F401
+    ONE_STAR_GRAY,  # noqa: F401
+    SALVAGE_SLOT_CONFIG,  # noqa: F401
+    THREE_STAR_BLUE,  # noqa: F401
+    TWO_STAR_GREEN,  # noqa: F401
+    ArtifactRarity,  # noqa: F401
+    DetectResult,
+    RarityThreshold,  # noqa: F401
+    SlotDebugInfo,
+    SlotDetectorConfig,
+    classify_rarity,
 )
 
-# 分解页面格子配置
-SALVAGE_SLOT_CONFIG = SlotDetectorConfig(
-    name="圣遗物分解",
-    roi=(50, 131, 1255, 780),
-    has_artifact_count=False,
-    rows=4,
-    cols=9,
-    roi_left_offset=9,
-    roi_right_offset=7,
-    slider_x_offset=8,
-    slider_top_offset=2,
-    slider_bottom_offset=-22,
-)
 
-# 所有可用配置列表（调试面板下拉切换用）
-ALL_SLOT_CONFIGS: list[SlotDetectorConfig] = [BAG_SLOT_CONFIG, SALVAGE_SLOT_CONFIG]
+def _draw_chinese_text(
+    img_bgr: np.ndarray,
+    text: str,
+    x: int,
+    y: int,
+    color: tuple[int, int, int],
+    font_size: int = 14,
+) -> np.ndarray:
+    """用 PIL 在 BGR 图像上绘制中文文本（cv2.putText 不支持中文）。"""
+    from PIL import Image, ImageDraw, ImageFont
+
+    rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    pil_img = Image.fromarray(rgb)
+    draw = ImageDraw.Draw(pil_img)
+
+    font = None
+    for fp in ("C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simhei.ttf"):
+        if Path(fp).exists():
+            font = ImageFont.truetype(fp, font_size)
+            break
+
+    if font is None:
+        font = ImageFont.load_default()
+
+    draw.text((x, y), text, font=font, fill=color[::-1])
+    return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
 
 class SlotDetector:
@@ -151,6 +112,7 @@ class SlotDetector:
             offset_x, offset_y = 0, 0
 
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
 
         # 列位置
         ref_left = config.roi_left_offset
@@ -166,8 +128,7 @@ class SlotDetector:
         )
 
         expected_cx = [
-            ref_left + c * col_step + config.slot_w / 2
-            for c in range(config.cols)
+            ref_left + c * col_step + config.slot_w / 2 for c in range(config.cols)
         ]
         tolerance = config.tolerance
         page_bottom_crop = 0
@@ -196,23 +157,24 @@ class SlotDetector:
         col_gap = (span_w - config.slot_w * config.cols) / (config.cols - 1)
         row_step = config.slot_h + col_gap
 
-        # === 几何网格 + 双区域采样 ===
-        # 1. 卡片主体：等级条上方区域，非白色=有圣遗物
-        # 2. 等级条：底部白色文字条，白色=有圣遗物
-        # 综合：两者都满足才判定为有效格子
+        # === 几何网格 + 多特征融合投票 ===
+        # 卡片主体：3特征投票（饱和度 + 灰度标准差 + 边缘密度）
+        # 等级条：白色均值（保留原有逻辑）
+        # 综合：卡片投票 >= 2 AND 等级条白色
         SAMPLE_MARGIN = 5
         SAMPLE_W = 10
-        CARD_SAMPLE_ABOVE = 15  # 等级条上方采样偏移
-        CARD_SAMPLE_H = 10      # 采样高度
+        CARD_SAMPLE_ABOVE = 15
+        CARD_SAMPLE_H = 10
         LVL_MARGIN = 3
-        card_threshold = 180  # 卡片主体：圣遗物(~110) << 180 < 空格子(~223)
-        bar_threshold = 220   # 等级条：220-227 vs 空格子背景 222-225
+        bar_threshold = 220
 
-        # 采样阈值
-        card_threshold = 180  # 卡片主体：圣遗物(~110) << 180 < 空格子(~223)
-        bar_threshold = 220   # 等级条：220-227 vs 空格子背景 222-225
+        # 多特征融合投票阈值
+        SAT_THRESHOLD = 20  # HSV S通道：>20 表示有颜色（非灰色空格子）
+        STD_THRESHOLD = 15  # 灰度标准差：>15 表示纹理丰富（非纯色背景）
+        EDGE_THRESHOLD = 0.03  # 边缘密度：>3% 表示有图标轮廓
 
         slots: list[tuple[int, int, int, int, int, int]] = []
+        debug_infos: list[SlotDebugInfo] = []
         for r in range(config.rows):
             row_bottom = int(page_bottom_crop - (config.rows - 1 - r) * row_step)
             level_top = max(0, row_bottom - config.level_h)
@@ -226,23 +188,60 @@ class SlotDetector:
                 lx2 = col_left + SAMPLE_MARGIN + SAMPLE_W
                 rx1 = col_right - SAMPLE_MARGIN - SAMPLE_W
                 rx2 = col_right - SAMPLE_MARGIN
-                # 区域1：卡片主体（等级条上方）
+                # 卡片主体采样区域（等级条上方）
                 ly1 = level_top - CARD_SAMPLE_ABOVE - CARD_SAMPLE_H
                 ly2 = level_top - CARD_SAMPLE_ABOVE
 
                 if lx1 < 0 or rx2 > gray.shape[1] or ly1 < 0 or ly2 > gray.shape[0]:
                     continue
 
-                left_region = gray[ly1:ly2, lx1:lx2]
-                right_region = gray[ly1:ly2, rx1:rx2]
-                if left_region.size == 0 or right_region.size == 0:
+                # 灰度区域
+                card_l_gray = gray[ly1:ly2, lx1:lx2]
+                card_r_gray = gray[ly1:ly2, rx1:rx2]
+                # HSV S通道区域
+                card_l_sat = hsv[ly1:ly2, lx1:lx2, 1]
+                card_r_sat = hsv[ly1:ly2, rx1:rx2, 1]
+                card_l_bgr = crop[ly1:ly2, lx1:lx2]
+                card_r_bgr = crop[ly1:ly2, rx1:rx2]
+
+                if card_l_gray.size == 0 or card_r_gray.size == 0:
                     continue
 
-                card_left = float(np.mean(left_region))
-                card_right = float(np.mean(right_region))
-                card_mean = round(max(card_left, card_right))
+                # 特征1：饱和度均值（取左右中更饱和的）
+                sat_l = float(np.mean(card_l_sat))
+                sat_r = float(np.mean(card_r_sat))
+                sat_val = max(sat_l, sat_r)
 
-                # 区域2：等级条
+                # 特征2：灰度标准差（取左右中变化更大的）
+                std_l = float(np.std(card_l_gray))
+                std_r = float(np.std(card_r_gray))
+                std_val = max(std_l, std_r)
+
+                # 特征3：边缘密度（取左右中边缘更多的）
+                edges_l = cv2.Canny(card_l_gray, 50, 150)
+                edges_r = cv2.Canny(card_r_gray, 50, 150)
+                edge_l = float(np.count_nonzero(edges_l)) / edges_l.size
+                edge_r = float(np.count_nonzero(edges_r)) / edges_r.size
+                edge_val = max(edge_l, edge_r)
+
+                # 投票：至少2个特征认为"有圣遗物"
+                votes = 0
+                if sat_val > SAT_THRESHOLD:
+                    votes += 1
+                if std_val > STD_THRESHOLD:
+                    votes += 1
+                if edge_val > EDGE_THRESHOLD:
+                    votes += 1
+
+                # 卡片区域原始颜色（取左右两侧均值，避免图标位置偏移导致波动）
+                gray_l = float(np.mean(card_l_gray))
+                gray_r = float(np.mean(card_r_gray))
+                card_gray_mean = (gray_l + gray_r) / 2
+                bgr_l = np.mean(card_l_bgr, axis=(0, 1))
+                bgr_r = np.mean(card_r_bgr, axis=(0, 1))
+                card_bgr_mean = (bgr_l + bgr_r) / 2
+
+                # 等级条检测（保留原有逻辑）
                 bly1 = level_top + LVL_MARGIN
                 bly2 = level_bottom - LVL_MARGIN
 
@@ -258,16 +257,35 @@ class SlotDetector:
                 bar_right = float(np.mean(bar_right_region))
                 bar_mean = round(max(bar_left, bar_right))
 
-                # 综合判断：卡片非白色(有圣遗物图) AND 等级条白色(有等级文字)
-                if card_mean < card_threshold and bar_mean >= bar_threshold:
+                # 综合判断：卡片投票 >= 2 AND 等级条白色
+                if votes >= 2 and bar_mean >= bar_threshold:
                     sx = offset_x + col_left
                     sy = offset_y + (row_bottom - config.slot_h)
                     cx = sx + config.slot_w // 2
                     cy = sy + config.slot_h // 2
                     slots.append((cx, cy, sx, sy, config.slot_w, config.slot_h))
 
+                debug_infos.append(SlotDebugInfo(
+                    row=r, col=c,
+                    lx=offset_x + col_left + SAMPLE_MARGIN + SAMPLE_W // 2,
+                    rx=offset_x + col_right - SAMPLE_MARGIN - SAMPLE_W // 2,
+                    sly=offset_y + (ly1 + ly2) // 2,
+                    bly=offset_y + (bly1 + bly2) // 2,
+                    sat_val=sat_val, std_val=std_val, edge_val=edge_val,
+                    votes=votes, bar_mean=bar_mean,
+                    bar_margin=bar_mean - bar_threshold,
+                    card_gray=card_gray_mean,
+                    card_b=int(card_bgr_mean[0]),
+                    card_g=int(card_bgr_mean[1]),
+                    card_r=int(card_bgr_mean[2]),
+                    rarity=classify_rarity(
+                        card_gray_mean, sat_val,
+                        int(card_bgr_mean[0]), int(card_bgr_mean[1]), int(card_bgr_mean[2]),
+                    ),
+                ))
+
         bottom_y = offset_y + page_bottom_crop
-        return DetectResult(slots, bottom_y)
+        return DetectResult(slots, bottom_y, debug_infos)
 
     @staticmethod
     def draw_debug(
@@ -276,6 +294,7 @@ class SlotDetector:
         roi: tuple[int, int, int, int] | None = None,
         config: SlotDetectorConfig = BAG_SLOT_CONFIG,
         page_bottom: int | None = None,
+        debug_infos: list[SlotDebugInfo] | None = None,
     ) -> np.ndarray:
         """在灰度图上绘制检测结果，返回 RGB 预览图。
 
@@ -334,9 +353,13 @@ class SlotDetector:
             for r in range(config.rows):
                 gy = int(pg_bottom - (config.rows - 1 - r) * row_step)
                 cv2.line(debug, (rx, gy), (rx + rw, gy), (255, 0, 255), 1)
-                cv2.putText(
-                    debug, f"行{r}底", (rx + 2, gy - 2),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 0, 255), 1,
+                debug = _draw_chinese_text(
+                    debug,
+                    f"行{r}底",
+                    rx + 2,
+                    gy - 14,
+                    (255, 0, 255),
+                    font_size=14,
                 )
 
             # 金色滑轨区域（动态计算）
@@ -344,87 +367,58 @@ class SlotDetector:
             if sr is not None:
                 sx, stop_y, sbot_y, sw, _sh = sr
                 cv2.rectangle(debug, (sx, stop_y), (sx + sw, sbot_y), (0, 215, 255), 1)
-                cv2.putText(
-                    debug, "滑轨", (sx + sw + 4, (stop_y + sbot_y) // 2),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 215, 255), 1,
+                debug = _draw_chinese_text(
+                    debug,
+                    "滑轨",
+                    sx + sw + 4,
+                    (stop_y + sbot_y) // 2 - 8,
+                    (0, 215, 255),
+                    font_size=14,
                 )
 
-            # 双区域采样点 + 调试值
-            # 蓝色=卡片主体(非白色=有圣遗物) 青色=等级条(白色=有等级)
-            # 绿=两条件都满足 红=至少一个不满足
-            SAMPLE_MARGIN = 5
-            SAMPLE_W = 10
-            CARD_SAMPLE_ABOVE = 15
-            CARD_SAMPLE_H = 10
-            LVL_MARGIN = 3
-            card_threshold = 180
-            bar_threshold = 220
-            pg_bottom = page_bottom if page_bottom is not None else ry + rh
-            col_gap = (span_w - config.slot_w * config.cols) / (config.cols - 1)
-            row_step = config.slot_h + col_gap
-            col_step = (span_w - config.slot_w) / (config.cols - 1)
-            for r in range(config.rows):
-                row_bottom = int(pg_bottom - (config.rows - 1 - r) * row_step)
-                level_top = max(ry, row_bottom - config.level_h)
-                level_bottom = min(pg_bottom, row_bottom)
-                for c in range(config.cols):
-                    col_left = int(ref_left + c * col_step)
-                    col_right = col_left + config.slot_w
-
-                    # 采样 X 坐标
-                    slx1 = col_left + SAMPLE_MARGIN
-                    slx2 = col_left + SAMPLE_MARGIN + SAMPLE_W
-                    srx1 = col_right - SAMPLE_MARGIN - SAMPLE_W
-                    srx2 = col_right - SAMPLE_MARGIN
-
-                    # 卡片主体采样
-                    sly1 = level_top - CARD_SAMPLE_ABOVE - CARD_SAMPLE_H
-                    sly2 = level_top - CARD_SAMPLE_ABOVE
-                    sly = (sly1 + sly2) // 2
-
-                    left_region = gray[sly1:sly2, slx1:slx2]
-                    right_region = gray[sly1:sly2, srx1:srx2]
-                    card_left = float(np.mean(left_region)) if left_region.size > 0 else 0
-                    card_right = float(np.mean(right_region)) if right_region.size > 0 else 0
-                    card_mean = round(max(card_left, card_right))
-                    card_margin = card_mean - card_threshold
-
-                # 等级条采样
-                    bly1 = level_top + LVL_MARGIN
-                    bly2 = level_bottom - LVL_MARGIN
-                    bly = (bly1 + bly2) // 2
-
-                    bar_left_region = gray[bly1:bly2, slx1:slx2]
-                    bar_right_region = gray[bly1:bly2, srx1:srx2]
-                    bar_left = float(np.mean(bar_left_region)) if bar_left_region.size > 0 else 0
-                    bar_right = float(np.mean(bar_right_region)) if bar_right_region.size > 0 else 0
-                    bar_mean = round(max(bar_left, bar_right))
-                    bar_margin = bar_mean - bar_threshold
-
-                # 蓝色圆点（卡片主体采样中心）
-                    lx = col_left + SAMPLE_MARGIN + SAMPLE_W // 2
-                    rx = col_right - SAMPLE_MARGIN - SAMPLE_W // 2
-                    cv2.circle(debug, (lx, sly), 2, (255, 0, 0), -1)
-                    cv2.circle(debug, (rx, sly), 2, (255, 0, 0), -1)
+            # 多特征融合投票调试可视化（使用 detect() 预计算数据）
+            if debug_infos:
+                for info in debug_infos:
+                    # 蓝色圆点（卡片主体采样中心）
+                    cv2.circle(debug, (info.lx, info.sly), 2, (255, 0, 0), -1)
+                    cv2.circle(debug, (info.rx, info.sly), 2, (255, 0, 0), -1)
 
                     # 青色圆点（等级条采样中心）
-                    cv2.circle(debug, (lx, bly), 2, (255, 255, 0), -1)
-                    cv2.circle(debug, (rx, bly), 2, (255, 255, 0), -1)
+                    cv2.circle(debug, (info.lx, info.bly), 2, (255, 255, 0), -1)
+                    cv2.circle(debug, (info.rx, info.bly), 2, (255, 255, 0), -1)
 
-                    # 综合判断：卡片非白色 AND 等级条白色
+                    # 三特征值 + 投票（绿=通过 红=未通过）
+                    vote_color = (0, 255, 0) if info.votes >= 2 else (0, 0, 255)
                     cv2.putText(
-                        debug, f"c{card_mean:.0f}({card_margin:+.0f})",
-                        (lx + 4, sly - 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 0, 0), 1,
+                        debug,
+                        f"S{info.sat_val:.0f} D{info.std_val:.0f} E{info.edge_val * 100:.0f}% V{info.votes}/3",
+                        (info.lx + 4, info.sly - 4),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.3,
+                        vote_color,
+                        1,
                     )
-                    # print(f"c{card_mean:.0f}({card_margin:+.0f})")
 
+                    # 等级条均值
                     cv2.putText(
-                        debug, f"b{bar_mean:.0f}({bar_margin:+.0f})",
-                        (lx + 4, bly - 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 0), 1,
+                        debug,
+                        f"b{info.bar_mean:.0f}({info.bar_margin:+.0f})",
+                        (info.lx + 4, info.bly - 4),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.3,
+                        (255, 255, 0),
+                        1,
                     )
-                    # print(f"b{bar_mean:.0f}({bar_margin:+.0f})")
+
+                    # 原始像素值：灰度 + BGR + 稀有度
+                    cv2.putText(
+                        debug, f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r}) R{info.rarity}",
+                        (info.lx + 4, info.sly + 12),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (200, 200, 200), 1,
+                    )
+                    log.debug(
+                        f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r})"
+                    )
 
         for i, (cx, cy, x, y, w, h) in enumerate(slots):
             cv2.rectangle(debug, (x, y), (x + w, y + h), (0, 255, 0), 2)
