@@ -27,9 +27,15 @@ class ArtifactRarity(IntEnum):
 
 @dataclass(frozen=True)
 class RarityThreshold:
-    """单个稀有度的卡片颜色阈值范围。所有范围均为闭区间 [min, max]。"""
+    """单个稀有度的卡片颜色阈值范围。所有范围均为闭区间 [min, max]。
+
+    H 通道（色相，OpenCV 0-180 范围）是最稳定的颜色特征，
+    半透明背景混色对其影响远小于饱和度/明度。
+    """
 
     rarity: ArtifactRarity
+    h_min: int  # 色相最小值（OpenCV 0-180）
+    h_max: int  # 色相最大值（OpenCV 0-180）
     gray_min: int
     gray_max: int
     sat_min: int
@@ -41,88 +47,112 @@ class RarityThreshold:
     r_min: int
     r_max: int
 
-    def matches(self, card_gray: float, sat_val: float, b: int, g: int, r: int) -> bool:
-        """检查给定的卡片颜色是否在此稀有度范围内。"""
-        return (
-            self.gray_min <= card_gray <= self.gray_max
-            and self.sat_min <= sat_val <= self.sat_max
-            and self.b_min <= b <= self.b_max
-            and self.g_min <= g <= self.g_max
-            and self.r_min <= r <= self.r_max
-        )
+    def matches(
+        self, card_gray: float, sat_val: float, b: int, g: int, r: int,
+        hue_val: float = 0.0, require_hue: bool = True, min_votes: int = 4,
+        sat_guard: int = 20,
+    ) -> bool:
+        """检查给定的卡片颜色是否在此稀有度范围内。
+
+        H 通道强制匹配（半透明背景下色相最稳定），但低饱和度（<sat_guard）
+        时 H 不可靠，自动跳过 H 强制匹配且 H 不参与投票。
+        6 维投票（含 H），达到 min_votes 票即匹配。
+        """
+        hue_reliable = sat_val >= sat_guard
+        effective_require_hue = require_hue and hue_reliable
+        if effective_require_hue and not (self.h_min <= hue_val <= self.h_max):
+            return False
+        votes = sum([
+            hue_reliable and self.h_min <= hue_val <= self.h_max,
+            self.gray_min <= card_gray <= self.gray_max,
+            self.sat_min <= sat_val <= self.sat_max,
+            self.b_min <= b <= self.b_max,
+            self.g_min <= g <= self.g_max,
+            self.r_min <= r <= self.r_max,
+        ])
+        return votes >= min_votes
 
 
 # === 稀有度阈值（基于实测数据） ===
 
 FIVE_STAR_GOLDEN = RarityThreshold(
     rarity=ArtifactRarity.FIVE,
-    gray_min=90,
-    gray_max=135,
-    sat_min=160,
-    sat_max=220,
-    b_min=170,
-    b_max=215,
-    g_min=105,
-    g_max=140,
-    r_min=35,
-    r_max=75,
+    h_min=90,
+    h_max=120,
+    gray_min=85,
+    gray_max=140,
+    sat_min=150,
+    sat_max=225,
+    b_min=160,
+    b_max=225,
+    g_min=95,
+    g_max=150,
+    r_min=25,
+    r_max=85,
 )
 
-# TODO: 待实测后补充具体阈值
 FOUR_STAR_PURPLE = RarityThreshold(
     rarity=ArtifactRarity.FOUR,
-    gray_min=0,
-    gray_max=255,
-    sat_min=0,
-    sat_max=255,
-    b_min=0,
-    b_max=255,
-    g_min=0,
-    g_max=255,
-    r_min=0,
-    r_max=255,
+    h_min=150,
+    h_max=180,
+    gray_min=125,
+    gray_max=165,
+    sat_min=60,
+    sat_max=125,
+    b_min=125,
+    b_max=180,
+    g_min=95,
+    g_max=145,
+    r_min=155,
+    r_max=215,
 )
 
 THREE_STAR_BLUE = RarityThreshold(
     rarity=ArtifactRarity.THREE,
-    gray_min=0,
-    gray_max=255,
-    sat_min=0,
-    sat_max=255,
-    b_min=0,
-    b_max=255,
-    g_min=0,
-    g_max=255,
-    r_min=0,
-    r_max=255,
+    h_min=5,
+    h_max=30,
+    gray_min=120,
+    gray_max=165,
+    sat_min=85,
+    sat_max=155,
+    b_min=65,
+    b_max=115,
+    g_min=115,
+    g_max=165,
+    r_min=145,
+    r_max=200,
 )
 
 TWO_STAR_GREEN = RarityThreshold(
     rarity=ArtifactRarity.TWO,
-    gray_min=0,
-    gray_max=255,
-    sat_min=0,
-    sat_max=255,
-    b_min=0,
-    b_max=255,
-    g_min=0,
-    g_max=255,
-    r_min=0,
-    r_max=255,
+    h_min=30,
+    h_max=60,
+    gray_min=115,
+    gray_max=150,
+    sat_min=80,
+    sat_max=120,
+    b_min=70,
+    b_max=110,
+    g_min=125,
+    g_max=165,
+    r_min=100,
+    r_max=145,
 )
 
 ONE_STAR_GRAY = RarityThreshold(
     rarity=ArtifactRarity.ONE,
-    gray_min=0,
-    gray_max=255,
+    h_min=0,
+    h_max=180,
+    gray_min=115,
+    gray_max=160,
     sat_min=0,
-    sat_max=255,
-    b_min=0,
-    b_max=255,
-    g_min=0,
-    g_max=255,
-    r_min=0,
-    r_max=255,
+    sat_max=30,
+    b_min=110,
+    b_max=160,
+    g_min=110,
+    g_max=155,
+    r_min=110,
+    r_max=160,
 )
 
 ALL_RARITY_THRESHOLDS: list[RarityThreshold] = [
@@ -140,17 +170,20 @@ def classify_rarity(
     card_b: int,
     card_g: int,
     card_r: int,
+    hue_val: float = 0.0,
     thresholds: list[RarityThreshold] | None = None,
+    min_votes: int = 4,
 ) -> ArtifactRarity:
     """根据卡片颜色特征判断圣遗物稀有度。
 
     按 thresholds 顺序匹配，返回第一个命中的稀有度。
+    使用投票制（默认 ≥4/6），H 通道在混色下最稳定，低饱和度时自动跳过 H。
     未命中任何阈值时返回 ArtifactRarity.UNKNOWN。
     """
     if thresholds is None:
         thresholds = ALL_RARITY_THRESHOLDS
     for t in thresholds:
-        if t.matches(card_gray, sat_val, card_b, card_g, card_r):
+        if t.matches(card_gray, sat_val, card_b, card_g, card_r, hue_val=hue_val, require_hue=True, min_votes=min_votes):
             return t.rarity
     return ArtifactRarity.UNKNOWN
 
@@ -171,6 +204,11 @@ class SlotDebugInfo:
     votes: int
     bar_mean: float
     bar_margin: float
+    hue_val: float = 0.0  # 卡片区域 H 通道均值（OpenCV 0-180）
+    sat_pass: bool = False  # 饱和度特征是否通过
+    std_pass: bool = False  # 灰度标准差特征是否通过
+    edge_pass: bool = False  # 边缘密度特征是否通过
+    bar_pass: bool = False  # 等级条白色特征是否通过
     card_gray: float = 0.0  # 卡片区域灰度均值
     card_b: int = 0  # 卡片区域 B 通道均值
     card_g: int = 0  # 卡片区域 G 通道均值
@@ -213,6 +251,11 @@ class SlotDetectorConfig:
     slider_bottom_offset: int = -25  # 滑轨底部 = ROI底部 + 此值
     slider_region_w: int = 10  # 滑块检测区域宽度
     slider_region_h: int = 10  # 滑块检测区域高度
+    # 多特征融合投票阈值
+    sat_threshold: int = 10  # 饱和度阈值：>此值认为有颜色
+    std_threshold: int = 15  # 灰度标准差阈值：>此值认为纹理丰富
+    edge_threshold: float = 0.03  # 边缘密度阈值：>此值认为有图标轮廓
+    bar_threshold: int = 205  # 等级条白色均值阈值：>=此值认为有白色等级条
 
     def col_step(self, roi_w: int) -> float:
         """根据 ROI 宽度和左右 offset 计算列步长。"""

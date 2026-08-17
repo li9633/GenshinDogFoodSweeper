@@ -23,7 +23,7 @@ from backend.models.slot_models import (
     SALVAGE_SLOT_CONFIG,  # noqa: F401
     THREE_STAR_BLUE,  # noqa: F401
     TWO_STAR_GREEN,  # noqa: F401
-    ArtifactRarity,  # noqa: F401
+    ArtifactRarity,
     DetectResult,
     RarityThreshold,  # noqa: F401
     SlotDebugInfo,
@@ -160,18 +160,18 @@ class SlotDetector:
         # === 几何网格 + 多特征融合投票 ===
         # 卡片主体：3特征投票（饱和度 + 灰度标准差 + 边缘密度）
         # 等级条：白色均值（保留原有逻辑）
-        # 综合：卡片投票 >= 2 AND 等级条白色
+        # 综合：卡片投票 >= 1 AND 等级条白色
         SAMPLE_MARGIN = 5
         SAMPLE_W = 10
         CARD_SAMPLE_ABOVE = 15
         CARD_SAMPLE_H = 10
         LVL_MARGIN = 3
-        bar_threshold = 205
 
-        # 多特征融合投票阈值
-        SAT_THRESHOLD = 20  # HSV S通道：>20 表示有颜色（非灰色空格子）
-        STD_THRESHOLD = 15  # 灰度标准差：>15 表示纹理丰富（非纯色背景）
-        EDGE_THRESHOLD = 0.03  # 边缘密度：>3% 表示有图标轮廓
+        # 多特征融合投票阈值（从 config 读取，可通过 SlotDetectorConfig 调参）
+        sat_threshold = config.sat_threshold
+        std_threshold = config.std_threshold
+        edge_threshold = config.edge_threshold
+        bar_threshold = config.bar_threshold
 
         slots: list[tuple[int, int, int, int, int, int]] = []
         debug_infos: list[SlotDebugInfo] = []
@@ -224,14 +224,10 @@ class SlotDetector:
                 edge_r = float(np.count_nonzero(edges_r)) / edges_r.size
                 edge_val = max(edge_l, edge_r)
 
-                # 投票：至少2个特征认为"有圣遗物"
-                votes = 0
-                if sat_val > SAT_THRESHOLD:
-                    votes += 1
-                if std_val > STD_THRESHOLD:
-                    votes += 1
-                if edge_val > EDGE_THRESHOLD:
-                    votes += 1
+                # S/D/E 特征独立判断
+                sat_pass = sat_val > sat_threshold
+                std_pass = std_val > std_threshold
+                edge_pass = edge_val > edge_threshold
 
                 # 卡片区域原始颜色（取左右两侧均值，避免图标位置偏移导致波动）
                 gray_l = float(np.mean(card_l_gray))
@@ -240,6 +236,13 @@ class SlotDetector:
                 bgr_l = np.mean(card_l_bgr, axis=(0, 1))
                 bgr_r = np.mean(card_r_bgr, axis=(0, 1))
                 card_bgr_mean = (bgr_l + bgr_r) / 2
+
+                # H 通道（色相）— 混色下最稳定的颜色特征
+                card_l_hue = hsv[ly1:ly2, lx1:lx2, 0]
+                card_r_hue = hsv[ly1:ly2, rx1:rx2, 0]
+                hue_l = float(np.mean(card_l_hue))
+                hue_r = float(np.mean(card_r_hue))
+                hue_val = (hue_l + hue_r) / 2
 
                 # 等级条检测（保留原有逻辑）
                 bly1 = level_top + LVL_MARGIN
@@ -257,7 +260,11 @@ class SlotDetector:
                 bar_right = float(np.mean(bar_right_region))
                 bar_mean = round(max(bar_left, bar_right))
 
-                # 综合判断：卡片投票 >= 2 AND 等级条白色
+                # 等级条白色特征 + 汇总投票（4维：S/D/E/B，R1灰色靠B区分）
+                bar_pass = bar_mean >= bar_threshold
+                votes = sum([sat_pass, std_pass, edge_pass, bar_pass])
+
+                # 综合判断：卡片投票 >= 1 AND 等级条白色
                 if votes >= 1 and bar_mean >= bar_threshold:
                     sx = offset_x + col_left
                     sy = offset_y + (row_bottom - config.slot_h)
@@ -265,6 +272,7 @@ class SlotDetector:
                     cy = sy + config.slot_h // 2
                     slots.append((cx, cy, sx, sy, config.slot_w, config.slot_h))
 
+                slot_occupied = votes >= 1 and bar_mean >= bar_threshold
                 debug_infos.append(SlotDebugInfo(
                     row=r, col=c,
                     lx=offset_x + col_left + SAMPLE_MARGIN + SAMPLE_W // 2,
@@ -274,6 +282,9 @@ class SlotDetector:
                     sat_val=sat_val, std_val=std_val, edge_val=edge_val,
                     votes=votes, bar_mean=bar_mean,
                     bar_margin=bar_mean - bar_threshold,
+                    hue_val=hue_val,
+                    sat_pass=sat_pass, std_pass=std_pass, edge_pass=edge_pass,
+                    bar_pass=bar_pass,
                     card_gray=card_gray_mean,
                     card_b=int(card_bgr_mean[0]),
                     card_g=int(card_bgr_mean[1]),
@@ -281,7 +292,8 @@ class SlotDetector:
                     rarity=classify_rarity(
                         card_gray_mean, sat_val,
                         int(card_bgr_mean[0]), int(card_bgr_mean[1]), int(card_bgr_mean[2]),
-                    ),
+                        hue_val=hue_val,
+                    ) if slot_occupied else ArtifactRarity.UNKNOWN,
                 ))
 
         bottom_y = offset_y + page_bottom_crop
@@ -391,7 +403,7 @@ class SlotDetector:
                     vote_color = (0, 255, 0) if info.votes >= 1 else (0, 0, 255)
                     cv2.putText(
                         debug,
-                        f"S{info.sat_val:.0f} D{info.std_val:.0f} E{info.edge_val * 100:.0f}% V{info.votes}/3",
+                        f"S{info.sat_val:.0f} D{info.std_val:.0f} E{info.edge_val * 100:.0f}% V{info.votes}/4",
                         (info.lx + 4, info.sly - 4),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.3,
@@ -410,18 +422,21 @@ class SlotDetector:
                         1,
                     )
 
-                    # 原始像素值：灰度 + BGR + 稀有度
+                    # 原始像素值：灰度 + BGR + H + 稀有度
                     cv2.putText(
-                        debug, f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r}) R{info.rarity}",
+                        debug, f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r}) H{info.hue_val:.0f} R{info.rarity}",
                         (info.lx + 4, info.sly + 12),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (200, 200, 200), 1,
                     )
                     log.debug(
                         f"[{info.row},{info.col}] "
-                        f"S{info.sat_val:.0f} D{info.std_val:.0f} "
-                        f"E{info.edge_val * 100:.0f}% V{info.votes}/3 "
-                        f"b{info.bar_mean:.0f}({info.bar_margin:+.0f}) "
+                        f"S{info.sat_val:.0f}{'✓' if info.sat_pass else '✗'}"
+                        f" D{info.std_val:.0f}{'✓' if info.std_pass else '✗'}"
+                        f" E{info.edge_val * 100:.0f}%{'✓' if info.edge_pass else '✗'}"
+                        f" B{info.bar_mean:.0f}{'✓' if info.bar_pass else '✗'}"
+                        f" V{info.votes}/4 "
                         f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r}) "
+                        f"H{info.hue_val:.0f} "
                         f"R{info.rarity}"
                     )
 
