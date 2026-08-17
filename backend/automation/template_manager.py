@@ -19,6 +19,8 @@ import json
 from pathlib import Path
 from typing import ClassVar
 
+from backend.models.template import Template
+
 
 class TemplateManager:
     """游戏 UI 模板管理器"""
@@ -76,6 +78,35 @@ class TemplateManager:
         cls._load()
 
     # ---------- 查询 ----------
+
+    @classmethod
+    def get(cls, key: str) -> Template | None:
+        """根据 display_name 或文件名获取 Template 对象"""
+        entry = cls._find_entry(key)
+        if entry is None:
+            # 回退：直接按文件名在 images/ 下查找
+            direct = cls.IMAGES_DIR / f"{key}.png"
+            if direct.exists():
+                return Template(
+                    display_name=key,
+                    path=direct,
+                    region=None,
+                    stem=direct.stem,
+                )
+            return None
+        filename = entry.get("file")
+        if filename:
+            filepath = cls.TEMPLATES_DIR / str(filename)
+            if not filepath.exists():
+                return None
+            region = entry.get("region")
+            return Template(
+                display_name=str(entry.get("display_name", Path(str(filename)).stem)),
+                path=filepath,
+                region=tuple(region) if region is not None else None,
+                stem=filepath.stem,
+            )
+        return None
 
     @classmethod
     def get_path(cls, key: str) -> Path | None:

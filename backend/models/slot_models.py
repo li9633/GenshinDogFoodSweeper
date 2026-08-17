@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import NamedTuple
 
@@ -48,8 +48,15 @@ class RarityThreshold:
     r_max: int
 
     def matches(
-        self, card_gray: float, sat_val: float, b: int, g: int, r: int,
-        hue_val: float = 0.0, require_hue: bool = True, min_votes: int = 4,
+        self,
+        card_gray: float,
+        sat_val: float,
+        b: int,
+        g: int,
+        r: int,
+        hue_val: float = 0.0,
+        require_hue: bool = True,
+        min_votes: int = 4,
         sat_guard: int = 20,
     ) -> bool:
         """检查给定的卡片颜色是否在此稀有度范围内。
@@ -62,14 +69,16 @@ class RarityThreshold:
         effective_require_hue = require_hue and hue_reliable
         if effective_require_hue and not (self.h_min <= hue_val <= self.h_max):
             return False
-        votes = sum([
-            hue_reliable and self.h_min <= hue_val <= self.h_max,
-            self.gray_min <= card_gray <= self.gray_max,
-            self.sat_min <= sat_val <= self.sat_max,
-            self.b_min <= b <= self.b_max,
-            self.g_min <= g <= self.g_max,
-            self.r_min <= r <= self.r_max,
-        ])
+        votes = sum(
+            [
+                hue_reliable and self.h_min <= hue_val <= self.h_max,
+                self.gray_min <= card_gray <= self.gray_max,
+                self.sat_min <= sat_val <= self.sat_max,
+                self.b_min <= b <= self.b_max,
+                self.g_min <= g <= self.g_max,
+                self.r_min <= r <= self.r_max,
+            ]
+        )
         return votes >= min_votes
 
 
@@ -183,7 +192,16 @@ def classify_rarity(
     if thresholds is None:
         thresholds = ALL_RARITY_THRESHOLDS
     for t in thresholds:
-        if t.matches(card_gray, sat_val, card_b, card_g, card_r, hue_val=hue_val, require_hue=True, min_votes=min_votes):
+        if t.matches(
+            card_gray,
+            sat_val,
+            card_b,
+            card_g,
+            card_r,
+            hue_val=hue_val,
+            require_hue=True,
+            min_votes=min_votes,
+        ):
             return t.rarity
     return ArtifactRarity.UNKNOWN
 
@@ -256,6 +274,20 @@ class SlotDetectorConfig:
     std_threshold: int = 15  # 灰度标准差阈值：>此值认为纹理丰富
     edge_threshold: float = 0.03  # 边缘密度阈值：>此值认为有图标轮廓
     bar_threshold: int = 205  # 等级条白色均值阈值：>=此值认为有白色等级条
+    # 圣遗物详情弹窗 ROI（相对于游戏窗口，用于 OCR 识别）
+    detail_roi_configs: dict[str, tuple[int, int, int, int]] = field(
+        default_factory=lambda: {
+            "圣遗物星级": (1742, 159, 39, 40),
+            "圣遗物名称": (1329, 144, 262, 62),
+            "部位+主词条": (1339, 214, 160, 174),
+        }
+    )
+    # 锁定图标锚点定位（用于兼容自定义圣遗物等 flex 布局变化）
+    # 搜索区域默认从 TemplateManager 获取（templates.json），仅需覆盖时配置
+    # 优先匹配解锁状态，失败再匹配锁定状态
+    lock_anchor_search_region: tuple[int, int, int, int] | None = None
+    lock_anchor_to_level: tuple[int, int, int, int] | None = None  # 锁图标→等级 (dx, dy, dw, dh)，flex同行dy≈0
+    lock_anchor_to_sub_stats: tuple[int, int, int, int] | None = None  # 等级→副词条 (dx, dy, dw, dh)，相对等级区域
 
     def col_step(self, roi_w: int) -> float:
         """根据 ROI 宽度和左右 offset 计算列步长。"""
@@ -286,9 +318,15 @@ class SlotDetectorConfig:
 # === 预定义配置实例 ===
 
 # 背包圣遗物列表格子配置
-BAG_SLOT_CONFIG = SlotDetectorConfig(name="背包圣遗物列表", roi=(118, 193, 1170, 810))
+BAG_SLOT_CONFIG = SlotDetectorConfig(
+    name="背包圣遗物列表",
+    roi=(118, 193, 1170, 810),
+    # 锁定图标→等级/副词条 offset（锁定图标与等级flex同行，；副词条从等级向下偏移）
+    lock_anchor_to_level=(-340, 8, 71, 44),
+    lock_anchor_to_sub_stats=(9, 46, 455, 166),
+)
 
-# 分解页面格子配置
+# 分解页面格子配置（详情弹窗 ROI 待校准，当前沿用背包页默认值）
 SALVAGE_SLOT_CONFIG = SlotDetectorConfig(
     name="圣遗物分解",
     roi=(50, 131, 1255, 780),
@@ -300,6 +338,17 @@ SALVAGE_SLOT_CONFIG = SlotDetectorConfig(
     slider_x_offset=8,
     slider_top_offset=2,
     slider_bottom_offset=-22,
+    # 分解页面的详情弹窗 ROI 坐标（锁定状态已改用模板管理器定位）
+    detail_roi_configs={
+        "圣遗物星级": (1825, 163, 25, 33),
+        "圣遗物名称": (1379, 158, 440, 41),
+        "部位+主词条": (1368, 212, 214, 170),
+    },
+    # 锁定图标搜索区域（分解页弹窗右移，实测坐标）
+    lock_anchor_search_region=(1750, 440, 123, 160),
+    # 锁定图标→等级/副词条 offset（分解页弹窗位置不同；副词条从等级计算）
+    lock_anchor_to_level=(-375, 8,71, 44),
+    lock_anchor_to_sub_stats=(9, 46, 455, 166),
 )
 
 # 所有可用配置列表（调试面板下拉切换用）

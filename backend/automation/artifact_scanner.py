@@ -26,7 +26,6 @@ from backend.automation.recognizer import ArtifactRecognizer
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
 from backend.automation.slot_detector import (
-    BAG_SLOT_CONFIG,
     SlotDetector,
     SlotDetectorConfig,
 )
@@ -272,10 +271,6 @@ class FullScanWorker(QThread):
     finished = Signal(int, int)
     errorOccurred = Signal(str)
 
-    ARTIFACTS_PER_PAGE = 32
-    ROWS = 4
-    COLS = 8
-
     def __init__(
         self,
         mouse: MouseController,
@@ -286,7 +281,6 @@ class FullScanWorker(QThread):
         item_w: int,
         item_h: int,
         gap: int,
-        roi_configs: dict,
         anchor_first_x: int,
         anchor_first_y: int,
         anchor_first_w: int,
@@ -307,7 +301,6 @@ class FullScanWorker(QThread):
         self._item_w = item_w
         self._item_h = item_h
         self._gap = gap
-        self._roi_configs = roi_configs
         self._anchor_first_x = anchor_first_x
         self._anchor_first_y = anchor_first_y
         self._anchor_first_w = anchor_first_w
@@ -344,18 +337,24 @@ class FullScanWorker(QThread):
             ocr = OcrEngine._create_paddle_ocr(self._engines_dir)
 
             # Step 1-2: 识别数量 + 计算分页
-            self.stepChanged.emit("正在识别背包圣遗物数量...")
-            count = self._ocr_count(ocr)
-            if self._stop:
-                return
-            if count <= 0:
-                self.errorOccurred.emit("未能识别圣遗物数量，请确认背包界面已打开")
-                return
+            artifacts_per_page = self._slot_config.rows * self._slot_config.cols
+            count = 0
+            if self._slot_config.has_artifact_count:
+                self.stepChanged.emit("正在识别背包圣遗物数量...")
+                count = self._ocr_count(ocr)
+                if self._stop:
+                    return
+                if count <= 0:
+                    self.errorOccurred.emit("未能识别圣遗物数量，请确认背包界面已打开")
+                    return
             total_pages = max(
-                1, (count + self.ARTIFACTS_PER_PAGE - 1) // self.ARTIFACTS_PER_PAGE
-            )
-            self.stepChanged.emit(f"共 {count} 个圣遗物, {total_pages} 页")
-            self.progressChanged.emit(0, count)
+                1, (count + artifacts_per_page - 1) // artifacts_per_page
+            ) if count > 0 else 1
+            if count > 0:
+                self.stepChanged.emit(f"共 {count} 个圣遗物, {total_pages} 页")
+                self.progressChanged.emit(0, count)
+            else:
+                self.stepChanged.emit(f"扫描模式: {self._slot_config.name}")
 
             # Step 3: 滑块到顶部
             self.stepChanged.emit("正在滚动到顶部...")
@@ -391,7 +390,7 @@ class FullScanWorker(QThread):
             if result is None:
                 self.errorOccurred.emit("截图失败")
                 return
-            det_result = SlotDetector.detect(result.image, config=BAG_SLOT_CONFIG)
+            det_result = SlotDetector.detect(result.image, config=self._slot_config)
             if self._stop:
                 return
             if det_result.slots:
@@ -422,7 +421,7 @@ class FullScanWorker(QThread):
                 origin_x=ox, origin_y=oy,
                 margin_x=self._margin_x, margin_y=self._margin_y,
                 item_w=self._item_w, item_h=self._item_h, gap=self._gap,
-                rows=self.ROWS, cols=self.COLS,
+                rows=self._slot_config.rows, cols=self._slot_config.cols,
                 interval_ms=self._click_interval_ms,
             )
 
@@ -480,8 +479,8 @@ class FullScanWorker(QThread):
                     self.artifactScanned.emit(display, info.is_material)
                     self.progressChanged.emit(len(self._results), count)
 
-                    # OCR 数量检查（次要停止条件，兜底安全）
-                    if len(self._results) >= count:
+                    # OCR 数量检查（次要停止条件，兜底安全；仅当有数量时生效）
+                    if count > 0 and len(self._results) >= count:
                         log.info(
                             f"已扫描{len(self._results)}件，达到OCR数量{count}，"
                             f"停止扫描"
@@ -508,12 +507,15 @@ class FullScanWorker(QThread):
 
             # Step 9: 数量对比验证
             scanned = len(self._results)
-            if scanned < count:
+            if count > 0 and scanned < count:
                 log.warning(
                     f"数量不匹配: 背包{count}个, 实际识别{scanned}个, "
                     f"差异{count - scanned}个"
                 )
-            self.stepChanged.emit(f"扫描完成: 背包{count}个, 识别{scanned}个")
+            if count > 0:
+                self.stepChanged.emit(f"扫描完成: 背包{count}个, 识别{scanned}个")
+            else:
+                self.stepChanged.emit(f"扫描完成: 识别{scanned}个")
             self.finished.emit(scanned, count)
 
         except Exception as exc:
@@ -640,8 +642,11 @@ class FullScanWorker(QThread):
             return None
         try:
             return ArtifactRecognizer.recognize(
-                result.image, self._roi_configs, ocr,
+                result.image, self._slot_config.detail_roi_configs, ocr,
                 fields=_SCAN_FIELDS,
+                lock_anchor_search_region=self._slot_config.lock_anchor_search_region,
+                lock_anchor_to_level=self._slot_config.lock_anchor_to_level,
+                lock_anchor_to_sub_stats=self._slot_config.lock_anchor_to_sub_stats,
             )
         except Exception as exc:
             log.error(f"圣遗物识别失败: {exc}")

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,27 +18,19 @@ from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 from utils.logger import log
 
 from backend.automation.recognizer import ArtifactRecognizer
-from backend.automation.roi_config import ANCHOR_ROI_DEFINITIONS
+from backend.models.slot_models import ALL_SLOT_CONFIGS, SlotDetectorConfig
 from backend.utils.screen_capture import CaptureMethod, CaptureResult, ScreenshotCapture
 
 from .image_provider import PreviewImageProvider
 
 
-@dataclass
-class RoiDefinition:
-    """单个 ROI 区域定义 DTO"""
-    name: str
-    dx: int
-    dy: int
-    dw: int
-    dh: int
-
-    def to_dict(self) -> dict:
-        return {"name": self.name, "dx": self.dx, "dy": self.dy, "dw": self.dw, "dh": self.dh}
-
-
 class ArtifactRecognitionPresenter(QObject):
-    """圣遗物识别 Presenter — QML 可绑定"""
+    """圣遗物识别 Presenter — QML 可绑定
+
+    截图 → OCR → Recognizer → 格式化展示。
+    ROI 坐标从当前选中的 SlotDetectorConfig.detail_roi_configs 获取，
+    支持切换配置（背包/分解页面）快速调试。
+    """
 
     # -- 信号 --
     recognitionStarted = Signal()
@@ -49,7 +40,7 @@ class ArtifactRecognitionPresenter(QObject):
     clearPreview = Signal()
     textChanged = Signal()
     recognizingChanged = Signal()
-    roiDefinitionsChanged = Signal()
+    activeConfigChanged = Signal()
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -58,10 +49,9 @@ class ArtifactRecognitionPresenter(QObject):
         self._structured_text = ""
         self._recognizing = False
         self._result_db_empty = False
-        self._roi_definitions: list[RoiDefinition] = [
-            RoiDefinition(name, dx, dy, dw, dh)
-            for name, dx, dy, dw, dh in ANCHOR_ROI_DEFINITIONS
-        ]
+        self._available_configs = list(ALL_SLOT_CONFIGS)
+        self._active_config: SlotDetectorConfig = self._available_configs[0]
+        self._active_config_index = 0
         self._result_timer = QTimer(self)
         self._result_timer.setSingleShot(True)
         self._result_timer.timeout.connect(self._emit_recognition_finished)
@@ -79,18 +69,38 @@ class ArtifactRecognitionPresenter(QObject):
     def recognizing(self) -> bool:
         return self._recognizing
 
-    @Property(list, notify=roiDefinitionsChanged)
-    def roiDefinitions(self) -> list[dict]:
-        return [r.to_dict() for r in self._roi_definitions]
+    # ========== 检测配置切换 ==========
 
-    @Slot(int, int, int, int, int)
-    def updateRoi(self, index: int, x: int, y: int, w: int, h: int) -> None:
-        if 0 <= index < len(self._roi_definitions):
-            r = self._roi_definitions[index]
-            r.dx = x
-            r.dy = y
-            r.dw = w
-            r.dh = h
+    @Property("QVariantList", notify=activeConfigChanged)
+    def availableConfigNames(self) -> list[str]:
+        return [c.name for c in self._available_configs]
+
+    @Property(int, notify=activeConfigChanged)
+    def activeConfigIndex(self) -> int:
+        return self._active_config_index
+
+    @Property(str, notify=activeConfigChanged)
+    def activeConfigName(self) -> str:
+        return self._active_config.name
+
+    @Property(str, notify=activeConfigChanged)
+    def activeConfigDetail(self) -> str:
+        """当前配置摘要：行×列、是否显示数量、格子 ROI"""
+        c = self._active_config
+        roi = c.roi
+        count_info = "有数量" if c.has_artifact_count else "无数量"
+        return (
+            f"格子: {c.rows}行×{c.cols}列 | {count_info}\n"
+            f"格子ROI: ({roi[0]}, {roi[1]}, {roi[2]}×{roi[3]})"
+        )
+
+    @Slot(int)
+    def setActiveConfigByIndex(self, index: int) -> None:
+        if 0 <= index < len(self._available_configs):
+            self._active_config = self._available_configs[index]
+            self._active_config_index = index
+            log.info(f"圣遗物识别配置切换: {self._active_config.name}")
+            self.activeConfigChanged.emit()
 
     # ========== 识别 ==========
 
@@ -102,9 +112,7 @@ class ArtifactRecognitionPresenter(QObject):
         self.recognitionStarted.emit()
 
         try:
-            roi_spins: dict[str, tuple[int, int, int, int]] = {
-                r.name: (r.dx, r.dy, r.dw, r.dh) for r in self._roi_definitions
-            }
+            roi_spins = self._active_config.detail_roi_configs
 
             t_capture = time.perf_counter()
             cap = ScreenshotCapture()
@@ -115,7 +123,11 @@ class ArtifactRecognitionPresenter(QObject):
             )
 
             task_fn = ArtifactRecognitionPresenter.create_recognition_task(
-                self._current_result.image.copy(), roi_spins
+                self._current_result.image.copy(),
+                roi_spins,
+                lock_anchor_search_region=self._active_config.lock_anchor_search_region,
+                lock_anchor_to_level=self._active_config.lock_anchor_to_level,
+                lock_anchor_to_sub_stats=self._active_config.lock_anchor_to_sub_stats,
             )
 
             from backend.automation.ocr_worker import OcrWorker
@@ -178,12 +190,16 @@ class ArtifactRecognitionPresenter(QObject):
     def create_recognition_task(
         image: np.ndarray,
         roi_configs: dict[str, tuple[int, int, int, int]],
+        lock_anchor_search_region: tuple[int, int, int, int] | None = None,
+        lock_anchor_to_level: tuple[int, int, int, int] | None = None,
+        lock_anchor_to_sub_stats: tuple[int, int, int, int] | None = None,
     ) -> Callable[[Any], dict]:
         """创建 OCR 识别任务（在 Worker 线程中执行）。
 
         Args:
             image: 截图 RGB 图像
             roi_configs: {区域名: (x, y, w, h), ...}
+            lock_anchor_*: 锁定图标锚点定位参数，用于调试绘制
 
         Returns:
             callable(ocr_instance) -> dict，包含 ocr_lines / structured_lines /
@@ -194,7 +210,12 @@ class ArtifactRecognitionPresenter(QObject):
             t0 = time.perf_counter()
             db_empty = ArtifactRecognizer.is_db_empty()
 
-            artifact = ArtifactRecognizer.recognize(image, roi_configs, ocr)
+            artifact = ArtifactRecognizer.recognize(
+                image, roi_configs, ocr,
+                lock_anchor_search_region=lock_anchor_search_region,
+                lock_anchor_to_level=lock_anchor_to_level,
+                lock_anchor_to_sub_stats=lock_anchor_to_sub_stats,
+            )
 
             t_build = time.perf_counter()
             display = CaptureResult(
@@ -206,7 +227,10 @@ class ArtifactRecognitionPresenter(QObject):
             )
 
             result = ArtifactRecognitionPresenter._build_display_result(
-                artifact, roi_configs, display, t0, db_empty
+                artifact, roi_configs, display, t0, db_empty,
+                lock_anchor_search_region=lock_anchor_search_region,
+                lock_anchor_to_level=lock_anchor_to_level,
+                lock_anchor_to_sub_stats=lock_anchor_to_sub_stats,
             )
             log.debug(
                 f"[耗时] 展示结果构建: {(time.perf_counter() - t_build) * 1000:.1f}ms"
@@ -227,12 +251,34 @@ class ArtifactRecognitionPresenter(QObject):
     # ========== 展示结果构建 ==========
 
     @staticmethod
+    def _draw_dashed_rect(
+        img: np.ndarray,
+        x: int, y: int, w: int, h: int,
+        color: tuple[int, int, int],
+        dash: int = 8,
+    ) -> None:
+        """在 BGR 图像上绘制虚线矩形框。"""
+        for i in range(0, w, dash * 2):
+            x1 = x + i
+            x2 = min(x + i + dash, x + w)
+            cv2.line(img, (x1, y), (x2, y), color, 1)
+            cv2.line(img, (x1, y + h), (x2, y + h), color, 1)
+        for i in range(0, h, dash * 2):
+            y1 = y + i
+            y2 = min(y + i + dash, y + h)
+            cv2.line(img, (x, y1), (x, y2), color, 1)
+            cv2.line(img, (x + w, y1), (x + w, y2), color, 1)
+
+    @staticmethod
     def _build_display_result(
         artifact,
         roi_spins: dict[str, tuple[int, int, int, int]],
         display,
         t0: float,
         db_empty: bool,
+        lock_anchor_search_region: tuple[int, int, int, int] | None = None,
+        lock_anchor_to_level: tuple[int, int, int, int] | None = None,
+        lock_anchor_to_sub_stats: tuple[int, int, int, int] | None = None,
     ) -> dict:
         lines: list[str] = []
         if db_empty:
@@ -281,6 +327,62 @@ class ArtifactRecognitionPresenter(QObject):
                 bgr = (0, 255, 0) if has_match else (255, 165, 0)
                 draw.text((x, y - 6), name, font=font, fill=bgr[::-1])
             img_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+
+        # 锁定图标锚点调试：画搜索区域、锁位置、偏移ROI、连线
+        if lock_anchor_to_level is not None or lock_anchor_to_sub_stats is not None:
+            # 搜索区域（黄色虚线框）—— 始终绘制，方便直观看到模板匹配的搜索范围
+            from backend.automation.template_manager import TemplateManager
+
+            sr_template = TemplateManager.get("圣遗物状态已解锁")
+            sr = lock_anchor_search_region or (sr_template.region if sr_template else None)
+            if sr:
+                sx, sy, sw, sh = sr
+                ArtifactRecognitionPresenter._draw_dashed_rect(
+                    img_bgr, sx, sy, sw, sh, (0, 255, 255), dash=8
+                )
+                # 搜索区域标签
+                if font:
+                    draw.text((sx, sy - 6), "锁搜索区", font=font, fill=(0, 255, 255))
+
+            lock_pos = ArtifactRecognizer.find_lock_icon_position(
+                display.image, lock_anchor_search_region
+            )
+            if lock_pos is not None:
+                lx, ly = lock_pos
+                # 锁定图标位置（红色十字，画在匹配区域中心）
+                # 蓝色矩形框：标记模板匹配返回的实际锁图标尺寸
+                lock_cx = lock_cy = 0
+                for key in ("圣遗物状态已解锁", "圣遗物状态已锁定"):
+                    t = TemplateManager.get(key)
+                    if t:
+                        tmpl = cv2.imread(str(t.path))
+                        if tmpl is not None:
+                            th, tw = tmpl.shape[:2]
+                            cv2.rectangle(
+                                img_bgr,
+                                (lx, ly),
+                                (lx + tw, ly + th),
+                                (255, 0, 0), 2,
+                            )
+                            lock_cx = lx + tw // 2
+                            lock_cy = ly + th // 2
+                            break
+                cv2.drawMarker(img_bgr, (lock_cx, lock_cy), (0, 0, 255), cv2.MARKER_CROSS, 12, 2)
+                # 偏移ROI（绿色实线框）
+                if lock_anchor_to_level is not None:
+                    dx, dy, dw, dh = lock_anchor_to_level
+                    cv2.rectangle(img_bgr, (lx + dx, ly + dy), (lx + dx + dw, ly + dy + dh), (0, 255, 0), 2)
+                    # 锁→等级 连线
+                    cv2.line(img_bgr, (lock_cx, lock_cy), (lx + dx + dw // 2, ly + dy + dh // 2), (0, 0, 255), 1)
+                if lock_anchor_to_sub_stats is not None:
+                    dx, dy, dw, dh = lock_anchor_to_sub_stats
+                    lvl_x, lvl_y = roi_spins.get("圣遗物等级", (lx, ly))[:2]
+                    sx, sy = lvl_x + dx, lvl_y + dy
+                    cv2.rectangle(img_bgr, (sx, sy), (sx + dw, sy + dh), (0, 255, 0), 2)
+                    # 等级→副词条 连线
+                    cv2.line(img_bgr, (lvl_x + roi_spins["圣遗物等级"][2] // 2, lvl_y + roi_spins["圣遗物等级"][3]),
+                             (sx + dw // 2, sy), (255, 0, 0), 1)
+
         display.image = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         log.debug(
             f"[耗时] 绘制标注框: {(time.perf_counter() - t_draw) * 1000:.1f}ms"

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, Signal
-from PySide6.QtGui import QMouseEvent, QPixmap, QWheelEvent
+from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -50,6 +50,47 @@ class CapturePreviewWidget(QWidget):
         self._current_pixmap = None
         self._image_label.clear()
         self._label_info.setText("等待截图…")
+
+    def draw_debug_overlay(
+        self,
+        rects: list[tuple[int, int, int, int, str, str]] | None = None,
+        lines: list[tuple[int, int, int, int, str]] | None = None,
+    ) -> None:
+        """在当前预览图上绘制调试标注（矩形 + 线段 + 标签）。
+
+        用于调试锁定图标锚点定位、搜索区域、offset 计算结果等。
+
+        Args:
+            rects: [(x, y, w, h, color_hex, label), ...]  color_hex 如 "#00FF00"
+            lines: [(x1, y1, x2, y2, color_hex), ...]  线段
+        """
+        if self._current_pixmap is None:
+            return
+        pixmap = self._current_pixmap.copy()
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        if rects:
+            for x, y, w, h, color_hex, label in rects:
+                color = QColor(color_hex)
+                pen = QPen(color, 2)
+                pen.setStyle(Qt.PenStyle.DashLine)
+                painter.setPen(pen)
+                painter.drawRect(x, y, w, h)
+                if label:
+                    painter.setPen(QColor(color_hex))
+                    painter.drawText(x + 4, y - 4, label)
+
+        if lines:
+            for x1, y1, x2, y2, color_hex in lines:
+                pen = QPen(QColor(color_hex), 1)
+                pen.setStyle(Qt.PenStyle.DotLine)
+                painter.setPen(pen)
+                painter.drawLine(x1, y1, x2, y2)
+
+        painter.end()
+        self._current_pixmap = pixmap
+        self._update_display()
 
     def set_selection_mode(self, enabled: bool) -> None:
         """启用/禁用鼠标拖拽选区模式"""

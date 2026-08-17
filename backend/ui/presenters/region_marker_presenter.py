@@ -197,6 +197,27 @@ class RegionMarkerPresenter(QObject):
         log.info(f"已复制坐标到剪贴板: {text}")
 
     @Slot()
+    def pasteCoords(self) -> None:
+        """从剪贴板导入坐标（格式: x,y,w,h）"""
+        raw = QApplication.clipboard().text().strip()
+        if not raw:
+            self.errorOccurred.emit("剪贴板为空")
+            return
+        parts = raw.split(",")
+        if len(parts) < 4:
+            self.errorOccurred.emit(f"剪贴板格式无效: {raw}（需要 x,y,w,h）")
+            return
+        try:
+            x = int(parts[0].strip())
+            y = int(parts[1].strip())
+            w = int(parts[2].strip())
+            h = int(parts[3].strip())
+            self.setCoords(x, y, w, h)
+            log.info(f"已从剪贴板导入坐标: {self.coordsText}")
+        except ValueError:
+            self.errorOccurred.emit(f"剪贴板坐标解析失败: {raw}")
+
+    @Slot()
     def clear(self) -> None:
         """清除预览"""
         self._last_capture = None

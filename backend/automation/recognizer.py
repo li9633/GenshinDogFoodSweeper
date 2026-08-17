@@ -15,6 +15,7 @@ from backend.automation.template_manager import TemplateManager
 from backend.automation.template_matcher import multi_scale_match
 from backend.models.artifact import ArtifactInfo
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
+from backend.models.template import Template
 
 
 class ArtifactRecognizer:
@@ -163,51 +164,98 @@ class ArtifactRecognizer:
     # ---------- 锁定状态 ----------
 
     @staticmethod
-    def match_lock_status(full_image: np.ndarray) -> bool | None:
-        """用模板匹配检测锁定状态。
+    def match_lock_status(
+        full_image: np.ndarray,
+        search_region: tuple[int, int, int, int] | None = None,
+    ) -> bool | None:
+        """通过模板匹配判断圣遗物锁定状态。
 
-        使用 templates.json 中每个模板的专属 region 裁剪截图，
-        再在裁剪区域内做多尺度模板匹配，对比锁/解锁得分。
+        搜索区域默认从 TemplateManager 获取（templates.json），
+        search_region 参数仅用于覆盖（如分解页面弹窗位置不同）。
+
+        Args:
+            full_image: RGB 截图
+            search_region: 搜索区域覆盖 (x, y, w, h)，None 则使用模板默认区域
+
+        Returns:
+            True=已锁, False=未锁, None=无法判断
         """
-        locked_path = TemplateManager.get_path("圣遗物状态已锁定")
-        unlocked_path = TemplateManager.get_path("圣遗物状态已解锁")
-        if locked_path is None or unlocked_path is None:
+        locked = TemplateManager.get("圣遗物状态已锁定")
+        unlocked = TemplateManager.get("圣遗物状态已解锁")
+        if locked is None or unlocked is None:
             return None
 
-        locked_region = TemplateManager.get_region("圣遗物状态已锁定")
-        unlocked_region = TemplateManager.get_region("圣遗物状态已解锁")
+        locked_region = search_region if search_region is not None else locked.region
+        unlocked_region = search_region if search_region is not None else unlocked.region
 
         full_gray = cv2.cvtColor(full_image, cv2.COLOR_RGB2GRAY)
 
         def _match(
-            template_path: Path, region: tuple[int, int, int, int] | None
+            template: Template, region: tuple[int, int, int, int] | None
         ) -> float:
-            tmpl = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
-            if tmpl is None:
-                return -1.0
             if region:
                 rx, ry, rw, rh = region
                 search_area = full_gray[ry : ry + rh, rx : rx + rw]
-                if (
-                    search_area.size == 0
-                    or search_area.shape[0] < tmpl.shape[0]
-                    or search_area.shape[1] < tmpl.shape[1]
-                ):
+                if search_area.size == 0:
                     return -1.0
             else:
                 search_area = full_gray
-            best, _, _, _ = multi_scale_match(search_area, tmpl)
+            best, _, _, _ = multi_scale_match(search_area, template)
             return best
 
-        locked_score = _match(locked_path, locked_region)
-        unlocked_score = _match(unlocked_path, unlocked_region)
+        locked_score = _match(locked, locked_region)
+        unlocked_score = _match(unlocked, unlocked_region)
 
         if locked_score < 0 and unlocked_score < 0:
             return None
-        if locked_score > unlocked_score and locked_score > 0.6:
+        if locked_score > unlocked_score and locked_score > 0.8:
             return True
-        if unlocked_score > locked_score and unlocked_score > 0.6:
+        if unlocked_score > locked_score and unlocked_score > 0.8:
             return False
+        return None
+
+    @staticmethod
+    def find_lock_icon_position(
+        full_image: np.ndarray,
+        search_region: tuple[int, int, int, int] | None = None,
+    ) -> tuple[int, int] | None:
+        """通过模板匹配找到锁定图标在 detail 弹窗中的位置。
+
+        优先匹配「解锁」状态（大部分圣遗物都是解锁的），
+        失败后再匹配「锁定」状态，任一命中即返回。
+
+        搜索区域默认从 TemplateManager 获取（已在 templates.json 中定义），
+        search_region 参数仅用于覆盖（如分解页面弹窗位置不同）。
+
+        Args:
+            full_image: RGB 截图
+            search_region: 搜索区域覆盖 (x, y, w, h)，None 则使用模板默认区域
+
+        Returns:
+            (x, y) 匹配区域的左上角绝对坐标，未找到返回 None
+        """
+        full_gray = cv2.cvtColor(full_image, cv2.COLOR_RGB2GRAY)
+
+        # 优先匹配解锁（大部分圣遗物），失败再匹配锁定
+        for key in ("圣遗物状态已解锁", "圣遗物状态已锁定"):
+            template = TemplateManager.get(key)
+            if template is None:
+                continue
+
+            region = search_region if search_region is not None else template.region
+            if region is None:
+                continue
+            rx, ry, rw, rh = region
+            if rx < 0 or ry < 0 or rx + rw > full_gray.shape[1] or ry + rh > full_gray.shape[0]:
+                continue
+
+            search_area = full_gray[ry : ry + rh, rx : rx + rw]
+            score, loc, _scale, (tw, th) = multi_scale_match(search_area, template)
+            if score >= 0.8:
+                x = rx + loc[0]
+                y = ry + loc[1]
+                return (x, y)
+
         return None
 
     # ---------- 完整识别流水线 ----------
@@ -218,6 +266,10 @@ class ArtifactRecognizer:
         roi_configs: dict[str, tuple[int, int, int, int]],
         ocr,
         fields: frozenset[ArtifactRecognitionField] | None = None,
+        *,
+        lock_anchor_search_region: tuple[int, int, int, int] | None = None,
+        lock_anchor_to_level: tuple[int, int, int, int] | None = None,
+        lock_anchor_to_sub_stats: tuple[int, int, int, int] | None = None,
     ) -> ArtifactInfo:
         """执行完整圣遗物识别流程：OCR → 匹配 → 解析 → 返回 ArtifactInfo
 
@@ -250,6 +302,23 @@ class ArtifactRecognizer:
         need_level = is_all or ArtifactRecognitionField.LEVEL in fields
         need_rarity = is_all or ArtifactRecognitionField.RARITY in fields
         need_lock = is_all or ArtifactRecognitionField.LOCK_STATUS in fields
+
+        # 锁定图标锚点定位：通过模板匹配找到锁定图标，动态计算等级/副词条 ROI
+        # 用于兼容自定义圣遗物等 flex 布局导致的区域偏移
+        # 优先匹配解锁（大部分圣遗物），失败再匹配锁定
+        if lock_anchor_to_level is not None or lock_anchor_to_sub_stats is not None:
+            lock_pos = ArtifactRecognizer.find_lock_icon_position(
+                image, lock_anchor_search_region
+            )
+            if lock_pos is not None:
+                lx, ly = lock_pos
+                if lock_anchor_to_level is not None:
+                    dx, dy, dw, dh = lock_anchor_to_level
+                    roi_configs["圣遗物等级"] = (lx + dx, ly + dy, dw, dh)
+                if lock_anchor_to_sub_stats is not None:
+                    dx, dy, dw, dh = lock_anchor_to_sub_stats
+                    lvl_x, lvl_y = roi_configs["圣遗物等级"][:2]
+                    roi_configs["副词条区"] = (lvl_x + dx, lvl_y + dy, dw, dh)
 
         ocr_texts: dict[str, list[str]] = {}
         matched_set_name: str | None = None
@@ -392,11 +461,13 @@ class ArtifactRecognizer:
             f"(结果={matched_rarity})"
         )
 
-        # 锁定状态
+        # 锁定状态（模板匹配，搜索区域默认从 TemplateManager 获取）
         t_lock = time.perf_counter()
-        lock_status = (
-            ArtifactRecognizer.match_lock_status(image) if need_lock else None
-        )
+        lock_status = None
+        if need_lock:
+            lock_status = ArtifactRecognizer.match_lock_status(
+                image, lock_anchor_search_region
+            )
         log.debug(
             f"[耗时] 锁定检测: {(time.perf_counter() - t_lock) * 1000:.1f}ms "
             f"(结果={lock_status})"

@@ -691,10 +691,6 @@ class ArtifactScanPresenter(QObject):
             log.warning("未检测到原神窗口")
             return
 
-        roi_configs = {
-            name: (dx, dy, dw, dh)
-            for name, dx, dy, dw, dh in ANCHOR_ROI_DEFINITIONS
-        }
         engines_dir = Path(__file__).resolve().parents[3] / "engines"
 
         self._full_scan_results = []
@@ -707,7 +703,6 @@ class ArtifactScanPresenter(QObject):
             item_w=item_w,
             item_h=item_h,
             gap=gap,
-            roi_configs=roi_configs,
             anchor_first_x=self._anchor_first_x or 118,
             anchor_first_y=self._anchor_first_y or 189,
             anchor_first_w=self._anchor_first_w or item_w,

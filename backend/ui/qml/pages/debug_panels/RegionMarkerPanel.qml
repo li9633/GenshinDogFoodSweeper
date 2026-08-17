@@ -43,10 +43,18 @@ Rectangle {
                         GSpinBox { id: spinH; from: 1; to: 9999; value: RegionMarker.regionH }
                     }
 
-                    GButton {
-                        text: "复制坐标到剪贴板"
-                        colorType: "default"
-                        onClicked: RegionMarker.copyCoords()
+                    RowLayout {
+                        spacing: 4
+                        GButton {
+                            text: "复制坐标到剪贴板"
+                            colorType: "default"
+                            onClicked: RegionMarker.copyCoords()
+                        }
+                        GButton {
+                            text: "从剪贴板导入"
+                            colorType: "default"
+                            onClicked: RegionMarker.pasteCoords()
+                        }
                     }
                 }
             }
@@ -110,12 +118,14 @@ Rectangle {
                         radius: 4
                     }
 
-                    Text {
+                    TextEdit {
                         id: colorInfo
                         text: "点击按钮提取区域颜色"
                         font.family: Theme.fontFamily
                         font.pixelSize: 13
                         color: Theme.textSecondary
+                        readOnly: true
+                        selectByMouse: true
                         Layout.fillWidth: true
                     }
                 }

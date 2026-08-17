@@ -2,22 +2,12 @@
   {
     "file": "images/backpack.png",
     "display_name": "背包图标",
-    "region": [
-      48,
-      47,
-      73,
-      67
-    ]
+    "region": [48, 47, 73, 67]
   },
   {
     "file": "images/discard.png",
     "display_name": "丢弃按钮",
-    "region": [
-      36,
-      996,
-      93,
-      99
-    ]
+    "region": [36, 996, 93, 99]
   },
   {
     "file": "images/close.png",
@@ -27,51 +17,26 @@
   {
     "file": "images/artifact_text.png",
     "display_name": "圣遗物文本",
-    "region": [
-      140,
-      52,
-      120,
-      50
-    ]
+    "region": [140, 52, 120, 50]
   },
   {
     "display_name": "分解按钮",
     "file": "images/decompose_button.png",
-    "region": [
-      543,
-      1008,
-      247,
-      79
-    ]
+    "region": [543, 1008, 247, 79]
   },
   {
     "display_name": "圣遗物状态已解锁",
     "file": "images/artifact_status_unlock.png",
-    "region": [
-      1677,
-      442,
-      55,
-      62
-    ]
+    "region": [1672, 434, 126, 152]
   },
   {
     "display_name": "圣遗物状态已锁定",
     "file": "images/artifact_status_locked.png",
-    "region": [
-      1679,
-      439,
-      53,
-      67
-    ]
+    "region": [1672, 434, 126, 152]
   },
   {
     "display_name": "背包滚动条滑块",
     "file": "images/backpack_scrollbar_thumb.png",
-    "region": [
-      1290,
-      201,
-      17,
-      707
-    ]
+    "region": [1290, 201, 17, 707]
   }
 ]

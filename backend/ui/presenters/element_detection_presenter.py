@@ -135,11 +135,10 @@ class ElementDetectionPresenter(QObject):
     @Slot(str)
     def selectTemplate(self, key: str) -> None:
         """用户选中模板 → 加载预览图 + 区域信息"""
-        region = TemplateManager.get_region(key)
-        path = TemplateManager.get_path(key)
-        preview_path = str(path) if path else ""
-        if region:
-            rx, ry, rw, rh = region
+        template = TemplateManager.get(key)
+        preview_path = str(template.path) if template else ""
+        if template and template.region:
+            rx, ry, rw, rh = template.region
             self.templateSelected.emit(key, preview_path, rx, ry, rw, rh, True)
         else:
             self.templateSelected.emit(key, preview_path, 0, 0, 0, 0, False)
@@ -240,19 +239,11 @@ class ElementDetectionPresenter(QObject):
             last_matches: list[tuple[str, int, int, int, int]] = []
 
             for template_key, threshold, region in conds:
-                template_path = TemplateManager.get_path(template_key)
-                if template_path is None:
+                template = TemplateManager.get(template_key)
+                if template is None:
                     detail_parts.append(f"✗ {template_key}: 文件不存在")
                     all_passed = False
                     continue
-
-                template = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
-                if template is None:
-                    detail_parts.append(f"✗ {template_key}: 加载失败")
-                    all_passed = False
-                    continue
-
-                _orig_th, _orig_tw = template.shape
 
                 if region:
                     rx, ry, rw, rh = region
