@@ -28,7 +28,7 @@ Rectangle {
                 btnColor: modelData.btnColor
                 implicitWidth: 100
                 implicitHeight: 32
-                onClicked: StatusBarTest.testLog(modelData.level)
+                onClicked: StatusBarPresenter.testLog(modelData.level)
             }
         }
     }

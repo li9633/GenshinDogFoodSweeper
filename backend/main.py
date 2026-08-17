@@ -108,16 +108,6 @@ def main():
         log.error(f"ArtifactRecognition 初始化失败: {exc}")
 
     try:
-        from ui.pages.debug_panels.status_bar_test_panel import StatusBarTestPresenter
-
-        status_bar_test = StatusBarTestPresenter()
-        engine.rootContext().setContextProperty("StatusBarTest", status_bar_test)
-        log.debug("StatusBarTest 注册成功")
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"StatusBarTest 初始化失败: {exc}")
-
-    try:
         from ui.presenters.status_bar_presenter import StatusBarPresenter
         from utils.log_bridge import set_status_callback
 

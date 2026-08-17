@@ -61,6 +61,23 @@ class StatusBarPresenter(QObject):
         """
         self._signal.emit(level, message, duration)
 
+    @Slot(str)
+    def testLog(self, level: str) -> None:
+        """调试面板：通过 log.xxx 发送消息，测试完整的日志桥接链路"""
+        from utils.logger import log
+
+        msg = f"[调试] 状态栏颜色测试 — {level}"
+        if level == "SUCCESS":
+            log.success(msg)
+        elif level == "WARNING":
+            log.warning(msg)
+        elif level == "ERROR":
+            log.error(msg)
+        elif level == "CRITICAL":
+            log.critical(msg)
+        else:
+            log.info(msg)
+
     @Slot()
     def dismiss(self) -> None:
         """QML 调用：手动关闭状态栏"""
