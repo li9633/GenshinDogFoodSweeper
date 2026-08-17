@@ -320,6 +320,8 @@ class FullScanWorker(QThread):
         self._click_interval_ms = click_interval_ms
         self._stop = False
         self._results: list[ArtifactInfo] = []
+        self._tail_info: ArtifactInfo | None = None
+        self._tail_is_material: bool = False
         self._win = WindowHelper(self._capture, self._mouse)
         self._slider_scroller = SliderScroller(
             self._mouse, self._capture, self._win, self._slot_config,
@@ -403,6 +405,8 @@ class FullScanWorker(QThread):
                     display = AnchorLocator.format_artifact_short(tail_info)
                     self.stepChanged.emit(f"尾锚点: {display}")
                     log.info(f"尾锚点识别: {display}")
+                    self._tail_info = tail_info
+                    self._tail_is_material = tail_info.is_material
 
             # Step 6: 回到滑块顶部
             self.stepChanged.emit("正在回到顶部...")
@@ -440,10 +444,50 @@ class FullScanWorker(QThread):
                     return True
                 info = self._recognize_current_artifact(ocr)
                 if info:
+                    from backend.utils.artifact_deduplicator import (
+                        ArtifactDeduplicator,
+                    )
+                    # 去重检查
+                    if any(
+                        ArtifactDeduplicator.is_duplicate(info, existing)
+                        for existing in self._results
+                    ):
+                        log.debug(
+                            f"跳过重复圣遗物: "
+                            f"{AnchorLocator.format_artifact_short(info)}"
+                        )
+                        return True
+
+                    # 尾锚点检查：扫描到尾部标记 → 停止
+                    if self._tail_info and ArtifactDeduplicator.is_duplicate(
+                        info, self._tail_info
+                    ):
+                        if self._tail_is_material:
+                            log.info("扫描到尾锚点(强化材料)，停止扫描")
+                            self._stop = True
+                            return False
+                        else:
+                            self._results.append(info)
+                            display = AnchorLocator.format_artifact_short(info)
+                            self.artifactScanned.emit(display, info.is_material)
+                            self.progressChanged.emit(len(self._results), count)
+                            log.info("扫描到尾锚点(圣遗物)，停止扫描")
+                            self._stop = True
+                            return False
+
                     self._results.append(info)
                     display = AnchorLocator.format_artifact_short(info)
                     self.artifactScanned.emit(display, info.is_material)
                     self.progressChanged.emit(len(self._results), count)
+
+                    # OCR 数量检查（次要停止条件，兜底安全）
+                    if len(self._results) >= count:
+                        log.info(
+                            f"已扫描{len(self._results)}件，达到OCR数量{count}，"
+                            f"停止扫描"
+                        )
+                        self._stop = True
+                        return False
                 return True
 
             for page in range(total_pages):
