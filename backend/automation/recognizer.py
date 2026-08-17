@@ -250,7 +250,7 @@ class ArtifactRecognizer:
                 continue
 
             search_area = full_gray[ry : ry + rh, rx : rx + rw]
-            score, loc, _scale, (tw, th) = multi_scale_match(search_area, template)
+            score, loc, _scale, (_tw, _th) = multi_scale_match(search_area, template)
             if score >= 0.8:
                 x = rx + loc[0]
                 y = ry + loc[1]

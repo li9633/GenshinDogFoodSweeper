@@ -289,8 +289,7 @@ class ElementDetectionPresenter(QObject):
 
             self._last_matches = last_matches
 
-            # 保存结果图（内存缓存，零 IO）
-            PreviewImageProvider.put("detection", result.image)
+            key = PreviewImageProvider.put("detection", result.image)
 
             summary = f"{'✓ 全部通过' if all_passed else '✗ 未通过'} ({passed_count}/{total}, {elapsed:.0f}ms)"
             detail_text = summary + "\n" + "\n".join(detail_parts)
@@ -300,7 +299,7 @@ class ElementDetectionPresenter(QObject):
             else:
                 log.warning(summary + " | " + " | ".join(detail_parts))
 
-            self.detectionFinished.emit(all_passed, detail_text, "detection")
+            self.detectionFinished.emit(all_passed, detail_text, key)
 
         except Exception as exc:
             self.errorOccurred.emit(str(exc))

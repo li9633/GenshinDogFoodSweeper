@@ -114,13 +114,11 @@ Rectangle {
         target: RegionMarker
 
         function onCaptureFinished(key, x, y, w, h) {
-            preview.source = "image://preview/" + key
-            preview.infoText = "标记区域 (" + x + "," + y + "," + w + "x" + h + ")"
+            preview.displayImage(key, "标记区域 (" + x + "," + y + "," + w + "x" + h + ")")
             tabBar.currentIndex = 0
         }
          function onClearPreview() {
-            preview.source = ""
-            preview.infoText = "等待截图…"
+            preview.clear()
         }
     }
 
@@ -128,8 +126,7 @@ Rectangle {
         target: ElementDetection
 
         function onDetectionFinished(allPassed, detailText, key) {
-            preview.source = "image://preview/" + key
-            preview.infoText = allPassed ? "✓ 全部通过" : "✗ 未通过"
+            preview.displayImage(key, allPassed ? "✓ 全部通过" : "✗ 未通过")
             tabBar.currentIndex = 1
         }
     }
@@ -138,14 +135,12 @@ Rectangle {
         target: ArtifactRecognition
 
         function onRecognitionFinished(ocrText, structuredText, key) {
-            preview.source = "image://preview/" + key
-            preview.infoText = "识别完成"
+            preview.displayImage(key, "识别完成")
             tabBar.currentIndex = 2
         }
 
         function onClearPreview() {
-            preview.source = ""
-            preview.infoText = "等待截图…"
+            preview.clear()
         }
     }
 
@@ -153,9 +148,7 @@ Rectangle {
         target: ArtifactScan
 
         function onDebugPreviewReady(key) {
-            preview.source = ""
-            preview.source = "image://preview/" + key
-            preview.infoText = "灰度检测调试预览"
+            preview.displayImage(key, "灰度检测调试预览")
         }
     }
 }

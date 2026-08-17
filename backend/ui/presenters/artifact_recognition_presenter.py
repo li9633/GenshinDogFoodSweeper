@@ -44,11 +44,12 @@ class ArtifactRecognitionPresenter(QObject):
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._current_result: CaptureResult | None = None
+        self._current_result = None
         self._ocr_text = ""
         self._structured_text = ""
         self._recognizing = False
         self._result_db_empty = False
+        self._last_preview_key = "artifact"
         self._available_configs = list(ALL_SLOT_CONFIGS)
         self._active_config: SlotDetectorConfig = self._available_configs[0]
         self._active_config_index = 0
@@ -157,7 +158,7 @@ class ArtifactRecognitionPresenter(QObject):
         self._structured_text = "\n".join(data["structured_lines"])
         self.textChanged.emit()
 
-        PreviewImageProvider.put("artifact", data["display_result"].image)
+        self._last_preview_key = PreviewImageProvider.put("artifact", data["display_result"].image)
 
         elapsed = data.get("elapsed_ms", 0)
         log.info(f"圣遗物识别完成 ({elapsed:.0f}ms)")
@@ -174,7 +175,7 @@ class ArtifactRecognitionPresenter(QObject):
         self.recognitionFinished.emit(
             self._ocr_text,
             self._structured_text,
-            "artifact",
+            self._last_preview_key,
             self._result_db_empty,
         )
 

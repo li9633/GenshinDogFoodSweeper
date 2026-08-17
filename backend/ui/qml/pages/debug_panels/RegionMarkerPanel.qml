@@ -75,7 +75,6 @@ Rectangle {
                         enabled: !RegionMarker.marking
                         onClicked: {
                             RegionMarker.setCoords(spinX.value, spinY.value, spinW.value, spinH.value);
-                            RegionMarker.clear();
                             RegionMarker.mark();
                         }
                     }

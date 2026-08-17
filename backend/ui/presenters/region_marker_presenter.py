@@ -135,8 +135,8 @@ class RegionMarkerPresenter(QObject):
             result = _capture()
             self._last_capture = result
             marked = _mark_region(result, self._x, self._y, self._w, self._h)
-            PreviewImageProvider.put("region", marked.image)
-            self.captureFinished.emit("region", self._x, self._y, self._w, self._h)
+            key = PreviewImageProvider.put("region", marked.image)
+            self.captureFinished.emit(key, self._x, self._y, self._w, self._h)
             elapsed = (time.perf_counter() - t0) * 1000
             log.info(f"区域标记完成 ({elapsed:.0f}ms)")
         except Exception as exc:

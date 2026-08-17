@@ -40,6 +40,26 @@ Rectangle {
         root.infoText = "等待截图…";
     }
 
+    // 统一设置预览图：保存当前滚动位置，设新 URL 后等待 Image 加载完成再恢复
+    function displayImage(key, text) {
+        scrollRestoreTimer.cx = flickable.contentX;
+        scrollRestoreTimer.cy = flickable.contentY;
+        root.source = "image://preview/" + key;
+        root.infoText = text;
+    }
+
+    Timer {
+        id: scrollRestoreTimer
+        interval: 0
+        repeat: false
+        property real cx: 0
+        property real cy: 0
+        onTriggered: {
+            flickable.contentX = cx;
+            flickable.contentY = cy;
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -153,6 +173,11 @@ Rectangle {
                     fillMode: Image.PreserveAspectFit
                     width: root.fitToView ? flickable.width : implicitWidth * root.zoomFactor
                     height: root.fitToView ? flickable.height : implicitHeight * root.zoomFactor
+
+                    onStatusChanged: {
+                        if (status === Image.Ready)
+                            scrollRestoreTimer.start()
+                    }
 
                     // 选区拖拽
                     MouseArea {

@@ -913,8 +913,8 @@ class ArtifactScanPresenter(QObject):
             region_w, region_h, slider_y, label, best_ratio, best_y,
         )
         key = "slider_debug"
-        PreviewImageProvider.put(key, debug_rgb)
-        self.debugPreviewReady.emit(key)
+        vkey = PreviewImageProvider.put(key, debug_rgb)
+        self.debugPreviewReady.emit(vkey)
 
     @Slot()
     def captureGrayscalePreview(self) -> None:
@@ -925,8 +925,8 @@ class ArtifactScanPresenter(QObject):
             return
         debug_rgb = DebugPreview.generate_grayscale(result.image)
         key = "grayscale_snapshot"
-        PreviewImageProvider.put(key, debug_rgb)
-        self.debugPreviewReady.emit(key)
+        vkey = PreviewImageProvider.put(key, debug_rgb)
+        self.debugPreviewReady.emit(vkey)
         log.info(f"灰度截图: {result.image.shape[1]}x{result.image.shape[0]}")
 
     @Slot()
@@ -949,5 +949,5 @@ class ArtifactScanPresenter(QObject):
             debug_infos=det_result.debug_infos,
         )
         key = "slot_debug"
-        PreviewImageProvider.put(key, debug_rgb)
-        self.debugPreviewReady.emit(key)
+        vkey = PreviewImageProvider.put(key, debug_rgb)
+        self.debugPreviewReady.emit(vkey)
