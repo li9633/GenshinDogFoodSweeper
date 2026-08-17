@@ -271,23 +271,68 @@ class ArtifactRecognizer:
         if need_level:
             _ocr_required["圣遗物等级"] = True
 
+        # 收集所有需要 OCR 的 ROI，准备批量处理
+        t_roi_collect = time.perf_counter()
+        ocr_rois: list[tuple[str, np.ndarray]] = []
         for name, (x, y, w, h) in roi_configs.items():
             if not _ocr_required.get(name, False):
                 continue
             roi = image[y : y + h, x : x + w]
             if roi.size == 0:
                 continue
+            ocr_rois.append((name, roi))
+        log.debug(
+            f"[耗时] ROI收集: {(time.perf_counter() - t_roi_collect) * 1000:.1f}ms "
+            f"(共{len(ocr_rois)}个ROI)"
+        )
 
-            ArtifactRecognizer.save_roi_temp(roi, name)
-            ocr_result = ocr.ocr(roi)
-            texts, _ = ArtifactRecognizer._parse_ocr_result(ocr_result)
-            ocr_texts[name] = texts
+        # Batch OCR：纵向拼接所有 ROI 为一张图，单次 OCR 调用
+        if ocr_rois:
+            t_composite = time.perf_counter()
+            max_w = max(r.shape[1] for _, r in ocr_rois)
+            roi_parts: list[np.ndarray] = []
+            roi_y_ranges: list[tuple[str, int, int]] = []
+            y_cur = 0
+            for name, roi in ocr_rois:
+                h, w = roi.shape[:2]
+                if w < max_w:
+                    pad = np.zeros((h, max_w - w, 3), dtype=np.uint8)
+                    roi = np.hstack([roi, pad])
+                roi_parts.append(roi)
+                roi_y_ranges.append((name, y_cur, y_cur + h))
+                y_cur += h
 
-            if db_empty:
-                continue
+            composite = np.vstack(roi_parts)
+            log.debug(
+                f"[耗时] 图像拼接: {(time.perf_counter() - t_composite) * 1000:.1f}ms "
+                f"(尺寸{composite.shape[1]}x{composite.shape[0]})"
+            )
 
-            if name == "圣遗物名称" and texts:
-                match = ArtifactRecognizer.match_set_name(texts[0])
+            ArtifactRecognizer.save_roi_temp(composite, "batch")
+
+            t_ocr = time.perf_counter()
+            ocr_result = ocr.ocr(composite)
+            log.debug(
+                f"[耗时] OCR推理: {(time.perf_counter() - t_ocr) * 1000:.1f}ms"
+            )
+
+            # 按 Y 坐标拆分 OCR 结果到各 ROI
+            t_split = time.perf_counter()
+            for name, y_start, y_end in roi_y_ranges:
+                texts = ArtifactRecognizer._extract_roi_texts(
+                    ocr_result, y_start, y_end
+                )
+                ocr_texts[name] = texts
+            log.debug(
+                f"[耗时] 文本拆分: {(time.perf_counter() - t_split) * 1000:.1f}ms"
+            )
+
+        # 模糊匹配（与 OCR 解耦，逻辑不变）
+        if not db_empty:
+            t_set_match = time.perf_counter()
+            name_texts = ocr_texts.get("圣遗物名称", [])
+            if name_texts:
+                match = ArtifactRecognizer.match_set_name(name_texts[0])
                 if match:
                     matched_set_name = match[0]
                     matched_set_id = match[1]
@@ -295,12 +340,22 @@ class ArtifactRecognizer:
                     matched_piece_name = match[3]
                     piece_from_set_match = match[2] is not None
                     log.debug(
-                        f"[匹配套装] OCR='{texts[0]}' → set_name='{match[0]}' "
-                        f"set_id={match[1]} piece_type={match[2]} piece_name={match[3]} "
+                        f"[耗时] 套装匹配: {(time.perf_counter() - t_set_match) * 1000:.1f}ms "
+                        f"OCR='{name_texts[0]}' → "
+                        f"set_name='{match[0]}' set_id={match[1]} "
+                        f"piece_type={match[2]} piece_name={match[3]} "
                         f"score={match[4]:.3f}"
                     )
-            elif name == "部位+主词条" and texts and not piece_from_set_match:
-                for t in texts:
+                else:
+                    log.debug(
+                        f"[耗时] 套装匹配: {(time.perf_counter() - t_set_match) * 1000:.1f}ms "
+                        f"(未匹配)"
+                    )
+
+            t_piece_match = time.perf_counter()
+            main_texts_temp = ocr_texts.get("部位+主词条", [])
+            if main_texts_temp and not piece_from_set_match:
+                for t in main_texts_temp:
                     piece = ArtifactRecognizer.match_piece_type(
                         t, set_id=matched_set_id
                     )
@@ -308,8 +363,12 @@ class ArtifactRecognizer:
                         matched_piece_type = piece["type"]
                         matched_piece_name = piece["name"]
                         break
+            log.debug(
+                f"[耗时] 部位匹配: {(time.perf_counter() - t_piece_match) * 1000:.1f}ms"
+            )
 
         # 星级识别
+        t_rarity = time.perf_counter()
         if need_rarity and not db_empty and matched_set_id is not None:
             from database.repository.artifact_set_repo import ArtifactSetRepo
 
@@ -328,13 +387,23 @@ class ArtifactRecognizer:
                             matched_rarity = detected
                     else:
                         matched_rarity = detected
+        log.debug(
+            f"[耗时] 星级识别: {(time.perf_counter() - t_rarity) * 1000:.1f}ms "
+            f"(结果={matched_rarity})"
+        )
 
         # 锁定状态
+        t_lock = time.perf_counter()
         lock_status = (
             ArtifactRecognizer.match_lock_status(image) if need_lock else None
         )
+        log.debug(
+            f"[耗时] 锁定检测: {(time.perf_counter() - t_lock) * 1000:.1f}ms "
+            f"(结果={lock_status})"
+        )
 
         # 强化材料检测：部位区域识别到材料关键字则提前返回
+        t_material = time.perf_counter()
         material_keywords = ["圣遗物强化素材", "圣遗物强化材料", "强化素材", "强化材料"]
         main_texts = ocr_texts.get("部位+主词条", [])
         for mt in main_texts:
@@ -353,8 +422,12 @@ class ArtifactRecognizer:
                             "部位+主词条": " | ".join(main_texts),
                         },
                     )
+        log.debug(
+            f"[耗时] 材料检测: {(time.perf_counter() - t_material) * 1000:.1f}ms"
+        )
 
         # 结构化解析
+        t_parse = time.perf_counter()
         name_ocr = " | ".join(ocr_texts.get("圣遗物名称", []))
         main_ocr = " | ".join(main_texts)
         sub_ocr = " | ".join(ocr_texts.get("副词条区", []))
@@ -378,13 +451,54 @@ class ArtifactRecognizer:
 
         artifact.rarity = matched_rarity
         artifact.set_id = matched_set_id
+        log.debug(
+            f"[耗时] 结构化解析: {(time.perf_counter() - t_parse) * 1000:.1f}ms"
+        )
 
         elapsed = (time.perf_counter() - t0) * 1000
-        log.debug(f"[识别完成] 耗时 {elapsed:.0f}ms")
+        log.debug(f"[识别完成] 总耗时 {elapsed:.0f}ms")
 
         return artifact
 
     # ---------- OCR 结果解析 ----------
+
+    @staticmethod
+    def _extract_roi_texts(
+        ocr_result, y_start: int, y_end: int
+    ) -> list[str]:
+        """从批量 OCR 结果中提取指定 Y 坐标范围内的文本。
+
+        用于 Batch OCR 模式：所有 ROI 拼接为一张图后 OCR，
+        再按各 ROI 的 Y 偏移拆分结果。
+        """
+        texts: list[str] = []
+        if not ocr_result or not ocr_result[0]:
+            return texts
+        result = ocr_result[0]
+        if isinstance(result, dict):
+            rec_texts = result.get("rec_texts", [])
+            dt_polys = result.get("dt_polys", [])
+            for text, poly in zip(rec_texts, dt_polys):
+                if not text or not text.strip():
+                    continue
+                if poly is not None and len(poly) > 0:
+                    cy = sum(p[1] for p in poly) / len(poly)
+                    if y_start <= cy <= y_end:
+                        texts.append(text)
+        elif isinstance(result, list):
+            for line_info in result:
+                if not isinstance(line_info, (list, tuple)) or len(line_info) < 2:
+                    continue
+                poly = line_info[0]
+                text_info = line_info[1]
+                text = text_info[0] if isinstance(text_info, (list, tuple)) else str(text_info)
+                if not text or not text.strip():
+                    continue
+                if poly is not None and len(poly) > 0:
+                    cy = sum(p[1] for p in poly) / len(poly)
+                    if y_start <= cy <= y_end:
+                        texts.append(text)
+        return texts
 
     @staticmethod
     def _parse_ocr_result(ocr_result) -> tuple[list[str], int]:

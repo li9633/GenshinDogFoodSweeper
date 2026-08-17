@@ -140,15 +140,14 @@ Rectangle {
                         Layout.fillHeight: true
                         clip: true
 
-                        TextArea {
+                        Text {
                             id: ocrResultText
-                            readOnly: true
-                            placeholderText: "点击「识别」查看 OCR 原始结果…"
+                            text: ""
                             font.family: Theme.fontFamily
                             font.pixelSize: 12
                             color: Theme.textPrimary
-                            background: null
-                            wrapMode: TextEdit.Wrap
+                            wrapMode: Text.Wrap
+                            width: parent.width
                         }
                     }
                 }
@@ -164,15 +163,14 @@ Rectangle {
                         Layout.fillHeight: true
                         clip: true
 
-                        TextArea {
+                        Text {
                             id: structuredResultText
-                            readOnly: true
-                            placeholderText: "结构化解析结果将显示在此…"
+                            text: ""
                             font.family: Theme.fontFamily
                             font.pixelSize: 12
                             color: Theme.textPrimary
-                            background: null
-                            wrapMode: TextEdit.Wrap
+                            wrapMode: Text.Wrap
+                            width: parent.width
                         }
                     }
                 }

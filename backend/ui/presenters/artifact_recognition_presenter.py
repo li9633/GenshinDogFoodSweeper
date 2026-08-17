@@ -10,10 +10,12 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+import cv2
 import numpy as np
-from PySide6.QtCore import Property, QObject, Signal, Slot
+from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 from utils.logger import log
 
 from backend.automation.recognizer import ArtifactRecognizer
@@ -55,10 +57,14 @@ class ArtifactRecognitionPresenter(QObject):
         self._ocr_text = ""
         self._structured_text = ""
         self._recognizing = False
+        self._result_db_empty = False
         self._roi_definitions: list[RoiDefinition] = [
             RoiDefinition(name, dx, dy, dw, dh)
             for name, dx, dy, dw, dh in ANCHOR_ROI_DEFINITIONS
         ]
+        self._result_timer = QTimer(self)
+        self._result_timer.setSingleShot(True)
+        self._result_timer.timeout.connect(self._emit_recognition_finished)
         self._connect_ocr_worker()
 
     @Property(str, notify=textChanged)
@@ -100,8 +106,13 @@ class ArtifactRecognitionPresenter(QObject):
                 r.name: (r.dx, r.dy, r.dw, r.dh) for r in self._roi_definitions
             }
 
+            t_capture = time.perf_counter()
             cap = ScreenshotCapture()
             self._current_result = cap.capture()
+            log.debug(
+                f"[耗时] 截图捕获: {(time.perf_counter() - t_capture) * 1000:.1f}ms "
+                f"(尺寸{self._current_result.width}x{self._current_result.height})"
+            )
 
             task_fn = ArtifactRecognitionPresenter.create_recognition_task(
                 self._current_result.image.copy(), roi_spins
@@ -139,17 +150,21 @@ class ArtifactRecognitionPresenter(QObject):
         elapsed = data.get("elapsed_ms", 0)
         log.info(f"圣遗物识别完成 ({elapsed:.0f}ms)")
 
-        self.recognitionFinished.emit(
-            self._ocr_text,
-            self._structured_text,
-            "artifact",
-            data.get("db_empty", False),
-        )
+        self._result_db_empty = data.get("db_empty", False)
+        self._result_timer.start(0)
         self._recognizing = False
         self.recognizingChanged.emit()
 
     def _on_ocr_task_error(self, error: str, _callback_data: object) -> None:
         self._on_recognize_error(error)
+
+    def _emit_recognition_finished(self) -> None:
+        self.recognitionFinished.emit(
+            self._ocr_text,
+            self._structured_text,
+            "artifact",
+            self._result_db_empty,
+        )
 
     def _on_recognize_error(self, error: str) -> None:
         log.error(f"圣遗物识别失败: {error}")
@@ -181,6 +196,7 @@ class ArtifactRecognitionPresenter(QObject):
 
             artifact = ArtifactRecognizer.recognize(image, roi_configs, ocr)
 
+            t_build = time.perf_counter()
             display = CaptureResult(
                 image=image.copy(),
                 width=image.shape[1],
@@ -189,9 +205,13 @@ class ArtifactRecognitionPresenter(QObject):
                 elapsed_ms=0,
             )
 
-            return ArtifactRecognitionPresenter._build_display_result(
+            result = ArtifactRecognitionPresenter._build_display_result(
                 artifact, roi_configs, display, t0, db_empty
             )
+            log.debug(
+                f"[耗时] 展示结果构建: {(time.perf_counter() - t_build) * 1000:.1f}ms"
+            )
+            return result
 
         return task
 
@@ -239,9 +259,32 @@ class ArtifactRecognitionPresenter(QObject):
             lines.append("[圣遗物锁定状态] 未能识别")
 
         has_match = bool(artifact.set_name or artifact.piece_type)
+        # 批量绘制：一次 RGB→BGR，画所有矩形和标签，再转回 RGB
+        t_draw = time.perf_counter()
+        img_bgr = cv2.cvtColor(display.image, cv2.COLOR_RGB2BGR)
         for name, (x, y, w, h) in roi_spins.items():
-            color = (0, 255, 0) if has_match else (255, 165, 0)
-            display.draw_rect(x, y, w, h, color=color, thickness=2, label=name)
+            bgr = (0, 255, 0) if has_match else (255, 165, 0)
+            cv2.rectangle(img_bgr, (x, y), (x + w, y + h), bgr, thickness=2)
+        # 用 PIL 统一绘制中文标签（只加载一次字体）
+        from PIL import Image, ImageDraw, ImageFont
+
+        rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(rgb)
+        draw = ImageDraw.Draw(pil_img)
+        font = None
+        for fp in ("C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simhei.ttf"):
+            if Path(fp).exists():
+                font = ImageFont.truetype(fp, 18)
+                break
+        if font:
+            for name, (x, y, _, _) in roi_spins.items():
+                bgr = (0, 255, 0) if has_match else (255, 165, 0)
+                draw.text((x, y - 6), name, font=font, fill=bgr[::-1])
+            img_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+        display.image = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        log.debug(
+            f"[耗时] 绘制标注框: {(time.perf_counter() - t_draw) * 1000:.1f}ms"
+        )
 
         structured_lines = ArtifactRecognitionPresenter._format_structured(artifact)
         elapsed = (time.perf_counter() - t0) * 1000
