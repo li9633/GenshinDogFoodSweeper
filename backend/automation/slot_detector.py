@@ -161,11 +161,11 @@ class SlotDetector:
         # 卡片主体：3特征投票（饱和度 + 灰度标准差 + 边缘密度）
         # 等级条：白色均值（保留原有逻辑）
         # 综合：卡片投票 >= 1 AND 等级条白色
-        SAMPLE_MARGIN = 5
+        SAMPLE_MARGIN = 1
         SAMPLE_W = 10
         CARD_SAMPLE_ABOVE = 15
         CARD_SAMPLE_H = 10
-        LVL_MARGIN = 3
+        LVL_MARGIN = 1
 
         # 多特征融合投票阈值（从 config 读取，可通过 SlotDetectorConfig 调参）
         sat_threshold = config.sat_threshold
@@ -260,19 +260,45 @@ class SlotDetector:
                 bar_right = float(np.mean(bar_right_region))
                 bar_mean = round(max(bar_left, bar_right))
 
-                # 等级条白色特征 + 汇总投票（4维：S/D/E/B，R1灰色靠B区分）
-                bar_pass = bar_mean >= bar_threshold
-                votes = sum([sat_pass, std_pass, edge_pass, bar_pass])
+                # 星级扫描：格子底部边缘为基准，x/y偏移定位第一颗星，gap递推
+                # 星星灰度 #A4A4A4=164，无渐变，5颗星依次排列
+                STAR_COUNT = 5
+                STAR_SAMPLE_W = 4
+                STAR_SAMPLE_H = 5
+                star_y = row_bottom - config.star_offset_y
+                star_y1 = max(0, star_y - STAR_SAMPLE_H // 2)
+                star_y2 = min(gray.shape[0], star_y + STAR_SAMPLE_H // 2)
+                first_star_x = col_left + config.star_offset_x
 
-                # 综合判断：卡片投票 >= 1 AND 等级条白色
-                if votes >= 1 and bar_mean >= bar_threshold:
+                star_scan_xs: list[int] = []
+                star_grays: list[float] = []
+                star_matches = 0
+                for i in range(STAR_COUNT):
+                    sx = int(first_star_x + i * config.star_gap)
+                    region = gray[star_y1:star_y2, sx:sx + STAR_SAMPLE_W]
+                    g = float(np.mean(region)) if region.size > 0 else 0.0
+                    star_scan_xs.append(offset_x + sx + STAR_SAMPLE_W // 2)
+                    star_grays.append(g)
+                    if abs(g - config.star_gray_target) <= config.star_gray_tolerance:
+                        star_matches += 1
+
+                star_pass = star_matches >= 1
+
+                # 等级条白色特征 + 汇总投票（5维：S/D/E/B/Star，R1灰色靠B区分）
+                bar_pass = bar_mean >= bar_threshold
+                votes = sum([sat_pass, std_pass, edge_pass, bar_pass, star_pass])
+
+                # 综合判断：S + B 通过，且卡片与等级条灰度差 ≥ 70
+                # 空格子卡片=等级条（半透明背景），差值 < 20；真实圣遗物图标暗，差值 ≥ 72
+                card_bar_diff = bar_mean - card_gray_mean
+                if votes >= 2 and bar_mean >= bar_threshold and card_bar_diff >= 70:
                     sx = offset_x + col_left
                     sy = offset_y + (row_bottom - config.slot_h)
                     cx = sx + config.slot_w // 2
                     cy = sy + config.slot_h // 2
                     slots.append((cx, cy, sx, sy, config.slot_w, config.slot_h))
 
-                slot_occupied = votes >= 1 and bar_mean >= bar_threshold
+                slot_occupied = votes >= 2 and bar_mean >= bar_threshold and card_bar_diff >= 70
                 debug_infos.append(SlotDebugInfo(
                     row=r, col=c,
                     lx=offset_x + col_left + SAMPLE_MARGIN + SAMPLE_W // 2,
@@ -294,6 +320,11 @@ class SlotDetector:
                         int(card_bgr_mean[0]), int(card_bgr_mean[1]), int(card_bgr_mean[2]),
                         hue_val=hue_val,
                     ) if slot_occupied else ArtifactRarity.UNKNOWN,
+                    star_scan_xs=star_scan_xs,
+                    star_scan_y=offset_y + star_y,
+                    star_grays=star_grays,
+                    star_matches=star_matches,
+                    star_pass=star_pass,
                 ))
 
         bottom_y = offset_y + page_bottom_crop
@@ -399,11 +430,15 @@ class SlotDetector:
                     cv2.circle(debug, (info.lx, info.bly), 2, (255, 255, 0), -1)
                     cv2.circle(debug, (info.rx, info.bly), 2, (255, 255, 0), -1)
 
+                    # 金色圆点（星级扫描点，5点闯关）
+                    for sx in info.star_scan_xs:
+                        cv2.circle(debug, (sx, info.star_scan_y), 2, (0, 215, 255), -1)
+
                     # 三特征值 + 投票（绿=通过 红=未通过）
                     vote_color = (0, 255, 0) if info.votes >= 1 else (0, 0, 255)
                     cv2.putText(
                         debug,
-                        f"S{info.sat_val:.0f} D{info.std_val:.0f} E{info.edge_val * 100:.0f}% V{info.votes}/4",
+                        f"S{info.sat_val:.0f} D{info.std_val:.0f} E{info.edge_val * 100:.0f}% V{info.votes}/5",
                         (info.lx + 4, info.sly - 4),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.3,
@@ -422,6 +457,18 @@ class SlotDetector:
                         1,
                     )
 
+                    # 星级扫描结果（金色=通过，暗金=未通过）
+                    star_color = (0, 215, 255) if info.star_pass else (0, 140, 255)
+                    cv2.putText(
+                        debug,
+                        f"★{info.star_matches}/{len(info.star_grays)}",
+                        (info.star_scan_xs[0] + 4, info.star_scan_y - 4) if info.star_scan_xs else (info.lx + 4, info.star_scan_y - 4),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.3,
+                        star_color,
+                        1,
+                    )
+
                     # 原始像素值：灰度 + BGR + H + 稀有度
                     cv2.putText(
                         debug, f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r}) H{info.hue_val:.0f} R{info.rarity}",
@@ -429,12 +476,14 @@ class SlotDetector:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (200, 200, 200), 1,
                     )
                     log.debug(
-                        f"[{info.row},{info.col}] "
+                        f"#{info.row * config.cols + info.col + 1} [{info.row},{info.col}] "
                         f"S{info.sat_val:.0f}{'✓' if info.sat_pass else '✗'}"
                         f" D{info.std_val:.0f}{'✓' if info.std_pass else '✗'}"
                         f" E{info.edge_val * 100:.0f}%{'✓' if info.edge_pass else '✗'}"
                         f" B{info.bar_mean:.0f}{'✓' if info.bar_pass else '✗'}"
-                        f" V{info.votes}/4 "
+                        f" ★{info.star_matches}/{len(info.star_grays)}{'✓' if info.star_pass else '✗'}"
+                        f" V{info.votes}/5 "
+                        f"Δ{info.bar_mean - info.card_gray:.0f} "
                         f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r}) "
                         f"H{info.hue_val:.0f} "
                         f"R{info.rarity}"
