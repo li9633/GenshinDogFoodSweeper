@@ -10,15 +10,15 @@ Rectangle {
     id: root
 
     // ============================================================
-    // 颜色映射（QML 侧，原生 color 类型，避免 Python str→QColor 转换）
+    // 颜色映射（使用 Theme 语义颜色，跟随 isDark 自动切换）
     // ============================================================
     readonly property var levelColors: ({
-        "DEBUG":    { text: "#3498DB", bg: "#F7F5F0" },
-        "INFO":     { text: "#7F8C8D", bg: "#F7F5F0" },
-        "SUCCESS":  { text: "#27AE60", bg: "#F7F5F0" },
-        "WARNING":  { text: "#D35400", bg: "#F7F5F0" },
-        "ERROR":    { text: "#E74C3C", bg: "#F7F5F0" },
-        "CRITICAL": { text: "#FFFFFF", bg: "#E74C3C" }
+        "DEBUG":    { text: Theme.info, bg: Theme.bgTrack },
+        "INFO":     { text: Theme.textSecondary, bg: Theme.bgTrack },
+        "SUCCESS":  { text: Theme.success, bg: Theme.bgTrack },
+        "WARNING":  { text: Theme.warning, bg: Theme.bgTrack },
+        "ERROR":    { text: Theme.danger, bg: Theme.bgTrack },
+        "CRITICAL": { text: "#FFFFFF", bg: Theme.danger }
     })
 
     readonly property var currentColors: {
@@ -95,7 +95,7 @@ Rectangle {
             }
 
             background: Rectangle {
-                color: dismissBtn.hovered ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
+                color: dismissBtn.hovered ? (Theme.isDark ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(0, 0, 0, 0.08)) : "transparent"
                 radius: 3
             }
 
