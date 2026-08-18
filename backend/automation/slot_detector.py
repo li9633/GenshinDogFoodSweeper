@@ -70,7 +70,44 @@ class SlotDetector:
     4. 排序 → 返回格子中心坐标
 
     所有几何参数由 SlotDetectorConfig 提供，调用方可通过 config 参数自定义。
+
+    几何计算统一入口 _compute_grid()：detect() 和 draw_debug() 共用同一套公式，
+    确保预览图中的辅助线与实际采样位置 100% 一致。
     """
+
+    @staticmethod
+    def _compute_grid(
+        roi: tuple[int, int, int, int],
+        config: SlotDetectorConfig,
+        page_bottom: int,
+    ) -> tuple[list[int], list[int], list[int], float, float]:
+        """计算几何网格位置（detect / draw_debug 共用，唯一计算入口）。
+
+        Args:
+            roi: (rx, ry, rw, rh) ROI 区域，图像坐标
+            config: 检测配置
+            page_bottom: 页尾 Y 坐标，图像坐标
+
+        Returns:
+            (col_lefts, col_rights, row_bottoms, col_step, row_step)
+            所有坐标均为图像坐标。
+        """
+        rx, _ry, rw, _rh = roi
+        ref_left = rx + config.roi_left_offset
+        span_w = rw - config.roi_left_offset - config.roi_right_offset
+
+        col_gap = (span_w - config.slot_w * config.cols) / (config.cols - 1)
+        col_step = (span_w - config.slot_w) / (config.cols - 1)
+        row_step = config.slot_h + col_gap
+
+        col_lefts = [int(ref_left + c * col_step) for c in range(config.cols)]
+        col_rights = [cl + config.slot_w for cl in col_lefts]
+        row_bottoms = [
+            int(page_bottom - (config.rows - 1 - r) * row_step)
+            for r in range(config.rows)
+        ]
+
+        return col_lefts, col_rights, row_bottoms, col_step, row_step
 
     @staticmethod
     def detect(
@@ -114,7 +151,7 @@ class SlotDetector:
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
 
-        # 列位置
+        # 列位置（几何计算，用于轮廓匹配）
         ref_left = config.roi_left_offset
         span_w = rw - config.roi_left_offset - config.roi_right_offset
         col_step = (span_w - config.slot_w) / (config.cols - 1)
@@ -153,9 +190,10 @@ class SlotDetector:
         else:
             page_bottom_crop = rh
 
-        # 行间距 = 列间距（UI 设计假设）
-        col_gap = (span_w - config.slot_w * config.cols) / (config.cols - 1)
-        row_step = config.slot_h + col_gap
+        # 统一几何网格（与 draw_debug 共用 _compute_grid，确保预览线=采样位置）
+        col_lefts_img, col_rights_img, row_bottoms_img, _, _ = SlotDetector._compute_grid(
+            (rx, ry, rw, rh), config, ry + page_bottom_crop
+        )
 
         # === 几何网格 + 多特征融合投票 ===
         # 卡片主体：3特征投票（饱和度 + 灰度标准差 + 边缘密度）
@@ -176,13 +214,13 @@ class SlotDetector:
         slots: list[tuple[int, int, int, int, int, int]] = []
         debug_infos: list[SlotDebugInfo] = []
         for r in range(config.rows):
-            row_bottom = int(page_bottom_crop - (config.rows - 1 - r) * row_step)
+            row_bottom = row_bottoms_img[r] - ry  # 图像坐标 → crop 坐标
             level_top = max(0, row_bottom - config.level_h)
             level_bottom = min(rh, row_bottom)
 
             for c in range(config.cols):
-                col_left = int(ref_left + c * col_step)
-                col_right = col_left + config.slot_w
+                col_left = col_lefts_img[c] - rx  # 图像坐标 → crop 坐标
+                col_right = col_rights_img[c] - rx
 
                 lx1 = col_left + SAMPLE_MARGIN
                 lx2 = col_left + SAMPLE_MARGIN + SAMPLE_W
@@ -260,45 +298,54 @@ class SlotDetector:
                 bar_right = float(np.mean(bar_right_region))
                 bar_mean = round(max(bar_left, bar_right))
 
-                # 星级扫描：格子底部边缘为基准，x/y偏移定位第一颗星，gap递推
-                # 星星灰度 #A4A4A4=164，无渐变，5颗星依次排列
-                STAR_COUNT = 5
+                # 星级扫描：中心优先分支策略（中间有星→1/3/5星，无星→2/4星，gap递推左右采样）
                 STAR_SAMPLE_W = 4
                 STAR_SAMPLE_H = 5
                 star_y = row_bottom - config.star_offset_y
                 star_y1 = max(0, star_y - STAR_SAMPLE_H // 2)
                 star_y2 = min(gray.shape[0], star_y + STAR_SAMPLE_H // 2)
-                first_star_x = col_left + config.star_offset_x
+                center_x = (col_left + col_right) // 2
 
-                star_scan_xs: list[int] = []
-                star_grays: list[float] = []
+                # 1. 检测中心星（判断奇偶模式）
+                center_sx = center_x - STAR_SAMPLE_W // 2
+                center_region = gray[star_y1:star_y2, center_sx:center_sx + STAR_SAMPLE_W]
+                center_gray = float(np.mean(center_region)) if center_region.size > 0 else 0.0
+                has_center_star = abs(center_gray - config.star_gray_target) <= config.star_gray_tolerance
+
+                # 2. 分支采样（1/3/5星 vs 2/4星）
+                star_sample_xs: list[int] = []
                 star_matches = 0
-                for i in range(STAR_COUNT):
-                    sx = int(first_star_x + i * config.star_gap)
+                if has_center_star:
+                    offsets = [0, -1, 1, -2, 2]  # 中心, 左1, 右1, 左2, 右2 (最多5星)
+                else:
+                    offsets = [-1.5, -0.5, 0.5, 1.5]  # 居中连续排列 (最多4星)
+
+                for offset in offsets:
+                    sx = int(center_x + offset * config.star_gap - STAR_SAMPLE_W // 2)
+                    if sx < col_left or sx + STAR_SAMPLE_W > col_right:
+                        continue
                     region = gray[star_y1:star_y2, sx:sx + STAR_SAMPLE_W]
                     g = float(np.mean(region)) if region.size > 0 else 0.0
-                    star_scan_xs.append(offset_x + sx + STAR_SAMPLE_W // 2)
-                    star_grays.append(g)
+                    star_sample_xs.append(offset_x + sx + STAR_SAMPLE_W // 2)
                     if abs(g - config.star_gray_target) <= config.star_gray_tolerance:
                         star_matches += 1
 
                 star_pass = star_matches >= 1
 
-                # 等级条白色特征 + 汇总投票（5维：S/D/E/B/Star，R1灰色靠B区分）
+                # 等级条白色特征 + 汇总投票（5维：S/D/E/B/Star，Star为必要条件）
                 bar_pass = bar_mean >= bar_threshold
                 votes = sum([sat_pass, std_pass, edge_pass, bar_pass, star_pass])
 
-                # 综合判断：S + B 通过，且卡片与等级条灰度差 ≥ 70
-                # 空格子卡片=等级条（半透明背景），差值 < 20；真实圣遗物图标暗，差值 ≥ 72
-                card_bar_diff = bar_mean - card_gray_mean
-                if votes >= 2 and bar_mean >= bar_threshold and card_bar_diff >= 70:
+                # 综合判断：星星检测为主（50%权重），等级条为辅
+                # 空格子天然无星星，无需card_bar_diff辅助判断
+                if star_pass and bar_pass:
                     sx = offset_x + col_left
                     sy = offset_y + (row_bottom - config.slot_h)
                     cx = sx + config.slot_w // 2
                     cy = sy + config.slot_h // 2
                     slots.append((cx, cy, sx, sy, config.slot_w, config.slot_h))
 
-                slot_occupied = votes >= 2 and bar_mean >= bar_threshold and card_bar_diff >= 70
+                slot_occupied = star_pass and bar_pass
                 debug_infos.append(SlotDebugInfo(
                     row=r, col=c,
                     lx=offset_x + col_left + SAMPLE_MARGIN + SAMPLE_W // 2,
@@ -320,9 +367,9 @@ class SlotDetector:
                         int(card_bgr_mean[0]), int(card_bgr_mean[1]), int(card_bgr_mean[2]),
                         hue_val=hue_val,
                     ) if slot_occupied else ArtifactRarity.UNKNOWN,
-                    star_scan_xs=star_scan_xs,
-                    star_scan_y=offset_y + star_y,
-                    star_grays=star_grays,
+                    star_sample_xs=star_sample_xs,
+                    star_sample_y=offset_y + star_y,
+                    has_center_star=has_center_star,
                     star_matches=star_matches,
                     star_pass=star_pass,
                 ))
@@ -380,21 +427,16 @@ class SlotDetector:
                 1,
             )
 
-            # 每列左右边框竖线（绝对位置计算，无累积误差）
-            span_w = rw - config.roi_left_offset - config.roi_right_offset
-            for c in range(config.cols):
-                col_left = int(
-                    ref_left + c * (span_w - config.slot_w) / (config.cols - 1)
-                )
-                col_right = col_left + config.slot_w
-                cv2.line(debug, (col_left, ry), (col_left, ry + rh), (255, 0, 0), 1)
-                cv2.line(debug, (col_right, ry), (col_right, ry + rh), (0, 0, 255), 1)
-            # 行底部分隔线（粉色=预期行底部，以页尾为基准倒推）
+            # 每列左右边框竖线 + 行底部分隔线（统一使用 _compute_grid，与 detect 一致）
             pg_bottom = page_bottom if page_bottom is not None else ry + rh
-            col_gap = (span_w - config.slot_w * config.cols) / (config.cols - 1)
-            row_step = config.slot_h + col_gap
+            col_lefts, col_rights, row_bottoms, _, _ = SlotDetector._compute_grid(
+                (rx, ry, rw, rh), config, pg_bottom
+            )
+            for c in range(config.cols):
+                cv2.line(debug, (col_lefts[c], ry), (col_lefts[c], ry + rh), (255, 0, 0), 1)
+                cv2.line(debug, (col_rights[c], ry), (col_rights[c], ry + rh), (0, 0, 255), 1)
             for r in range(config.rows):
-                gy = int(pg_bottom - (config.rows - 1 - r) * row_step)
+                gy = row_bottoms[r]
                 cv2.line(debug, (rx, gy), (rx + rw, gy), (255, 0, 255), 1)
                 debug = _draw_chinese_text(
                     debug,
@@ -430,9 +472,11 @@ class SlotDetector:
                     cv2.circle(debug, (info.lx, info.bly), 2, (255, 255, 0), -1)
                     cv2.circle(debug, (info.rx, info.bly), 2, (255, 255, 0), -1)
 
-                    # 金色圆点（星级扫描点，5点闯关）
-                    for sx in info.star_scan_xs:
-                        cv2.circle(debug, (sx, info.star_scan_y), 2, (0, 215, 255), -1)
+                    # 金色圆点（每颗星星采样位置，实心=通过，空心=未通过）
+                    for sx in info.star_sample_xs:
+                        cv2.circle(
+                            debug, (sx, info.star_sample_y), 3, (0, 215, 255), -1
+                        )
 
                     # 三特征值 + 投票（绿=通过 红=未通过）
                     vote_color = (0, 255, 0) if info.votes >= 1 else (0, 0, 255)
@@ -459,10 +503,12 @@ class SlotDetector:
 
                     # 星级扫描结果（金色=通过，暗金=未通过）
                     star_color = (0, 215, 255) if info.star_pass else (0, 140, 255)
+                    pattern = "奇" if info.has_center_star else "偶"
+                    text_x = info.star_sample_xs[0] + 6 if info.star_sample_xs else info.lx
                     cv2.putText(
                         debug,
-                        f"★{info.star_matches}/{len(info.star_grays)}",
-                        (info.star_scan_xs[0] + 4, info.star_scan_y - 4) if info.star_scan_xs else (info.lx + 4, info.star_scan_y - 4),
+                        f"★{info.star_matches} {pattern}",
+                        (text_x, info.star_sample_y - 6),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.3,
                         star_color,
@@ -481,7 +527,7 @@ class SlotDetector:
                         f" D{info.std_val:.0f}{'✓' if info.std_pass else '✗'}"
                         f" E{info.edge_val * 100:.0f}%{'✓' if info.edge_pass else '✗'}"
                         f" B{info.bar_mean:.0f}{'✓' if info.bar_pass else '✗'}"
-                        f" ★{info.star_matches}/{len(info.star_grays)}{'✓' if info.star_pass else '✗'}"
+                        f" ★{info.star_matches}/5 C{'✓' if info.has_center_star else '✗'}{'✓' if info.star_pass else '✗'}"
                         f" V{info.votes}/5 "
                         f"Δ{info.bar_mean - info.card_gray:.0f} "
                         f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r}) "

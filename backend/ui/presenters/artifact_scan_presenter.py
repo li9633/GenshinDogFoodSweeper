@@ -21,7 +21,6 @@ from __future__ import annotations
 from pathlib import Path
 from time import sleep
 
-import cv2
 import numpy as np
 from models.artifact import ArtifactInfo
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
@@ -123,8 +122,6 @@ class ArtifactScanPresenter(QObject):
         # 首尾锚点
         self._anchor_first_x = 0
         self._anchor_first_y = 0
-        self._anchor_first_w = 0
-        self._anchor_first_h = 0
         self._anchor_last_x = 0
         self._anchor_last_y = 0
         self._anchor_tail_x = 0
@@ -450,14 +447,6 @@ class ArtifactScanPresenter(QObject):
     def anchorFirstY(self) -> int:
         return self._anchor_first_y
 
-    @Property(int, notify=anchorFirstMarked)
-    def anchorFirstW(self) -> int:
-        return self._anchor_first_w
-
-    @Property(int, notify=anchorFirstMarked)
-    def anchorFirstH(self) -> int:
-        return self._anchor_first_h
-
     @Property(int, notify=anchorLastFound)
     def anchorLastX(self) -> int:
         return self._anchor_last_x
@@ -494,68 +483,29 @@ class ArtifactScanPresenter(QObject):
     def anchorTailRecognized(self) -> bool:
         return self._anchor_tail_recognized
 
-    @Slot(int, int, int, int)
-    def recognizeFirstAnchor(self, x: int, y: int, w: int, h: int) -> None:
-        """识别首锚点：标记位置 → 点击物品 → OCR识别圣遗物信息"""
-        self._anchor_first_x = x
-        self._anchor_first_y = y
-        self._anchor_first_w = w
-        self._anchor_first_h = h
-        self._anchor_last_x = 0
-        self._anchor_last_y = 0
-        self._anchor_tail_x = 0
-        self._anchor_tail_y = 0
-        self._anchor_tail_info = None
-        self._anchor_total_pages = 0
-        self._anchor_total_rows = 0
+    @Slot()
+    def recognizeFirstAnchor(self) -> None:
+        """识别首锚点：截图 → 格子检测 → 取第一个格子 → 点击 → OCR"""
+        result = self._capture.capture()
+        if result is None:
+            log.warning("首锚点识别: 截图失败")
+            return
+        cfg = self._active_config
+        det_result = SlotDetector.detect(result.image, config=cfg)
+        if not det_result.slots:
+            log.warning("首锚点识别: 未检测到格子，请确认已滚动到顶部")
+            return
+        first = det_result.slots[0]
+        cx, cy, sx, sy, _sw, _sh = first
+        self._anchor_first_x = sx
+        self._anchor_first_y = sy
         self._anchor_first_display_text = ""
         self._anchor_first_recognized = False
         self.anchorFirstMarked.emit()
-        self.anchorLastFound.emit()
-        self.anchorPagesCalculated.emit()
         self.anchorFirstRecognizedChanged.emit()
-        log.info(f"首锚点已标记: ({x}, {y}, {w}x{h}), 开始OCR识别...")
-        self._recognize_anchor_item(x + w // 2, y + h // 2, "first")
+        log.info(f"首锚点已定位: 第1个格子 ({sx}, {sy}), 开始OCR识别...")
+        self._recognize_anchor_item(cx, cy, "first")
 
-    @Slot()
-    def findLastAnchor(self) -> None:
-        """模板匹配查找最后一个圣遗物（尾锚点）"""
-        if self._anchor_first_template is None:
-            log.warning("请先标记首锚点")
-            return
-        result = self._capture.capture()
-        if result is None:
-            log.warning("截图失败")
-            return
-        from backend.automation.template_matcher import find_all_matches
-
-        screen_gray = cv2.cvtColor(result.image, cv2.COLOR_RGB2GRAY)
-        matches = find_all_matches(
-            screen_gray, self._anchor_first_template, threshold=0.7
-        )
-        if not matches:
-            self.anchorLastFound.emit()
-            log.info("尾锚点查找: 模板匹配未找到结果")
-            return
-        best = matches[-1]
-        score, x, y, _w, _h = best
-        self._anchor_last_x = x
-        self._anchor_last_y = y
-        self.anchorLastFound.emit()
-        log.info(
-            f"尾锚点已找到: ({x}, {y}) 置信度={score:.2f}, "
-            f"共匹配到 {len(matches)} 个位置"
-        )
-        self._calculate_anchor_pages()
-
-    @Slot(int, int)
-    def markLastAnchor(self, x: int, y: int) -> None:
-        """手动标记尾锚点"""
-        self._anchor_last_x = x
-        self._anchor_last_y = y
-        self.anchorLastFound.emit()
-        log.info(f"尾锚点已手动标记: ({x}, {y})")
-        self._calculate_anchor_pages()
 
     def _calculate_anchor_pages(self) -> None:
         """根据首尾锚点计算总页数 — 委托给 AnchorLocator"""
@@ -565,7 +515,7 @@ class ArtifactScanPresenter(QObject):
         rows, pages = AnchorLocator.calculate_pages(
             self._anchor_first_y,
             self._anchor_last_y,
-            self._anchor_first_h,
+            self._active_config.slot_h,
             self._grid_gap,
             is_tail_center=is_tail_center,
         )
@@ -580,21 +530,30 @@ class ArtifactScanPresenter(QObject):
 
     @Slot()
     def recognizeLastAnchor(self) -> None:
-        """识别尾锚点：点击已定位的尾锚点物品 → OCR识别圣遗物信息"""
-        tail_x = self._anchor_tail_x or self._anchor_last_x
-        tail_y = self._anchor_tail_y or self._anchor_last_y
-        if tail_x == 0 and tail_y == 0:
-            log.warning("尾锚点识别: 尚未定位尾锚点，请先执行智能拖拽到底")
+        """识别尾锚点：截图 → 格子检测 → 取最后一个格子 → 点击 → OCR → 计算页数"""
+        result = self._capture.capture()
+        if result is None:
+            log.warning("尾锚点识别: 截图失败")
             return
+        cfg = self._active_config
+        det_result = SlotDetector.detect(result.image, config=cfg)
+        if not det_result.slots:
+            log.warning("尾锚点识别: 未检测到格子，请确认已滚动到底部")
+            return
+        last = det_result.slots[-1]
+        cx, cy, sx, sy, _sw, _sh = last
+        self._anchor_last_x = cx
+        self._anchor_last_y = cy
+        self._anchor_tail_x = 0
+        self._anchor_tail_y = 0
+        self._anchor_tail_info = None
         self._anchor_tail_display_text = ""
         self._anchor_tail_recognized = False
+        self.anchorLastFound.emit()
         self.anchorTailRecognizedChanged.emit()
-        log.info(f"尾锚点识别: 点击({tail_x}, {tail_y})，开始OCR识别...")
-        self._recognize_anchor_item(tail_x, tail_y, "tail")
-
-    # ==================================================================
-    # 锚点 OCR 识别
-    # ==================================================================
+        self._calculate_anchor_pages()
+        log.info(f"尾锚点已定位: 最后1个格子 ({sx}, {sy}), 开始OCR识别...")
+        self._recognize_anchor_item(cx, cy, "tail")
 
     def _connect_anchor_ocr_worker(self) -> None:
         if self._anchor_ocr_connected:
@@ -728,8 +687,8 @@ class ArtifactScanPresenter(QObject):
             gap=self._grid_gap,
             anchor_first_x=self._anchor_first_x or roi[0],
             anchor_first_y=self._anchor_first_y or roi[1],
-            anchor_first_w=self._anchor_first_w or cfg.slot_w,
-            anchor_first_h=self._anchor_first_h or cfg.slot_h,
+            anchor_first_w=cfg.slot_w,
+            anchor_first_h=cfg.slot_h,
             slot_config=cfg,
             scroll_flag_x=self._scroll_flag_x,
             scroll_flag_y=self._scroll_flag_y,
@@ -830,7 +789,7 @@ class ArtifactScanPresenter(QObject):
             self._scrollbar_track_height = value
             self.scrollbarTrackHeightChanged.emit()
 
-    @Slot(int, int, int, int, int, int, int)
+    @Slot()
     def scrollToBottom(self) -> None:
         """智能拖拽到底：检测顶部 → 拖拽 → 检测底部 → 完成"""
         if (

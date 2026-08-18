@@ -642,10 +642,10 @@ class FullScanWorker(QThread):
     def _click_and_recognize_artifact(self, cx: int, cy: int, ocr) -> ArtifactInfo | None:
         ox, oy = self._win.get_origin()
         self._mouse.move_and_click(ox + cx, oy + cy)
-        sleep(0.2)
         return self._recognize_current_artifact(ocr)
 
     def _recognize_current_artifact(self, ocr) -> ArtifactInfo | None:
+        sleep(0.15)  # 等待游戏详情面板刷新
         result = self._capture.capture()
         if result is None:
             return None

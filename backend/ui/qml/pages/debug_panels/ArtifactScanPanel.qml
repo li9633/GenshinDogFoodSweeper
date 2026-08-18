@@ -308,29 +308,30 @@ Rectangle {
                         Layout.fillWidth: true
                     }
 
-                    // 首锚点参数
+                    // 首锚点（滚动到顶部后点击定位）
                     Text {
-                        text: "首锚点（假设已滚到顶部，固定位置 118,189）:"
+                        text: "请先滚动到顶部，再点击下方按钮自动定位首个圣遗物"
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: 11
                         color: Theme.textSecondary
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
                     }
 
                     RowLayout {
-                        spacing: 4
-                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: anchorFirstW; from: 10; to: 999; value: 124 }
-                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: anchorFirstH; from: 10; to: 999; value: 155 }
+                        spacing: 6
 
                         GButton {
-                            text: "识别首锚点"
+                            text: "定位首锚点"
                             colorType: "primary"
-                            onClicked: ArtifactScan.recognizeFirstAnchor(118, 189, anchorFirstW.value, anchorFirstH.value)
+                            enabled: !ArtifactScan.anchorScrollRunning
+                            onClicked: ArtifactScan.recognizeFirstAnchor()
                         }
 
                         Text {
-                            text: "已标记: (118, 189) " + ArtifactScan.anchorFirstW + "x" + ArtifactScan.anchorFirstH
+                            text: ArtifactScan.anchorFirstX > 0
+                                ? "已定位: (" + ArtifactScan.anchorFirstX + ", " + ArtifactScan.anchorFirstY + ")"
+                                : "未定位"
                             font.family: Theme.fontFamily
                             font.pixelSize: 12
                             color: ArtifactScan.anchorFirstX > 0 ? Theme.accent : Theme.textSecondary
@@ -447,22 +448,24 @@ Rectangle {
                         }
                     }
 
-                    // 尾锚点 + 计算结果
+                    // 尾锚点（滚动到底部后点击定位）
                     RowLayout {
                         spacing: 6
 
                         GButton {
-                            text: "识别尾锚点"
+                            text: "定位尾锚点"
                             colorType: "primary"
-                            enabled: !ArtifactScan.anchorScrollRunning && (ArtifactScan.anchorLastX > 0 || ArtifactScan.anchorFirstX > 0)
+                            enabled: !ArtifactScan.anchorScrollRunning && ArtifactScan.anchorFirstX > 0
                             onClicked: ArtifactScan.recognizeLastAnchor()
                         }
 
                         Text {
-                            text: "尾锚点: (" + ArtifactScan.anchorLastX + ", " + ArtifactScan.anchorLastY + ")"
+                            text: ArtifactScan.anchorLastX > 0
+                                ? "已定位: (" + ArtifactScan.anchorLastX + ", " + ArtifactScan.anchorLastY + ")"
+                                : "未定位"
                             font.family: Theme.fontFamily
                             font.pixelSize: 12
-                            color: ArtifactScan.anchorLastY > 0 ? Theme.accent : Theme.textSecondary
+                            color: ArtifactScan.anchorLastX > 0 ? Theme.accent : Theme.textSecondary
                         }
                     }
 
@@ -474,21 +477,6 @@ Rectangle {
                         color: Theme.accent
                         wrapMode: Text.WordWrap
                         Layout.fillWidth: true
-                    }
-
-                    // 手动尾锚点
-                    RowLayout {
-                        spacing: 4
-                        Text { text: "手动尾X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: anchorLastX; from: 0; to: 9999; value: 0 }
-                        Text { text: "手动尾Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: anchorLastY; from: 0; to: 9999; value: 0 }
-
-                        GButton {
-                            text: "手动标记尾锚点"
-                            colorType: "default"
-                            onClicked: ArtifactScan.markLastAnchor(anchorLastX.value, anchorLastY.value)
-                        }
                     }
 
                     // 计算结果

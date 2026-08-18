@@ -232,11 +232,11 @@ class SlotDebugInfo:
     card_g: int = 0  # 卡片区域 G 通道均值
     card_r: int = 0  # 卡片区域 R 通道均值
     rarity: ArtifactRarity = ArtifactRarity.UNKNOWN  # 稀有度分类结果
-    # 星级采样（等级条上方 offset → 星级区域，5点闯关扫描）
-    star_scan_xs: list[int] = field(default_factory=list)  # 5个扫描点绝对X坐标
-    star_scan_y: int = 0  # 扫描线绝对Y坐标
-    star_grays: list[float] = field(default_factory=list)  # 5个扫描点灰度均值
-    star_matches: int = 0  # 匹配星星颜色的点数（≥1即通过）
+    # 星级采样（中心优先分支：中间有星→奇数列1/3/5星，无星→偶数列2/4星）
+    star_sample_xs: list[int] = field(default_factory=list)  # 每颗星星采样中心绝对X坐标列表
+    star_sample_y: int = 0  # 星级采样线绝对Y坐标
+    has_center_star: bool = False  # 中心是否有星星（决定奇偶分支）
+    star_matches: int = 0  # 匹配星星颜色的采样点数
     star_pass: bool = False  # 星级特征是否通过
 
 
@@ -279,13 +279,12 @@ class SlotDetectorConfig:
     sat_threshold: int = 10  # 饱和度阈值：>此值认为有颜色
     std_threshold: int = 15  # 灰度标准差阈值：>此值认为纹理丰富
     edge_threshold: float = 0.03  # 边缘密度阈值：>此值认为有图标轮廓
-    bar_threshold: int = 218  # 等级条白色均值阈值：真实≥222 vs 半透明背景≤215
-    # 星级扫描参数（等级条左上角为基准，x/y偏移定位第一颗星，gap递推）
-    star_offset_x: int = 23  # 等级条左边缘到第一颗星中心的水平偏移
-    star_offset_y: int = 35  # 格子底部边缘到星级扫描线的垂直偏移（向上）
+    bar_threshold: int = 210  # 等级条白色均值阈值：真实≥222，选中scale变暗≈214，半透明背景≤215
+    # 星级扫描参数（中心优先：中间有星→1/3/5星，无星→2/4星，gap递推左右采样）
+    star_offset_y: int = 33  # 格子底部边缘到星级扫描线的垂直偏移（向上）
     star_gap: int = 19  # 相邻星星之间的间距
     star_gray_target: int = 164  # 星星灰度目标值 (#A4A4A4)
-    star_gray_tolerance: int = 10  # 星星灰度容差 (±10)
+    star_gray_tolerance: int = 8  # 星星灰度容差 (±8)
     # 圣遗物详情弹窗 ROI（相对于游戏窗口，用于 OCR 识别）
     detail_roi_configs: dict[str, tuple[int, int, int, int]] = field(
         default_factory=lambda: {
