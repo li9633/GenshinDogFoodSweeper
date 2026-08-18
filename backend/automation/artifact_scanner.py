@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from time import sleep
+from time import perf_counter, sleep
 
 from models.artifact import ArtifactInfo
 from PySide6.QtCore import QThread, Signal
@@ -415,6 +415,7 @@ class FullScanWorker(QThread):
 
             # Step 7-8: 逐页扫描
             self._results = []
+            scan_start_time = perf_counter()
             ox, oy = self._win.get_origin()
 
             grid_config = GridClickConfig(
@@ -451,10 +452,6 @@ class FullScanWorker(QThread):
                         ArtifactDeduplicator.is_duplicate(info, existing)
                         for existing in self._results
                     ):
-                        log.debug(
-                            f"跳过重复圣遗物: "
-                            f"{AnchorLocator.format_artifact_short(info)}"
-                        )
                         return True
 
                     # 尾锚点检查：扫描到尾部标记 → 停止
@@ -478,6 +475,18 @@ class FullScanWorker(QThread):
                     display = AnchorLocator.format_artifact_short(info)
                     self.artifactScanned.emit(display, info.is_material)
                     self.progressChanged.emit(len(self._results), count)
+
+                    # 进度 ETA 日志
+                    elapsed = perf_counter() - scan_start_time
+                    if count > 0 and len(self._results) > 0:
+                        avg = elapsed / len(self._results)
+                        remaining = avg * (count - len(self._results))
+                        log.info(
+                            f"当前已扫描{len(self._results)}个圣遗物，"
+                            f"共{count}个，"
+                            f"已用时{int(elapsed // 60):02d}:{int(elapsed % 60):02d}，"
+                            f"预计剩余{int(remaining // 60):02d}:{int(remaining % 60):02d}"
+                        )
 
                     # OCR 数量检查（次要停止条件，兜底安全；仅当有数量时生效）
                     if count > 0 and len(self._results) >= count:

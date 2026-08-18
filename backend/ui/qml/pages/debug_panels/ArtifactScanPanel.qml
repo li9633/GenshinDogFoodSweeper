@@ -243,43 +243,21 @@ Rectangle {
                     spacing: 6
 
                     Text {
-                        text: "公式: X = marginX + (gap + 宽) × col + 宽/2, Y = marginY + (gap + 高) × row + 高/2"
+                        text: "当前配置: " + ArtifactScan.activeConfigName
+                              + " | " + ArtifactScan.activeConfigCols + "×" + ArtifactScan.activeConfigRows
+                              + " | 格子: " + ArtifactScan.activeConfigSlotW + "×" + ArtifactScan.activeConfigSlotH
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.accent
+                    }
+
+                    Text {
+                        text: "ROI: (" + ArtifactScan.activeConfigRoiX + ", " + ArtifactScan.activeConfigRoiY
+                              + ", " + ArtifactScan.activeConfigRoiW + ", " + ArtifactScan.activeConfigRoiH + ")"
+                              + " | 间距: " + ArtifactScan.gridGap + "px | 点击间隔: " + ArtifactScan.batchClickInterval + "ms"
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
                         color: Theme.textSecondary
-                        wrapMode: Text.WordWrap
-                        Layout.fillWidth: true
-                    }
-
-                    // 边距
-                    RowLayout {
-                        spacing: 4
-                        Text { text: "边距X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: gridMarginX; from: 0; to: 9999; value: 118 }
-                        Text { text: "边距Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: gridMarginY; from: 0; to: 9999; value: 189 }
-                    }
-
-                    // 物品尺寸 + 间距
-                    RowLayout {
-                        spacing: 4
-                        Text { text: "宽:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: gridItemW; from: 1; to: 999; value: 124 }
-                        Text { text: "高:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: gridItemH; from: 1; to: 999; value: 155 }
-                        Text { text: "间距:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: gridGap; from: 0; to: 999; value: 24 }
-                    }
-
-                    // 行列 + 间隔
-                    RowLayout {
-                        spacing: 4
-                        Text { text: "行:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: gridRows; from: 1; to: 10; value: 4 }
-                        Text { text: "列:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: gridCols; from: 1; to: 10; value: 8 }
-                        Text { text: "间隔(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: gridInterval; from: 0; to: 5000; value: 100 }
                     }
 
                     // 按钮 + 进度
@@ -290,11 +268,7 @@ Rectangle {
                             text: ArtifactScan.batchRunning ? "点击中…" : "连续点击"
                             colorType: "primary"
                             enabled: !ArtifactScan.batchRunning
-                            onClicked: ArtifactScan.startBatchClick(
-                                            gridMarginX.value, gridMarginY.value,
-                                            gridItemW.value, gridItemH.value, gridGap.value,
-                                            gridRows.value, gridCols.value, gridInterval.value
-                                            )
+                            onClicked: ArtifactScan.startBatchClick()
                         }
 
                         GButton {
@@ -549,52 +523,31 @@ Rectangle {
                         Layout.fillWidth: true
                     }
 
-                    // 网格参数
+                    // 网格参数（来自当前检测配置）
                     Text {
-                        text: "网格参数:"
+                        text: "当前配置: " + ArtifactScan.activeConfigName
+                              + " | " + ArtifactScan.activeConfigCols + "×" + ArtifactScan.activeConfigRows
+                              + " | 格子: " + ArtifactScan.activeConfigSlotW + "×" + ArtifactScan.activeConfigSlotH
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
+                        color: Theme.accent
+                    }
+
+                    Text {
+                        text: "ROI: (" + ArtifactScan.activeConfigRoiX + ", " + ArtifactScan.activeConfigRoiY
+                              + ", " + ArtifactScan.activeConfigRoiW + ", " + ArtifactScan.activeConfigRoiH + ")"
+                              + " | 间距: " + ArtifactScan.gridGap + "px | 点击间隔: " + ArtifactScan.fullScanClickInterval + "ms"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
                         color: Theme.textSecondary
                     }
 
-                    RowLayout {
-                        spacing: 4
-                        Text { text: "边距X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanMarginX; from: 0; to: 9999; value: 118 }
-                        Text { text: "边距Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanMarginY; from: 0; to: 9999; value: 189 }
-                    }
-
-                    RowLayout {
-                        spacing: 4
-                        Text { text: "宽:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanItemW; from: 1; to: 999; value: 124 }
-                        Text { text: "高:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanItemH; from: 1; to: 999; value: 155 }
-                        Text { text: "间距:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanGap; from: 0; to: 999; value: 24 }
-                        Text { text: "点击间隔(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanClickInterval; from: 50; to: 5000; value: 300 }
-                    }
-
-                    // 滚动参数
                     Text {
-                        text: "翻页参数:"
+                        text: "翻页参数: 锚点(" + ArtifactScan.scrollFlagX + ", " + ArtifactScan.scrollFlagY
+                              + ") | 滚动延迟: " + ArtifactScan.scrollTickDelay + "ms | 页面等待: " + ArtifactScan.scrollPageSettle + "ms"
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: 11
                         color: Theme.textSecondary
-                    }
-
-                    RowLayout {
-                        spacing: 4
-                        Text { text: "锚点X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanScrollX; from: 0; to: 9999; value: 230 }
-                        Text { text: "锚点Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanScrollY; from: 0; to: 9999; value: 335 }
-                        Text { text: "滚动延迟(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanTickDelay; from: 10; to: 500; value: 30 }
-                        Text { text: "页面等待(ms):"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
-                        GSpinBox { id: fullScanPageSettle; from: 100; to: 5000; value: 200 }
                     }
 
                     // 控制按钮
@@ -605,13 +558,7 @@ Rectangle {
                             text: ArtifactScan.fullScanRunning ? "扫描中…" : "开始圣遗物扫描"
                             colorType: "primary"
                             enabled: !ArtifactScan.fullScanRunning
-                            onClicked: ArtifactScan.startFullScan(
-                                fullScanMarginX.value, fullScanMarginY.value,
-                                fullScanItemW.value, fullScanItemH.value, fullScanGap.value,
-                                fullScanScrollX.value, fullScanScrollY.value,
-                                fullScanTickDelay.value, fullScanPageSettle.value,
-                                fullScanClickInterval.value
-                            )
+                            onClicked: ArtifactScan.startFullScan()
                         }
 
                         GButton {

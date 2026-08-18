@@ -109,6 +109,15 @@ class ArtifactScanPresenter(QObject):
         self._batch_running = False
         self._batch_worker: BatchClickWorker | None = None
 
+        # 操作参数（非 SlotDetectorConfig，留作将来可配置化）
+        self._grid_gap = 24
+        self._batch_click_interval = 100
+        self._full_scan_click_interval = 150
+        self._scroll_flag_x = 230
+        self._scroll_flag_y = 335
+        self._scroll_tick_delay = 30
+        self._scroll_page_settle = 200
+
         self._page_scroller = PageScroller(self._mouse, self._capture)
 
         # 首尾锚点
@@ -196,6 +205,36 @@ class ArtifactScanPresenter(QObject):
         ok = self._mouse.scroll(clicks)
         log.info(f"滚轮: {clicks} {'成功' if ok else '失败'}")
 
+    # 操作参数（供 QML 展示，暂不开放修改）
+
+    @Property(int, constant=True)
+    def gridGap(self) -> int:
+        return self._grid_gap
+
+    @Property(int, constant=True)
+    def batchClickInterval(self) -> int:
+        return self._batch_click_interval
+
+    @Property(int, constant=True)
+    def fullScanClickInterval(self) -> int:
+        return self._full_scan_click_interval
+
+    @Property(int, constant=True)
+    def scrollFlagX(self) -> int:
+        return self._scroll_flag_x
+
+    @Property(int, constant=True)
+    def scrollFlagY(self) -> int:
+        return self._scroll_flag_y
+
+    @Property(int, constant=True)
+    def scrollTickDelay(self) -> int:
+        return self._scroll_tick_delay
+
+    @Property(int, constant=True)
+    def scrollPageSettle(self) -> int:
+        return self._scroll_page_settle
+
     # ==================================================================
     # 批量点击
     # ==================================================================
@@ -208,18 +247,9 @@ class ArtifactScanPresenter(QObject):
     def batchRunning(self) -> bool:
         return self._batch_running
 
-    @Slot(int, int, int, int, int, int, int, int)
-    def startBatchClick(
-        self,
-        margin_x: int,
-        margin_y: int,
-        item_w: int,
-        item_h: int,
-        gap: int,
-        rows: int,
-        cols: int,
-        interval_ms: int,
-    ) -> None:
+    @Slot()
+    def startBatchClick(self) -> None:
+        """批量点击：参数从当前 SlotDetectorConfig 读取"""
         if self._batch_running:
             return
         ox, oy = self._window_origin()
@@ -227,19 +257,22 @@ class ArtifactScanPresenter(QObject):
             log.warning("未检测到原神窗口")
             return
 
+        cfg = self._active_config
+        roi = cfg.roi or (0, 0, 0, 0)
+        rows, cols = cfg.rows, cfg.cols
         self._batch_worker = BatchClickWorker(
             mouse=self._mouse,
             config=GridClickConfig(
                 origin_x=ox,
                 origin_y=oy,
-                margin_x=margin_x,
-                margin_y=margin_y,
-                item_w=item_w,
-                item_h=item_h,
-                gap=gap,
+                margin_x=roi[0],
+                margin_y=roi[1],
+                item_w=cfg.slot_w,
+                item_h=cfg.slot_h,
+                gap=self._grid_gap,
                 rows=rows,
                 cols=cols,
-                interval_ms=interval_ms,
+                interval_ms=self._batch_click_interval,
                 auto_focus=True,
             ),
             win=self._win_helper,
@@ -252,7 +285,7 @@ class ArtifactScanPresenter(QObject):
         self.batchRunningChanged.emit()
         self.batchProgressChanged.emit()
         self._batch_worker.start()
-        log.info(f"批量点击开始: {rows}×{cols} 网格, 间隔={interval_ms}ms")
+        log.info(f"批量点击开始: {rows}×{cols} 网格, 配置={cfg.name}")
 
     @Slot()
     def stopBatchClick(self) -> None:
@@ -668,21 +701,9 @@ class ArtifactScanPresenter(QObject):
     def fullScanTotalPages(self) -> int:
         return self._full_scan_total_pages
 
-    @Slot(int, int, int, int, int, int, int, int, int, int)
-    def startFullScan(
-        self,
-        margin_x: int,
-        margin_y: int,
-        item_w: int,
-        item_h: int,
-        gap: int,
-        scroll_flag_x: int,
-        scroll_flag_y: int,
-        tick_delay_ms: int,
-        page_settle_ms: int,
-        click_interval_ms: int,
-    ) -> None:
-        """开始全量圣遗物扫描 — 委托给 FullScanWorker"""
+    @Slot()
+    def startFullScan(self) -> None:
+        """开始全量圣遗物扫描 — 参数从当前 SlotDetectorConfig 读取"""
         if self._full_scan_running:
             log.warning("全量扫描已在运行中")
             return
@@ -691,6 +712,8 @@ class ArtifactScanPresenter(QObject):
             log.warning("未检测到原神窗口")
             return
 
+        cfg = self._active_config
+        roi = cfg.roi or (0, 0, 0, 0)
         engines_dir = Path(__file__).resolve().parents[3] / "engines"
 
         self._full_scan_results = []
@@ -698,21 +721,21 @@ class ArtifactScanPresenter(QObject):
             mouse=self._mouse,
             capture=self._capture,
             engines_dir=engines_dir,
-            margin_x=margin_x,
-            margin_y=margin_y,
-            item_w=item_w,
-            item_h=item_h,
-            gap=gap,
-            anchor_first_x=self._anchor_first_x or 118,
-            anchor_first_y=self._anchor_first_y or 189,
-            anchor_first_w=self._anchor_first_w or item_w,
-            anchor_first_h=self._anchor_first_h or item_h,
-            slot_config=self._active_config,
-            scroll_flag_x=scroll_flag_x,
-            scroll_flag_y=scroll_flag_y,
-            tick_delay_ms=tick_delay_ms,
-            page_settle_ms=page_settle_ms,
-            click_interval_ms=click_interval_ms,
+            margin_x=roi[0],
+            margin_y=roi[1],
+            item_w=cfg.slot_w,
+            item_h=cfg.slot_h,
+            gap=self._grid_gap,
+            anchor_first_x=self._anchor_first_x or roi[0],
+            anchor_first_y=self._anchor_first_y or roi[1],
+            anchor_first_w=self._anchor_first_w or cfg.slot_w,
+            anchor_first_h=self._anchor_first_h or cfg.slot_h,
+            slot_config=cfg,
+            scroll_flag_x=self._scroll_flag_x,
+            scroll_flag_y=self._scroll_flag_y,
+            tick_delay_ms=self._scroll_tick_delay,
+            page_settle_ms=self._scroll_page_settle,
+            click_interval_ms=self._full_scan_click_interval,
         )
         self._full_scan_worker.stepChanged.connect(self._on_full_scan_step)
         self._full_scan_worker.progressChanged.connect(self._on_full_scan_progress)
@@ -736,6 +759,27 @@ class ArtifactScanPresenter(QObject):
         if self._full_scan_worker is not None:
             self._full_scan_worker.stop()
         log.info("全量扫描已请求停止")
+
+    @Slot()
+    def stopAllOperations(self) -> None:
+        """全局热键 → 终止所有正在运行的自动化操作"""
+        stopped = False
+        if self._full_scan_running:
+            self.stopFullScan()
+            stopped = True
+        if self._batch_running:
+            self.stopBatchClick()
+            stopped = True
+        if self._anchor_scroll_running:
+            if self._scroll_to_bottom_worker is not None:
+                self._scroll_to_bottom_worker.stop()
+            self._anchor_scroll_running = False
+            self.anchorScrollRunningChanged.emit()
+            stopped = True
+        if stopped:
+            log.info("热键终止: 已停止所有自动化操作")
+        else:
+            log.debug("热键终止: 无正在运行的操作")
 
     def _on_full_scan_step(self, step: str) -> None:
         self._full_scan_step = step

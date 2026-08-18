@@ -81,6 +81,11 @@ class ArtifactDeduplicator:
                 return False
 
         # 全部匹配 → 极大概率是同一件圣遗物
+        log.debug(
+            f"去重: 判定为重复圣遗物 → 套装名/部位/星级/主词条/副词条全部匹配\n"
+            f"  新: {ArtifactDeduplicator._format_artifact(new_artifact)}\n"
+            f"  旧: {ArtifactDeduplicator._format_artifact(existing_artifact)}"
+        )
         return True
 
     @staticmethod
@@ -110,6 +115,36 @@ class ArtifactDeduplicator:
     # ------------------------------------------------------------------
     # 内部工具
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _format_artifact(artifact: ArtifactInfo) -> str:
+        """格式化圣遗物为单行调试字符串"""
+        if artifact.is_material:
+            name = artifact.material_name or "强化材料"
+            star = f"{artifact.rarity}★" if artifact.rarity else ""
+            return f"[{star} {name}]"
+
+        parts: list[str] = []
+        if artifact.rarity:
+            parts.append(f"{artifact.rarity}★")
+        if artifact.set_name:
+            parts.append(artifact.set_name)
+        if artifact.piece_name:
+            parts.append(artifact.piece_name)
+        if artifact.level is not None:
+            parts.append(f"+{artifact.level}")
+        if artifact.main_stat:
+            ms = artifact.main_stat
+            pct = "%" if ms.is_percentage else ""
+            parts.append(f"{ms.name}+{ms.value}{pct}")
+        if artifact.sub_stats:
+            subs: list[str] = []
+            for ss in artifact.sub_stats:
+                pct = "%" if ss.is_percentage else ""
+                lock = "(待激活)" if ss.is_locked else ""
+                subs.append(f"{ss.name}+{ss.value}{pct}{lock}")
+            parts.append("｜".join(subs))
+        return " | ".join(parts)
 
     @staticmethod
     def _stats_equal(a: ArtifactStat | None, b: ArtifactStat | None) -> bool:

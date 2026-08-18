@@ -125,6 +125,13 @@ def main():
         artifact_scan = ArtifactScanPresenter()
         engine.rootContext().setContextProperty("ArtifactScan", artifact_scan)
         log.debug("ArtifactScan 注册成功")
+
+        # 连接全局热键 → 终止所有自动化操作
+        from backend.automation.hotkey_listener import HotkeyListener
+
+        HotkeyListener.instance().stopRequested.connect(
+            artifact_scan.stopAllOperations
+        )
     except Exception as exc:
         traceback.print_exc()
         log.error(f"ArtifactScan 初始化失败: {exc}")
@@ -171,10 +178,12 @@ def main():
 
     # -- 退出清理 --
     def _cleanup():
+        from backend.automation.hotkey_listener import HotkeyListener
         from backend.automation.ocr_worker import OcrWorker
 
+        HotkeyListener.destroy_instance()
         OcrWorker.destroy_instance()
-        log.info("OCR Worker 已停止")
+        log.info("热键监听 & OCR Worker 已停止")
 
     app.aboutToQuit.connect(_cleanup)
 
