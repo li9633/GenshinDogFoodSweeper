@@ -26,12 +26,14 @@ from backend.automation.recognizer import ArtifactRecognizer
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
 from backend.automation.slot_detector import (
+    ArtifactRarity,
     SlotDetector,
     SlotDetectorConfig,
 )
 from backend.automation.window_helper import WindowHelper
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
 from backend.utils.screen_capture import ScreenshotCapture
+from backend.utils.settings_manager import settings
 
 # 扫描识别策略：全部识别，仅跳过套装效果查询（省 DB 开销）
 _SCAN_FIELDS: frozenset[ArtifactRecognitionField] = frozenset({
@@ -291,6 +293,7 @@ class FullScanWorker(QThread):
         tick_delay_ms: int,
         page_settle_ms: int,
         click_interval_ms: int,
+        stop_mode: str = "anchor",
     ):
         super().__init__()
         self._mouse = mouse
@@ -311,6 +314,7 @@ class FullScanWorker(QThread):
         self._tick_delay_ms = tick_delay_ms
         self._page_settle_ms = page_settle_ms
         self._click_interval_ms = click_interval_ms
+        self._stop_mode = stop_mode
         self._stop = False
         self._results: list[ArtifactInfo] = []
         self._tail_info: ArtifactInfo | None = None
@@ -331,6 +335,12 @@ class FullScanWorker(QThread):
 
     def run(self) -> None:
         try:
+            # Step 0: 聚焦游戏窗口
+            self.stepChanged.emit("正在聚焦游戏窗口...")
+            if not self._win.focus():
+                self.errorOccurred.emit("聚焦游戏窗口失败，请确认原神已启动")
+                return
+
             self.stepChanged.emit("正在初始化 OCR 引擎...")
             from backend.automation.ocr_engine import OcrEngine
 
@@ -352,7 +362,15 @@ class FullScanWorker(QThread):
             ) if count > 0 else 1
             if count > 0:
                 self.stepChanged.emit(f"共 {count} 个圣遗物, {total_pages} 页")
-                self.progressChanged.emit(0, count)
+                effective_count = count
+                if self._stop_mode == "fixed_count":
+                    fixed_count = settings.get_int("scan.fixed_count")
+                    if fixed_count > 0 and fixed_count < count:
+                        effective_count = fixed_count
+                        self.stepChanged.emit(
+                            f"固定数量模式: 扫描 {effective_count} / {count} 件"
+                        )
+                self.progressChanged.emit(0, effective_count)
             else:
                 self.stepChanged.emit(f"扫描模式: {self._slot_config.name}")
 
@@ -362,61 +380,88 @@ class FullScanWorker(QThread):
             if self._stop:
                 return
 
-            # Step 4: 识别首锚点
-            self.stepChanged.emit("正在识别首锚点...")
-            first_info = self._click_and_recognize_artifact(
-                self._anchor_first_x + self._anchor_first_w // 2,
-                self._anchor_first_y + self._anchor_first_h // 2,
-                ocr,
-            )
-            if self._stop:
-                return
-            if first_info:
-                display = AnchorLocator.format_artifact_short(first_info)
-                self.stepChanged.emit(f"首锚点: {display}")
-                log.info(f"首锚点识别: {display}")
-
-            # Step 5: 滑块到底 + 定位尾锚点 + 识别
-            self.stepChanged.emit("正在滚动到底部...")
-            slider_y = self._scroll_to_bottom()
-            if self._stop:
-                return
-            if slider_y is None:
-                self.errorOccurred.emit("滑块到底失败，无法定位尾锚点")
-                return
-
-            self.stepChanged.emit("正在定位尾锚点...")
-            result = self._capture.capture()
-            if result is None:
-                self.errorOccurred.emit("截图失败")
-                return
-            det_result = SlotDetector.detect(result.image, config=self._slot_config)
-            if self._stop:
-                return
-            if det_result.slots:
-                last_slot = det_result.slots[-1]
-                tail_cx, tail_cy = last_slot[0], last_slot[1]
-                self.stepChanged.emit("正在识别尾锚点...")
-                tail_info = self._click_and_recognize_artifact(tail_cx, tail_cy, ocr)
+            if self._stop_mode == "anchor":
+                # Step 4: 识别首锚点
+                self.stepChanged.emit("正在识别首锚点...")
+                first_info = self._click_and_recognize_artifact(
+                    self._anchor_first_x + self._anchor_first_w // 2,
+                    self._anchor_first_y + self._anchor_first_h // 2,
+                    ocr,
+                )
                 if self._stop:
                     return
-                if tail_info:
-                    display = AnchorLocator.format_artifact_short(tail_info)
-                    self.stepChanged.emit(f"尾锚点: {display}")
-                    log.info(f"尾锚点识别: {display}")
-                    self._tail_info = tail_info
-                    self._tail_is_material = tail_info.is_material
+                if first_info:
+                    first_info.page = 0
+                    first_info.row = 0
+                    first_info.col = 0
+                    display = AnchorLocator.format_artifact_short(first_info)
+                    self.stepChanged.emit(f"首锚点: {display}")
+                    log.info(f"首锚点识别: {display}")
 
-            # Step 6: 回到滑块顶部
-            self.stepChanged.emit("正在回到顶部...")
-            self._scroll_to_top()
-            if self._stop:
-                return
+                # Step 5: 滑块到底 + 定位尾锚点 + 识别
+                self.stepChanged.emit("正在滚动到底部...")
+                slider_y = self._scroll_to_bottom()
+                if self._stop:
+                    return
+                if slider_y is None:
+                    self.errorOccurred.emit("滑块到底失败，无法定位尾锚点")
+                    return
+
+                self.stepChanged.emit("正在定位尾锚点...")
+                result = self._capture.capture()
+                if result is None:
+                    self.errorOccurred.emit("截图失败")
+                    return
+                det_result = SlotDetector.detect(
+                    result.image, config=self._slot_config
+                )
+                if self._stop:
+                    return
+                if det_result.slots:
+                    last_slot = det_result.slots[-1]
+                    tail_cx, tail_cy = last_slot[0], last_slot[1]
+                    self.stepChanged.emit("正在识别尾锚点...")
+                    tail_info = self._click_and_recognize_artifact(
+                        tail_cx, tail_cy, ocr
+                    )
+                    if self._stop:
+                        return
+                    if tail_info:
+                        tail_info.page = -1
+                        tail_info.row = -1
+                        tail_info.col = -1
+                        display = AnchorLocator.format_artifact_short(tail_info)
+                        self.stepChanged.emit(f"尾锚点: {display}")
+                        log.info(f"尾锚点识别: {display}")
+                        if tail_info.is_material:
+                            self._tail_info = tail_info
+                            self._tail_is_material = True
+                        else:
+                            log.warning(
+                                "尾锚点不是强化材料，无法使用锚点停止，"
+                                "将扫描至末尾"
+                            )
+                            self._tail_info = None
+                            self._tail_is_material = False
+
+                # Step 6: 回到滑块顶部
+                self.stepChanged.emit("正在回到顶部...")
+                self._scroll_to_top()
+                if self._stop:
+                    return
 
             # Step 7-8: 逐页扫描
             self._results = []
             scan_start_time = perf_counter()
             ox, oy = self._win.get_origin()
+
+            effective_count = count
+            if self._stop_mode == "fixed_count":
+                fixed_count = settings.get_int("scan.fixed_count")
+                if fixed_count > 0 and count > 0:
+                    effective_count = min(fixed_count, count)
+                elif fixed_count > 0:
+                    effective_count = fixed_count
 
             grid_config = GridClickConfig(
                 origin_x=ox, origin_y=oy,
@@ -444,46 +489,102 @@ class FullScanWorker(QThread):
                     return True
                 info = self._recognize_current_artifact(ocr)
                 if info:
+                    info.page = page
+                    info.row = row
+                    info.col = col
+
+                    # 停止模式: 仅扫描五星 → 跳过非五星
+                    stop_mode = settings.get("scan.stop_mode")
+                    if stop_mode == "five_star_only" and info.rarity != ArtifactRarity.FIVE:
+                        return True
+
                     from backend.utils.artifact_deduplicator import (
                         ArtifactDeduplicator,
                     )
-                    # 去重检查
-                    if any(
-                        ArtifactDeduplicator.is_duplicate(info, existing)
-                        for existing in self._results
-                    ):
-                        return True
+                    # 去重检查（仅对5星生效，由设置 scan.enable_dedup 控制）
+                    if info.rarity == ArtifactRarity.FIVE and settings.get_bool("scan.enable_dedup"):
+                        dup_existing = next(
+                            (
+                                e
+                                for e in self._results
+                                if ArtifactDeduplicator.is_duplicate(info, e)
+                            ),
+                            None,
+                        )
+                        if dup_existing is not None:
+                            # 同位重复 → 面板未刷新，重新识别一次
+                            if (
+                                dup_existing.page == info.page
+                                and dup_existing.row == info.row
+                                and dup_existing.col == info.col
+                            ):
+                                log.debug(
+                                    f"同位重复 P{page}R{row}C{col}，"
+                                    f"面板未刷新，重新识别..."
+                                )
+                                info = self._recognize_current_artifact(ocr)
+                                if info is None:
+                                    return True
+                                info.page = page
+                                info.row = row
+                                info.col = col
+                                if any(
+                                    ArtifactDeduplicator.is_duplicate(info, e)
+                                    for e in self._results
+                                ):
+                                    return True
+                            else:
+                                return True
 
-                    # 尾锚点检查：扫描到尾部标记 → 停止
-                    if self._tail_info and ArtifactDeduplicator.is_duplicate(
-                        info, self._tail_info
+                    # 尾锚点检查：扫描到尾部标记（强化材料）→ 停止
+                    if (
+                        self._tail_info
+                        and self._tail_is_material
+                        and ArtifactDeduplicator.is_duplicate(info, self._tail_info)
                     ):
-                        if self._tail_is_material:
-                            log.info("扫描到尾锚点(强化材料)，停止扫描")
-                            self._stop = True
-                            return False
-                        else:
-                            self._results.append(info)
-                            display = AnchorLocator.format_artifact_short(info)
-                            self.artifactScanned.emit(display, info.is_material)
-                            self.progressChanged.emit(len(self._results), count)
-                            log.info("扫描到尾锚点(圣遗物)，停止扫描")
-                            self._stop = True
-                            return False
+                        log.info("扫描到尾锚点(强化材料)，停止扫描")
+                        self._stop = True
+                        return False
 
                     self._results.append(info)
                     display = AnchorLocator.format_artifact_short(info)
                     self.artifactScanned.emit(display, info.is_material)
-                    self.progressChanged.emit(len(self._results), count)
+                    self.progressChanged.emit(
+                        len(self._results),
+                        min(fixed_count, count)
+                        if (stop_mode == "fixed_count"
+                            and (fixed_count := settings.get_int("scan.fixed_count")) > 0
+                            and count > 0)
+                        else count
+                    )
+
+                    # 停止模式: 固定数量
+                    if stop_mode == "fixed_count":
+                        fixed_count = settings.get_int("scan.fixed_count")
+                        if fixed_count > 0 and len(self._results) >= fixed_count:
+                            log.info(
+                                f"已扫描{len(self._results)}件，"
+                                f"达到固定数量{fixed_count}，停止扫描"
+                            )
+                            self._stop = True
+                            return False
 
                     # 进度 ETA 日志
                     elapsed = perf_counter() - scan_start_time
-                    if count > 0 and len(self._results) > 0:
+                    if stop_mode == "fixed_count":
+                        fixed_count = settings.get_int("scan.fixed_count")
+                        effective_count = (
+                            min(fixed_count, count) if fixed_count > 0 and count > 0
+                            else (count if count > 0 else fixed_count)
+                        )
+                    else:
+                        effective_count = count
+                    if effective_count > 0 and len(self._results) > 0:
                         avg = elapsed / len(self._results)
-                        remaining = avg * (count - len(self._results))
+                        remaining = avg * (effective_count - len(self._results))
                         log.info(
                             f"当前已扫描{len(self._results)}个圣遗物，"
-                            f"共{count}个，"
+                            f"共{effective_count}个，"
                             f"已用时{int(elapsed // 60):02d}:{int(elapsed % 60):02d}，"
                             f"预计剩余{int(remaining // 60):02d}:{int(remaining % 60):02d}"
                         )
@@ -516,11 +617,14 @@ class FullScanWorker(QThread):
 
             # Step 9: 数量对比验证
             scanned = len(self._results)
-            if count > 0 and scanned < count:
-                log.warning(
-                    f"数量不匹配: 背包{count}个, 实际识别{scanned}个, "
-                    f"差异{count - scanned}个"
-                )
+            if count > 0:
+                if self._stop_mode == "fixed_count":
+                    log.info(f"固定数量扫描完成: {scanned}件")
+                elif scanned < count:
+                    log.warning(
+                        f"数量不匹配: 背包{count}个, 实际识别{scanned}个, "
+                        f"差异{count - scanned}个"
+                    )
             if count > 0:
                 self.stepChanged.emit(f"扫描完成: 背包{count}个, 识别{scanned}个")
             else:

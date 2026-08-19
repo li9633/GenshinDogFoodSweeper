@@ -149,6 +149,32 @@ Rectangle {
                 }
             }
 
+            // === 格子定位 ===
+            GCard {
+                title: "格子定位 (P页R行C列)"
+                Layout.fillWidth: true
+
+                ColumnLayout {
+                    spacing: 6
+
+                    RowLayout {
+                        spacing: 4
+                        Text { text: "页"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
+                        GSpinBox { id: navPage; from: 0; to: 99; value: 0; editable: true; Layout.preferredWidth: 80 }
+                        Text { text: "行"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
+                        GSpinBox { id: navRow; from: 0; to: 7; value: 0; editable: true; Layout.preferredWidth: 80 }
+                        Text { text: "列"; font.family: Theme.fontFamily; font.pixelSize: 12; color: Theme.textSecondary }
+                        GSpinBox { id: navCol; from: 0; to: 7; value: 0; editable: true; Layout.preferredWidth: 80 }
+                    }
+
+                    GButton {
+                        text: "定位并点击"
+                        colorType: "primary"
+                        onClicked: ArtifactScan.navigateToSlot(navPage.value, navRow.value, navCol.value)
+                    }
+                }
+            }
+
             // 底部留白
             Item { Layout.fillHeight: true }
 

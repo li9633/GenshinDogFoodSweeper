@@ -40,6 +40,11 @@ class SettingsManager:
             "version_check_interval": "always",
             "last_version_check_ts": "0",
         },
+        "scan": {
+            "enable_dedup": "true",
+            "stop_mode": "anchor",
+            "fixed_count": "0",
+        },
     }
 
     def __init__(self) -> None:

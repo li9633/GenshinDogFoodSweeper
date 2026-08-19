@@ -81,10 +81,12 @@ class ArtifactDeduplicator:
                 return False
 
         # 全部匹配 → 极大概率是同一件圣遗物
+        new_pos = f"P{new_artifact.page}R{new_artifact.row}C{new_artifact.col}"
+        old_pos = f"P{existing_artifact.page}R{existing_artifact.row}C{existing_artifact.col}"
         log.debug(
             f"去重: 判定为重复圣遗物 → 套装名/部位/星级/主词条/副词条全部匹配\n"
-            f"  新: {ArtifactDeduplicator._format_artifact(new_artifact)}\n"
-            f"  旧: {ArtifactDeduplicator._format_artifact(existing_artifact)}"
+            f"  新 [{new_pos}]: {ArtifactDeduplicator._format_artifact(new_artifact)}\n"
+            f"  旧 [{old_pos}]: {ArtifactDeduplicator._format_artifact(existing_artifact)}"
         )
         return True
 

@@ -48,6 +48,7 @@ from backend.automation.slot_detector import (
 )
 from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import ScreenshotCapture
+from backend.utils.settings_manager import settings
 
 from .image_provider import PreviewImageProvider
 
@@ -83,6 +84,9 @@ class ArtifactScanPresenter(QObject):
     fullScanRunningChanged = Signal()
     fullScanFinished = Signal()
     fullScanArtifactScanned = Signal()
+
+    # 扫描选项变更
+    scanOptionsChanged = Signal()
 
     # 格子检测配置切换
     activeConfigChanged = Signal()
@@ -231,6 +235,37 @@ class ArtifactScanPresenter(QObject):
     @Property(int, constant=True)
     def scrollPageSettle(self) -> int:
         return self._scroll_page_settle
+
+    # ==================================================================
+    # 扫描选项（扫描前设置，同步到 settings）
+    # ==================================================================
+
+    @Property(bool, notify=scanOptionsChanged)
+    def scanEnableDedup(self) -> bool:
+        return settings.get_bool("scan.enable_dedup")
+
+    @Slot(bool)
+    def setScanEnableDedup(self, value: bool) -> None:
+        settings.set("scan.enable_dedup", "true" if value else "false")
+        self.scanOptionsChanged.emit()
+
+    @Property(str, notify=scanOptionsChanged)
+    def scanStopMode(self) -> str:
+        return settings.get("scan.stop_mode")
+
+    @Slot(str)
+    def setScanStopMode(self, value: str) -> None:
+        settings.set("scan.stop_mode", value)
+        self.scanOptionsChanged.emit()
+
+    @Property(int, notify=scanOptionsChanged)
+    def scanFixedCount(self) -> int:
+        return settings.get_int("scan.fixed_count")
+
+    @Slot(int)
+    def setScanFixedCount(self, value: int) -> None:
+        settings.set("scan.fixed_count", str(value))
+        self.scanOptionsChanged.emit()
 
     # ==================================================================
     # 批量点击
@@ -695,6 +730,7 @@ class ArtifactScanPresenter(QObject):
             tick_delay_ms=self._scroll_tick_delay,
             page_settle_ms=self._scroll_page_settle,
             click_interval_ms=self._full_scan_click_interval,
+            stop_mode=settings.get("scan.stop_mode") or "anchor",
         )
         self._full_scan_worker.stepChanged.connect(self._on_full_scan_step)
         self._full_scan_worker.progressChanged.connect(self._on_full_scan_progress)
@@ -765,7 +801,11 @@ class ArtifactScanPresenter(QObject):
         self.fullScanStepChanged.emit()
         self.fullScanProgressChanged.emit()
         self.fullScanFinished.emit()
-        log.info(f"全量扫描完成: 背包{expected}个, 识别{scanned}个")
+        stop_mode = settings.get("scan.stop_mode") or "anchor"
+        if stop_mode == "fixed_count":
+            log.info(f"全量扫描完成: 固定数量{scanned}个")
+        else:
+            log.info(f"全量扫描完成: 背包{expected}个, 识别{scanned}个")
 
     def _on_full_scan_error(self, error: str) -> None:
         self._full_scan_running = False
@@ -931,6 +971,61 @@ class ArtifactScanPresenter(QObject):
         vkey = PreviewImageProvider.put(key, debug_rgb)
         self.debugPreviewReady.emit(vkey)
         log.info(f"灰度截图: {result.image.shape[1]}x{result.image.shape[0]}")
+
+    @Slot(int, int, int)
+    def navigateToSlot(self, page: int, row: int, col: int) -> None:
+        """定位到指定圣遗物格子：滚动到对应页 → 格子检测 → 点击"""
+        cfg = self._active_config
+        roi = cfg.roi
+        if roi is None:
+            return
+        rx, ry, rw, rh = roi
+
+        ox, oy = self._window_origin()
+        if ox == 0 and oy == 0:
+            log.warning("定位失败: 未检测到原神窗口")
+            return
+
+        self.focusGame()
+
+        # 1. 滚动到顶部
+        self._slider_scroller.ensure_at_top()
+
+        # 2. 滚动到目标页
+        self._page_scroller.set_config(cfg)
+        for p in range(page):
+            log.info(f"定位: 正在翻到第 {p + 1} 页...")
+            self._page_scroller.scroll_to_next_page(
+                ox, oy,
+                self._scroll_flag_x, self._scroll_flag_y,
+                tick_delay_ms=self._scroll_tick_delay,
+            )
+            sleep(self._scroll_page_settle / 1000.0)
+
+        # 3. 截图 + 格子检测 → 使用检测器统一计算坐标
+        result = self._capture.capture()
+        if result is None:
+            log.warning("定位失败: 无法捕获截图")
+            return
+
+        det_result = SlotDetector.detect(result.image, config=cfg)
+        if row >= cfg.rows or col >= cfg.cols:
+            log.warning(
+                f"定位失败: 行列({row},{col})超出范围({cfg.rows}x{cfg.cols})"
+            )
+            return
+
+        col_lefts, col_rights, row_bottoms, _, _ = SlotDetector._compute_grid(
+            (rx, ry, rw, rh), cfg, det_result.bottom_y,
+        )
+        cx = (col_lefts[col] + col_rights[col]) // 2
+        cy = row_bottoms[row] - cfg.slot_h // 2
+        screen_x = ox + cx
+        screen_y = oy + cy
+        self._mouse.move_and_click(screen_x, screen_y)
+        log.info(
+            f"定位完成: P{page}R{row}C{col} → 屏幕({screen_x}, {screen_y})"
+        )
 
     @Slot()
     def detectSlots(self) -> None:

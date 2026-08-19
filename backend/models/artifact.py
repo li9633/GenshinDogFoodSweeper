@@ -32,3 +32,7 @@ class ArtifactInfo:
     raw_texts: dict[str, str] = field(default_factory=dict)
     is_material: bool = False
     material_name: str | None = None
+    # 扫描位置（用于调试定位：第几页-第几行-第几列）
+    page: int = 0
+    row: int = 0
+    col: int = 0
