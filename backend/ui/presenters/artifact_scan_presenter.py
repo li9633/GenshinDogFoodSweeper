@@ -46,6 +46,7 @@ from backend.automation.slot_detector import (
     BAG_SLOT_CONFIG,
     SlotDetector,
 )
+from backend.automation.smart_scroller import SmartScroller
 from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import ScreenshotCapture
 from backend.utils.settings_manager import settings
@@ -159,6 +160,24 @@ class ArtifactScanPresenter(QObject):
 
         # 格子检测配置
         self._available_configs = ALL_SLOT_CONFIGS
+
+        # SmartScroller 调试
+        self._smart_ruler_x = 0
+        self._smart_ruler_y = 0
+        self._smart_ruler_w = 10
+        self._smart_ruler_h = 200
+        self._smart_row_height = 96
+        self._smart_scroller: SmartScroller | None = None
+
+    def _get_smart_scroller(self) -> SmartScroller:
+        """懒初始化 SmartScroller"""
+        if self._smart_scroller is None:
+            self._smart_scroller = SmartScroller(
+                self._capture, self._mouse, self._win_helper,
+                slider=self._slider_scroller,
+                config=self._active_config,
+            )
+        return self._smart_scroller
 
     # ==================================================================
     # 内部工具
@@ -974,7 +993,11 @@ class ArtifactScanPresenter(QObject):
 
     @Slot(int, int, int)
     def navigateToSlot(self, page: int, row: int, col: int) -> None:
-        """定位到指定圣遗物格子：滚动到对应页 → 格子检测 → 点击"""
+        """定位到指定圣遗物格子：到顶 → 校准 → 计算 → 到顶 → 滚动
+
+        SmartScroller 流程: 先通过滑块到顶，校准 pixels_per_scroll，
+        重新到顶（消除校准滚动的偏移），再根据目标行数一次性滚动到位。
+        """
         cfg = self._active_config
         roi = cfg.roi
         if roi is None:
@@ -988,21 +1011,26 @@ class ArtifactScanPresenter(QObject):
 
         self.focusGame()
 
-        # 1. 滚动到顶部
-        self._slider_scroller.ensure_at_top()
+        sc = self._get_smart_scroller()
 
-        # 2. 滚动到目标页
-        self._page_scroller.set_config(cfg)
-        for p in range(page):
-            log.info(f"定位: 正在翻到第 {p + 1} 页...")
-            self._page_scroller.scroll_to_next_page(
-                ox, oy,
-                self._scroll_flag_x, self._scroll_flag_y,
-                tick_delay_ms=self._scroll_tick_delay,
-            )
-            sleep(self._scroll_page_settle / 1000.0)
+        # 1. 滚动到顶
+        if not sc.scroll_to_top():
+            log.warning("定位失败: 无法滚动到顶")
+            return
 
-        # 3. 截图 + 格子检测 → 使用检测器统一计算坐标
+        # 2. 校准 pixels_per_scroll
+        sc.calibrate()
+
+        # 3. 计算目标行数
+        total_rows = page * cfg.rows + row
+
+        # 4. 强制到顶（校准滚动偏移极小，需强制拖拽）
+        sc.scroll_to_top(force=True)
+
+        # 5. 滚动到目标行
+        sc.scroll_rows(total_rows)
+
+        # 6. 截图 + 格子检测 → 点击
         result = self._capture.capture()
         if result is None:
             log.warning("定位失败: 无法捕获截图")
@@ -1049,3 +1077,104 @@ class ArtifactScanPresenter(QObject):
         key = "slot_debug"
         vkey = PreviewImageProvider.put(key, debug_rgb)
         self.debugPreviewReady.emit(vkey)
+
+    # ==================================================================
+    # SmartScroller 调试
+    # ==================================================================
+
+    # -- 标尺配置 --
+
+    @Slot(int)
+    def setSmartRulerX(self, value: int) -> None:
+        self._smart_ruler_x = value
+        self._smart_scroller = None
+
+    @Slot(int)
+    def setSmartRulerY(self, value: int) -> None:
+        self._smart_ruler_y = value
+        self._smart_scroller = None
+
+    @Slot(int)
+    def setSmartRulerW(self, value: int) -> None:
+        self._smart_ruler_w = value
+        self._smart_scroller = None
+
+    @Slot(int)
+    def setSmartRulerH(self, value: int) -> None:
+        self._smart_ruler_h = value
+        self._smart_scroller = None
+
+    @Slot(int)
+    def setSmartRowHeight(self, value: int) -> None:
+        self._smart_row_height = value
+        self._smart_scroller = None
+
+    # -- 属性 --
+
+    smartCalibratedChanged = Signal()
+    smartPixelsPerScrollChanged = Signal()
+
+    @Property(bool, notify=smartCalibratedChanged)
+    def smartCalibrated(self) -> bool:
+        return self._smart_scroller.is_calibrated if self._smart_scroller else False
+
+    @Property(float, notify=smartPixelsPerScrollChanged)
+    def smartPixelsPerScroll(self) -> float:
+        return self._smart_scroller.pixels_per_scroll if self._smart_scroller else 0.0
+
+    @Property(int, notify=smartPixelsPerScrollChanged)
+    def smartCurrentRow(self) -> int:
+        return self._smart_scroller.current_row if self._smart_scroller else 0
+
+    # -- 操作 --
+
+    @Slot()
+    def smartCalibrate(self) -> None:
+        try:
+            sc = self._get_smart_scroller()
+            sc.calibrate()
+            self.smartCalibratedChanged.emit()
+            self.smartPixelsPerScrollChanged.emit()
+        except RuntimeError as e:
+            log.warning(f"SmartScroll校准失败: {e}")
+
+    @Slot()
+    def smartScrollToTop(self) -> None:
+        sc = self._get_smart_scroller()
+        sc.scroll_to_top()
+        self.smartPixelsPerScrollChanged.emit()
+
+    @Slot(int)
+    def smartScrollRows(self, rows: int) -> None:
+        sc = self._get_smart_scroller()
+        sc.scroll_rows(rows)
+        self.smartPixelsPerScrollChanged.emit()
+
+    @Slot()
+    def smartReset(self) -> None:
+        if self._smart_scroller:
+            self._smart_scroller.reset()
+            self.smartPixelsPerScrollChanged.emit()
+
+    @Slot()
+    def smartMeasureRowHeight(self) -> None:
+        """在顶部检测行高，生成预览图 — 委托 SlotDetector"""
+        try:
+            result = self._capture.capture()
+            if result is None:
+                log.warning("SmartScroll 行高测量: 截图失败")
+                return
+            det = SlotDetector.detect(result.image, config=self._active_config)
+            if det.row_height <= 0:
+                log.warning("SmartScroll 行高测量失败: 未检测到格子")
+                return
+            sc = self._get_smart_scroller()
+            sc._row_height = det.row_height
+            debug_rgb = SlotDetector.generate_row_height_debug(
+                result.image, det, config=self._active_config,
+            )
+            vkey = PreviewImageProvider.put("smart_scroll", debug_rgb)
+            self.debugPreviewReady.emit(vkey)
+            log.info(f"SmartScroll 行高已更新: {det.row_height}px")
+        except Exception as e:
+            log.error(f"SmartScroll 行高测量异常: {e}")

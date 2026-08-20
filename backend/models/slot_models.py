@@ -246,6 +246,8 @@ class DetectResult(NamedTuple):
     slots: list[tuple[int, int, int, int, int, int]]
     bottom_y: int  # 最后一行底部边缘的 Y 坐标
     debug_infos: list[SlotDebugInfo] = ()
+    row_height: int = 0  # 行高（像素），相邻行底部Y差值均值
+    row_bottoms: tuple[float, ...] = ()  # 每行底部Y坐标（图像坐标）
 
 
 @dataclass(frozen=True)

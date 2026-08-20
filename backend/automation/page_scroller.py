@@ -51,10 +51,14 @@ class PageScroller:
         flag_y: int,
         tick_delay_ms: int = 80,
         page_settle_ms: int = 200,
+        fast: bool = False,
     ) -> bool:
         """截图 → 检测格子 → 计算滚动距离 → 执行滚动。
 
         返回 True 表示已翻页，False 表示已是最后一页即无需翻页。
+
+        fast=True 时一次发送所有滚轮 tick，跳过逐 tick 延迟，
+        适合快速跳转多页场景。
         """
         result = self._capture.capture()
         if result is None:
@@ -73,10 +77,14 @@ class PageScroller:
 
         ticks = max(1, int(scroll_px / self._PX_PER_TICK))
 
-        for _ in range(ticks):
+        if fast:
             self._mouse.move_to(ox + flag_x, oy + flag_y)
-            self._mouse.scroll_one_tick()
-            sleep(tick_delay_ms / 1000.0)
+            self._mouse.scroll(-ticks)
+        else:
+            for _ in range(ticks):
+                self._mouse.move_to(ox + flag_x, oy + flag_y)
+                self._mouse.scroll_one_tick()
+                sleep(tick_delay_ms / 1000.0)
 
         sleep(page_settle_ms / 1000.0)
         return True

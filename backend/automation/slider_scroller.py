@@ -61,8 +61,11 @@ class SliderScroller:
     # 确保滑块在顶部
     # ==================================================================
 
-    def ensure_at_top(self) -> int | None:
+    def ensure_at_top(self, force: bool = False) -> int | None:
         """检测滑块位置，不在顶部则闯关拖拽到顶。
+
+        Args:
+            force: 强制拖拽到顶（跳过距离检测），用于校准后位置偏差极小的情况
 
         Returns:
             slider_y 或 None
@@ -91,10 +94,13 @@ class SliderScroller:
             return None
 
         distance_from_top = slider_y - top_y
-        if distance_from_top > SliderDetector.PROXIMITY:
-            log.info(
-                f"确保到顶: 滑块距顶部{distance_from_top}px, 开始闯关拖拽到顶..."
-            )
+        if force or distance_from_top > SliderDetector.PROXIMITY:
+            if force:
+                log.info("确保到顶: 强制拖拽到顶 (force=True)")
+            else:
+                log.info(
+                    f"确保到顶: 滑块距顶部{distance_from_top}px, 开始闯关拖拽到顶..."
+                )
             slider_y = self.verify_top(slider_y)
 
         log.info(f"确保到顶: 已确认在顶部 (slider_y={slider_y})")

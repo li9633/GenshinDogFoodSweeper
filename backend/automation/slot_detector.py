@@ -375,7 +375,16 @@ class SlotDetector:
                 ))
 
         bottom_y = offset_y + page_bottom_crop
-        return DetectResult(slots, bottom_y, debug_infos)
+
+        # 计算行高（相邻行底部Y差值）
+        row_bottoms = tuple(float(row_bottoms_img[r]) for r in range(config.rows))
+        if config.rows >= 2:
+            heights = [row_bottoms[i + 1] - row_bottoms[i] for i in range(config.rows - 1)]
+            row_height = int(np.mean(heights))
+        else:
+            row_height = 0
+
+        return DetectResult(slots, bottom_y, debug_infos, row_height, row_bottoms)
 
     @staticmethod
     def draw_debug(
@@ -557,4 +566,57 @@ class SlotDetector:
                 debug, (0, last_bottom), (debug.shape[1], last_bottom), (0, 0, 255), 2
             )
 
+        return cv2.cvtColor(debug, cv2.COLOR_BGR2RGB)
+
+    @staticmethod
+    def generate_row_height_debug(
+        image: np.ndarray,
+        result: DetectResult,
+        roi: tuple[int, int, int, int] | None = None,
+        config: SlotDetectorConfig = BAG_SLOT_CONFIG,
+    ) -> np.ndarray:
+        """在图像上画行分割线和行高标注，返回 RGB 预览图。
+
+        Args:
+            image: 原始 BGR 截图
+            result: detect() 返回的检测结果
+            roi: 检测区域
+            config: 配置
+
+        Returns:
+            RGB 格式的调试预览图
+        """
+        debug = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        if roi is None:
+            roi = config.roi
+        if roi is None:
+            return cv2.cvtColor(debug, cv2.COLOR_BGR2RGB)
+        rx, ry, rw, rh = roi
+
+        for i, y in enumerate(result.row_bottoms):
+            y_int = int(y)
+            cv2.line(debug, (rx, y_int), (rx + rw, y_int), (0, 255, 255), 2)
+            cv2.putText(
+                debug, f"R{i}", (rx + 5, y_int - 5),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1,
+            )
+            if i < len(result.row_bottoms) - 1:
+                next_y = int(result.row_bottoms[i + 1])
+                mid_x = rx + rw - 40
+                cv2.arrowedLine(
+                    debug, (mid_x, y_int), (mid_x, next_y),
+                    (0, 255, 0), 2, tipLength=0.15,
+                )
+                gap = next_y - y_int
+                cv2.putText(
+                    debug, f"{gap}px", (mid_x + 5, (y_int + next_y) // 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1,
+                )
+
+        cv2.putText(
+            debug,
+            f"Row Height: {result.row_height}px  |  Rows: {config.rows}",
+            (rx + 5, ry + rh - 10),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2,
+        )
         return cv2.cvtColor(debug, cv2.COLOR_BGR2RGB)

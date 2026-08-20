@@ -30,7 +30,7 @@ Rectangle {
             }
 
             Repeater {
-                model: ["区域标记", "元素定位", "圣遗物识别", "圣遗物扫描", "状态栏"]
+                model: ["区域标记", "元素定位", "圣遗物识别", "圣遗物扫描", "智能翻页器", "状态栏"]
 
                 TabButton {
                     required property int index
@@ -75,6 +75,7 @@ Rectangle {
             ElementDetectionPanel {}
             ArtifactRecognitionPanel {}
             ArtifactScanPanel {}
+            SmartScrollPanel {}
             StatusBarTestPanel {}
         }
 
@@ -90,7 +91,7 @@ Rectangle {
             id: preview
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: tabBar.currentIndex !== 4
+            visible: tabBar.currentIndex !== 5
             selectionMode: RegionMarker.selectionMode
 
             onRegionSelected: (x, y, w, h) => {
@@ -148,7 +149,8 @@ Rectangle {
         target: ArtifactScan
 
         function onDebugPreviewReady(key) {
-            preview.displayImage(key, "灰度检测调试预览")
+            let label = key.startsWith("smart_scroll") ? "行高测量" : "灰度检测调试预览"
+            preview.displayImage(key, label)
         }
     }
 }
