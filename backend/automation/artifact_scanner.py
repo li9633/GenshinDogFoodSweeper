@@ -294,6 +294,7 @@ class FullScanWorker(QThread):
         page_settle_ms: int,
         click_interval_ms: int,
         stop_mode: str = "anchor",
+        on_complete: Callable[[list[ArtifactInfo]], None] | None = None,
     ):
         super().__init__()
         self._mouse = mouse
@@ -315,6 +316,7 @@ class FullScanWorker(QThread):
         self._page_settle_ms = page_settle_ms
         self._click_interval_ms = click_interval_ms
         self._stop_mode = stop_mode
+        self._on_complete = on_complete
         self._stop = False
         self._results: list[ArtifactInfo] = []
         self._tail_info: ArtifactInfo | None = None
@@ -629,6 +631,11 @@ class FullScanWorker(QThread):
                 self.stepChanged.emit(f"扫描完成: 背包{count}个, 识别{scanned}个")
             else:
                 self.stepChanged.emit(f"扫描完成: 识别{scanned}个")
+
+            # 触发完成回调（可扩展：自行实现入库、导出等逻辑）
+            if self._on_complete:
+                self._on_complete(self._results)
+
             self.finished.emit(scanned, count)
 
         except Exception as exc:

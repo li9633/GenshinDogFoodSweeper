@@ -267,6 +267,32 @@ Rectangle {
                 }
             }
 
+            // ==== 扫描结果 ====
+            GCard {
+                title: "扫描结果"
+                Layout.fillWidth: true
+                visible: ArtifactScan.fullScanSavedPath !== ""
+
+                ColumnLayout {
+                    spacing: 6
+
+                    Text {
+                        text: "上次扫描已完成，结果已保存至:"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.textSecondary
+                    }
+                    Text {
+                        text: ArtifactScan.fullScanSavedPath
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                        color: Theme.accent
+                        wrapMode: Text.WrapAnywhere
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+
             // 底部留白
             Item { Layout.fillHeight: true }
         }
