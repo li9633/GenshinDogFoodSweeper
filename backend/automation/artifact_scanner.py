@@ -421,7 +421,7 @@ class FullScanWorker(QThread):
                     return
                 if det_result.slots:
                     last_slot = det_result.slots[-1]
-                    tail_cx, tail_cy = last_slot[0], last_slot[1]
+                    tail_cx, tail_cy = last_slot.cx, last_slot.cy
                     self.stepChanged.emit("正在识别尾锚点...")
                     tail_info = self._click_and_recognize_artifact(
                         tail_cx, tail_cy, ocr

@@ -7,12 +7,18 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ArtifactStat:
-    """单个词条"""
+    """主词条"""
 
     name: str
     value: float
     is_percentage: bool
-    is_locked: bool = False
+
+
+@dataclass
+class SubStat(ArtifactStat):
+    """副词条 — 继承主词条，额外包含激活状态"""
+
+    is_activated: bool = False
 
 
 @dataclass
@@ -25,7 +31,7 @@ class ArtifactInfo:
     piece_name: str | None = None
     rarity: int | None = None
     main_stat: ArtifactStat | None = None
-    sub_stats: list[ArtifactStat] = field(default_factory=list)
+    sub_stats: list[SubStat] = field(default_factory=list)
     level: int | None = None
     is_locked: bool | None = None
     set_effects: dict[str, str] | None = None

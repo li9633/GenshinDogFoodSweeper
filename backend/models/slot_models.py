@@ -206,6 +206,34 @@ def classify_rarity(
     return ArtifactRarity.UNKNOWN
 
 
+def star_count_to_rarity(count: int) -> ArtifactRarity:
+    """将星星计数映射为稀有度枚举。"""
+    mapping = {
+        5: ArtifactRarity.FIVE,
+        4: ArtifactRarity.FOUR,
+        3: ArtifactRarity.THREE,
+        2: ArtifactRarity.TWO,
+        1: ArtifactRarity.ONE,
+    }
+    return mapping.get(count, ArtifactRarity.UNKNOWN)
+
+
+@dataclass
+class SlotObject:
+    """单个圣遗物格子对象。"""
+
+    cx: int
+    cy: int
+    x: int
+    y: int
+    w: int
+    h: int
+    rarity: ArtifactRarity = ArtifactRarity.UNKNOWN
+    star_count: int = 0
+    row: int = 0
+    col: int = 0
+
+
 @dataclass
 class SlotDebugInfo:
     """单个格子的调试信息，由 detect() 预计算，供 draw_debug() 直接渲染。"""
@@ -241,13 +269,21 @@ class SlotDebugInfo:
 
 
 class DetectResult(NamedTuple):
-    """格子检测结果。"""
+    """格子检测结果。
 
-    slots: list[tuple[int, int, int, int, int, int]]
-    bottom_y: int  # 最后一行底部边缘的 Y 坐标
+    Attributes:
+        slots: 检测到的格子对象列表。
+        bottom_y: 最后一行圣遗物格子底部边缘的 Y 坐标。
+        debug_infos: 每个格子的调试信息（与 slots 一一对应）。
+        row_height: 行高（像素），相邻行底部 Y 差值的均值。
+        row_bottoms: 每行底部 Y 坐标（图像坐标）。
+    """
+
+    slots: list[SlotObject]
+    bottom_y: int
     debug_infos: list[SlotDebugInfo] = ()
-    row_height: int = 0  # 行高（像素），相邻行底部Y差值均值
-    row_bottoms: tuple[float, ...] = ()  # 每行底部Y坐标（图像坐标）
+    row_height: int = 0
+    row_bottoms: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -552,7 +552,7 @@ class ArtifactScanPresenter(QObject):
             log.warning("首锚点识别: 未检测到格子，请确认已滚动到顶部")
             return
         first = det_result.slots[0]
-        cx, cy, sx, sy, _sw, _sh = first
+        cx, cy, sx, sy = first.cx, first.cy, first.x, first.y
         self._anchor_first_x = sx
         self._anchor_first_y = sy
         self._anchor_first_display_text = ""
@@ -597,7 +597,7 @@ class ArtifactScanPresenter(QObject):
             log.warning("尾锚点识别: 未检测到格子，请确认已滚动到底部")
             return
         last = det_result.slots[-1]
-        cx, cy, sx, sy, _sw, _sh = last
+        cx, cy, sx, sy = last.cx, last.cy, last.x, last.y
         self._anchor_last_x = cx
         self._anchor_last_y = cy
         self._anchor_tail_x = 0
@@ -745,12 +745,24 @@ class ArtifactScanPresenter(QObject):
             import json
             from dataclasses import asdict
 
+            from backend.database.repository.artifact_set_repo import ArtifactSetRepo
             from backend.utils.datetime_helper import DateTimeHelper
+
+            # 一次查询所有套装，构建映射（避免 N 次 DB 连接）
+            all_sets = {s.id: s for s in ArtifactSetRepo.find_all()}
+            for r in results:
+                if r.set_id is not None:
+                    artifact_set = all_sets.get(r.set_id)
+                    if artifact_set:
+                        r.set_effects = artifact_set.set_effects
+
             out_dir = Path(__file__).resolve().parents[3] / "scan_result"
             out_dir.mkdir(parents=True, exist_ok=True)
             filename = f"scan_{DateTimeHelper.file_timestamp()}.json"
             filepath = out_dir / filename
             data = [asdict(r) for r in results]
+            for d in data:
+                d.pop("raw_texts", None)
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             self._full_scan_saved_path = str(filepath)
@@ -937,7 +949,7 @@ class ArtifactScanPresenter(QObject):
             return
         # slots 按 y 再 x 排序，最后一个即为右下角尾锚点
         last_slot = det_result.slots[-1]
-        tail_cx, tail_cy = last_slot[0], last_slot[1]
+        tail_cx, tail_cy = last_slot.cx, last_slot.cy
         log.info(f"尾锚点定位: 格子检测 → 最后一个格子 ({tail_cx}, {tail_cy})")
         self._anchor_tail_x, self._anchor_tail_y = tail_cx, tail_cy
         self._anchor_last_x = tail_cx

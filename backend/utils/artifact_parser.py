@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import ClassVar
 
-from models.artifact import ArtifactInfo, ArtifactStat
+from models.artifact import ArtifactInfo, ArtifactStat, SubStat
 from utils.logger import log
 
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
@@ -148,10 +148,10 @@ class ArtifactTextParser:
 
         # 副词条去重（同类型只保留一个，优先保留非 locked 的）
         if _RULES.get("sub_no_duplicate"):
-            seen: dict[str, ArtifactStat] = {}
+            seen: dict[str, SubStat] = {}
             for ss in info.sub_stats:
                 sub_cat = _STATS.get(ss.name, {}).get("category", ss.name)
-                if sub_cat not in seen or (not ss.is_locked and seen[sub_cat].is_locked):
+                if sub_cat not in seen or (not ss.is_activated and seen[sub_cat].is_activated):
                     seen[sub_cat] = ss
             info.sub_stats = list(seen.values())
 
@@ -195,33 +195,33 @@ class ArtifactTextParser:
     # ---------- 副词条 ----------
 
     @classmethod
-    def _parse_sub_stats(cls, text: str) -> list[ArtifactStat]:
+    def _parse_sub_stats(cls, text: str) -> list[SubStat]:
         parts = cls.SUB_SPLIT_RE.split(text)
-        results: list[ArtifactStat] = []
+        results: list[SubStat] = []
         for part in parts:
             part = part.strip()
             if not part:
                 continue
             cleaned = cls.LEADING_SYMBOL_RE.sub("", part)
-            is_locked = bool(cls.LOCKED_RE.search(cleaned))
+            is_activated = bool(cls.LOCKED_RE.search(cleaned))
             cleaned = cls.LOCKED_RE.sub("", cleaned).strip()
-            stat = cls._split_stat_value(cleaned, is_locked)
+            stat = cls._split_stat_value(cleaned, is_activated)
             if stat:
                 results.append(stat)
         return results
 
     @classmethod
     def _split_multi_stats(
-        cls, text: str, is_locked: bool
-    ) -> list[ArtifactStat]:
+        cls, text: str, is_activated: bool
+    ) -> list[SubStat]:
         """兜底：处理未被 SUB_SPLIT_RE 覆盖的粘连情况"""
         inner = re.split(r"\s*[·•。]\s*", text)
-        results: list[ArtifactStat] = []
+        results: list[SubStat] = []
         for p in inner:
             p = cls.LEADING_SYMBOL_RE.sub("", p.strip())
             if not p:
                 continue
-            locked = is_locked or bool(cls.LOCKED_RE.search(p))
+            locked = is_activated or bool(cls.LOCKED_RE.search(p))
             p = cls.LOCKED_RE.sub("", p).strip()
             stat = cls._split_stat_value(p, locked)
             if stat:
@@ -229,41 +229,23 @@ class ArtifactTextParser:
         return results
 
     @classmethod
-    def _split_multi_stats(
-        cls, text: str, is_locked: bool
-    ) -> list[ArtifactStat]:
-        """处理多个词条挤在一起的情况，用 · • 。 等分隔"""
-        inner = re.split(r"\s*[·•。]\s*", text)
-        results: list[ArtifactStat] = []
-        for p in inner:
-            p = cls.LEADING_SYMBOL_RE.sub("", p.strip())
-            if not p:
-                continue
-            locked = is_locked or bool(cls.LOCKED_RE.search(p))
-            p = cls.LOCKED_RE.sub("", p).strip()
-            stat = cls._split_stat_value(p, locked)
-            if stat:
-                results.append(stat)
-        return results
-
-    @classmethod
-    def _split_stat_value(cls, text: str, is_locked: bool) -> ArtifactStat | None:
+    def _split_stat_value(cls, text: str, is_activated: bool) -> SubStat | None:
         # 尝试 + 号分割
         m = cls.STAT_PLUS_RE.match(text)
         if m:
-            return cls._build_stat(m.group(1).strip(), m.group(2).strip(), is_locked)
+            return cls._build_stat(m.group(1).strip(), m.group(2).strip(), is_activated)
         # 回退：空格分割（OCR 可能漏掉 + 号）
         m = cls.STAT_SPACE_RE.match(text)
         if m:
-            return cls._build_stat(m.group(1).strip(), m.group(2).strip(), is_locked)
+            return cls._build_stat(m.group(1).strip(), m.group(2).strip(), is_activated)
         return None
 
     # ---------- 工具 ----------
 
     @classmethod
     def _build_stat(
-        cls, name: str, value_str: str, is_locked: bool = False
-    ) -> ArtifactStat | None:
+        cls, name: str, value_str: str, is_activated: bool | None = None
+    ) -> ArtifactStat | SubStat | None:
         is_pct = "%" in value_str
         clean = value_str.replace("%", "").replace(",", "").strip()
         try:
@@ -274,8 +256,12 @@ class ArtifactTextParser:
         matched = cls._fuzzy_match(name, is_pct)
         if not matched:
             return None
+        if is_activated is not None:
+            return SubStat(
+                name=matched, value=value, is_percentage=is_pct, is_activated=is_activated
+            )
         return ArtifactStat(
-            name=matched, value=value, is_percentage=is_pct, is_locked=is_locked
+            name=matched, value=value, is_percentage=is_pct
         )
 
     @staticmethod

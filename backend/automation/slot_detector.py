@@ -28,7 +28,9 @@ from backend.models.slot_models import (
     RarityThreshold,  # noqa: F401
     SlotDebugInfo,
     SlotDetectorConfig,
+    SlotObject,
     classify_rarity,
+    star_count_to_rarity,
 )
 
 
@@ -338,14 +340,33 @@ class SlotDetector:
 
                 # 综合判断：星星检测为主（50%权重），等级条为辅
                 # 空格子天然无星星，无需card_bar_diff辅助判断
+                slot_occupied = star_pass and bar_pass
+
+                # 星级降级机制：颜色分类与星星计数一致则直接采用，否则降级为星星检测
+                if slot_occupied:
+                    color_rarity = classify_rarity(
+                        card_gray_mean, sat_val,
+                        int(card_bgr_mean[0]), int(card_bgr_mean[1]), int(card_bgr_mean[2]),
+                        hue_val=hue_val,
+                    )
+                    star_rarity = star_count_to_rarity(star_matches)
+                    final_rarity = color_rarity if color_rarity == star_rarity else star_rarity
+                else:
+                    color_rarity = ArtifactRarity.UNKNOWN
+                    final_rarity = ArtifactRarity.UNKNOWN
+
                 if star_pass and bar_pass:
                     sx = offset_x + col_left
                     sy = offset_y + (row_bottom - config.slot_h)
                     cx = sx + config.slot_w // 2
                     cy = sy + config.slot_h // 2
-                    slots.append((cx, cy, sx, sy, config.slot_w, config.slot_h))
+                    slots.append(SlotObject(
+                        cx=cx, cy=cy, x=sx, y=sy, w=config.slot_w, h=config.slot_h,
+                        rarity=final_rarity,
+                        star_count=star_matches,
+                        row=r, col=c,
+                    ))
 
-                slot_occupied = star_pass and bar_pass
                 debug_infos.append(SlotDebugInfo(
                     row=r, col=c,
                     lx=offset_x + col_left + SAMPLE_MARGIN + SAMPLE_W // 2,
@@ -362,11 +383,7 @@ class SlotDetector:
                     card_b=int(card_bgr_mean[0]),
                     card_g=int(card_bgr_mean[1]),
                     card_r=int(card_bgr_mean[2]),
-                    rarity=classify_rarity(
-                        card_gray_mean, sat_val,
-                        int(card_bgr_mean[0]), int(card_bgr_mean[1]), int(card_bgr_mean[2]),
-                        hue_val=hue_val,
-                    ) if slot_occupied else ArtifactRarity.UNKNOWN,
+                    rarity=color_rarity,
                     star_sample_xs=star_sample_xs,
                     star_sample_y=offset_y + star_y,
                     has_center_star=has_center_star,
@@ -389,7 +406,7 @@ class SlotDetector:
     @staticmethod
     def draw_debug(
         image: np.ndarray,
-        slots: list[tuple[int, int, int, int, int, int]],
+        slots: list[SlotObject],
         roi: tuple[int, int, int, int] | None = None,
         config: SlotDetectorConfig = BAG_SLOT_CONFIG,
         page_bottom: int | None = None,
@@ -544,12 +561,12 @@ class SlotDetector:
                         f"R{info.rarity}"
                     )
 
-        for i, (cx, cy, x, y, w, h) in enumerate(slots):
-            cv2.rectangle(debug, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        for i, slot in enumerate(slots):
+            cv2.rectangle(debug, (slot.x, slot.y), (slot.x + slot.w, slot.y + slot.h), (0, 255, 0), 2)
             cv2.putText(
                 debug,
                 str(i + 1),
-                (cx - 12, cy + 8),
+                (slot.cx - 12, slot.cy + 8),
                 cv2.FONT_HERSHEY_DUPLEX,
                 0.55,
                 (0, 0, 255),
@@ -561,7 +578,7 @@ class SlotDetector:
                 debug, (0, page_bottom), (debug.shape[1], page_bottom), (0, 0, 255), 2
             )
         elif slots:
-            last_bottom = max(s[3] + s[5] for s in slots)
+            last_bottom = max(s.y + s.h for s in slots)
             cv2.line(
                 debug, (0, last_bottom), (debug.shape[1], last_bottom), (0, 0, 255), 2
             )

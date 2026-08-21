@@ -143,7 +143,7 @@ class ArtifactDeduplicator:
             subs: list[str] = []
             for ss in artifact.sub_stats:
                 pct = "%" if ss.is_percentage else ""
-                lock = "(待激活)" if ss.is_locked else ""
+                lock = "(待激活)" if ss.is_activated else ""
                 subs.append(f"{ss.name}+{ss.value}{pct}{lock}")
             parts.append("｜".join(subs))
         return " | ".join(parts)
