@@ -85,6 +85,7 @@ class ArtifactScanPresenter(QObject):
     fullScanRunningChanged = Signal()
     fullScanFinished = Signal()
     fullScanArtifactScanned = Signal()
+    fullScanSavedPathChanged = Signal()
 
     # 扫描选项变更
     scanOptionsChanged = Signal()
@@ -157,6 +158,7 @@ class ArtifactScanPresenter(QObject):
         self._full_scan_current_page = 0
         self._full_scan_total_pages = 0
         self._full_scan_results: list[ArtifactInfo] = []
+        self._full_scan_saved_path: str = ""
 
         # 格子检测配置
         self._available_configs = ALL_SLOT_CONFIGS
@@ -714,6 +716,10 @@ class ArtifactScanPresenter(QObject):
     def fullScanTotalPages(self) -> int:
         return self._full_scan_total_pages
 
+    @Property(str, notify=fullScanSavedPathChanged)
+    def fullScanSavedPath(self) -> str:
+        return self._full_scan_saved_path
+
     @Slot()
     def startFullScan(self) -> None:
         """开始全量圣遗物扫描 — 参数从当前 SlotDetectorConfig 读取"""
@@ -730,6 +736,27 @@ class ArtifactScanPresenter(QObject):
         engines_dir = Path(__file__).resolve().parents[3] / "engines"
 
         self._full_scan_results = []
+        self._full_scan_saved_path = ""
+
+        log.info("全量扫描开始 (保存目录: scan_result/)")
+
+        def _save_results(results: list[ArtifactInfo]) -> None:
+            """扫描完成回调：保存 JSON 到 scan_result/ 目录"""
+            import json
+            from dataclasses import asdict
+
+            from backend.utils.datetime_helper import DateTimeHelper
+            out_dir = Path(__file__).resolve().parents[3] / "scan_result"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            filename = f"scan_{DateTimeHelper.file_timestamp()}.json"
+            filepath = out_dir / filename
+            data = [asdict(r) for r in results]
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            self._full_scan_saved_path = str(filepath)
+            self.fullScanSavedPathChanged.emit()
+            log.info(f"扫描结果已保存: {filepath} ({len(data)} 件)")
+
         self._full_scan_worker = FullScanWorker(
             mouse=self._mouse,
             capture=self._capture,
@@ -750,6 +777,7 @@ class ArtifactScanPresenter(QObject):
             page_settle_ms=self._scroll_page_settle,
             click_interval_ms=self._full_scan_click_interval,
             stop_mode=settings.get("scan.stop_mode") or "anchor",
+            on_complete=_save_results,
         )
         self._full_scan_worker.stepChanged.connect(self._on_full_scan_step)
         self._full_scan_worker.progressChanged.connect(self._on_full_scan_progress)
@@ -1021,8 +1049,8 @@ class ArtifactScanPresenter(QObject):
         # 2. 校准 pixels_per_scroll
         sc.calibrate()
 
-        # 3. 计算目标行数
-        total_rows = page * cfg.rows + row
+        # 3. 计算目标行数（滚动到目标页起始位置，页内由格子检测定位）
+        total_rows = page * cfg.rows
 
         # 4. 强制到顶（校准滚动偏移极小，需强制拖拽）
         sc.scroll_to_top(force=True)

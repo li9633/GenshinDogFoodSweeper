@@ -51,3 +51,5 @@ temp/
 
 #OCR模型文件
 engines/
+
+scan_result/
