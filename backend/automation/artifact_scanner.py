@@ -57,6 +57,7 @@ def run_grid_click(
     on_click: Callable[[int, int, int, int, int, int], bool] | None = None,
     on_progress: Callable[[int, int], None] | None = None,
     stop_check: Callable[[], bool] | None = None,
+    pre_check: Callable[[int, int], bool] | None = None,
     win: WindowHelper | None = None,
 ) -> None:
     """同步网格点击 — QThread 无关的纯逻辑函数。
@@ -67,6 +68,7 @@ def run_grid_click(
         on_click: 每次点击后回调 (row, col, x, y, idx, total) -> bool
         on_progress: 进度回调 (idx, total)
         stop_check: 停止检查回调 () -> bool，返回 True 则停止
+        pre_check: 点击前检查 (row, col) -> bool，返回 False 则跳过该格子
         win: 窗口助手，config.auto_focus=True 时用于聚焦窗口
     """
     if config.auto_focus and win:
@@ -85,6 +87,8 @@ def run_grid_click(
     ):
         if stop_check and stop_check():
             break
+        if pre_check and not pre_check(row, col):
+            continue
         mouse.move_and_click(x, y)
         if on_progress:
             on_progress(idx, total)
@@ -607,11 +611,25 @@ class FullScanWorker(QThread):
                 self.stepChanged.emit(f"正在扫描第 {page + 1}/{total_pages} 页...")
                 self.pageChanged.emit(page + 1, total_pages)
 
+                # 仅五星模式：每页扫描前检测格子星级，跳过非五星格子
+                stop_mode = settings.get("scan.stop_mode")
+                if stop_mode == "five_star_only":
+                    screenshot = self._capture.capture()
+                    if screenshot:
+                        det = SlotDetector.detect(screenshot.image, config=self._slot_config)
+                        slot_rarity = {(s.row, s.col): s.rarity for s in det.slots}
+                        pre_check = lambda r, c, _m=slot_rarity: _m.get((r, c)) == ArtifactRarity.FIVE
+                    else:
+                        pre_check = None
+                else:
+                    pre_check = None
+
                 run_grid_click(
                     self._mouse,
                     grid_config,
                     on_click=_scan_callback,
                     stop_check=lambda: self._stop,
+                    pre_check=pre_check,
                 )
 
                 if page < total_pages - 1 and not self._stop:
