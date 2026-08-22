@@ -58,10 +58,8 @@ class DogfoodRuleEngine:
                             continue
                         matched += 1
                         break
-            if matched < rule.sub_count:
-                # 主词条也计入副词条匹配数
-                if rule.include_main_stat and artifact.main_stat:
-                    for rule_sub in rule.sub_stats:
+            if matched < rule.sub_count and rule.include_main_stat and artifact.main_stat:
+                for rule_sub in rule.sub_stats:
                         if rule_sub.name in artifact.main_stat.name:
                             matched += 1
                             break
