@@ -6,3 +6,4 @@ GSpinBox 1.0 GSpinBox.qml
 GCheckBox 1.0 GCheckBox.qml
 GComboBox 1.0 GComboBox.qml
 GCard 1.0 GCard.qml
+GMessageBox 1.0 GMessageBox.qml

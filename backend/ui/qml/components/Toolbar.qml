@@ -11,6 +11,8 @@ Rectangle {
     Layout.preferredHeight: 40
     color: "transparent"
 
+    property string pageTitle: ""
+
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 16
@@ -18,7 +20,7 @@ Rectangle {
         spacing: 8
 
         Text {
-            text: "原神狗粮清扫器"
+            text: root.pageTitle || "原神狗粮清扫器"
             font.family: Theme.fontFamily
             font.pixelSize: 16
             font.bold: true

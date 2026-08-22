@@ -5,8 +5,9 @@ import GenshinUI
 import "components"
 import "pages"
 
-// qmllint disable unqualified
+// qmllint disable unqualified missing-property
 // EnvManager / SettingsPresenter 是 Python 通过 setContextProperty 注入的上下文属性
+// stackView.currentItem.pageTitle 是页面组件声明的动态属性
 
 ApplicationWindow {
     id: root
@@ -44,6 +45,7 @@ ApplicationWindow {
                 currentKey: "dogfood"
 
                 onPageSelected: function(key) {
+                    if (sidebar.currentKey === key) return;
                     sidebar.currentKey = key
                     stackView.replace(null, getPageComponent(key), StackView.Immediate)
                 }
@@ -65,6 +67,7 @@ ApplicationWindow {
                 // 顶部工具栏
                 Toolbar {
                     Layout.fillWidth: true
+                    pageTitle: stackView.currentItem ? stackView.currentItem.pageTitle || "" : ""
                 }
 
                 // 分割线

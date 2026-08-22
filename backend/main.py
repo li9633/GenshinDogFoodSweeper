@@ -165,6 +165,16 @@ def main():
         traceback.print_exc()
         log.error(f"VersionCheck 初始化失败: {exc}")
 
+    try:
+        from ui.presenters.rule_presenter import RulePresenter
+
+        rule_presenter = RulePresenter()
+        engine.rootContext().setContextProperty("RulePresenter", rule_presenter)
+        log.debug("RulePresenter 注册成功")
+    except Exception as exc:
+        traceback.print_exc()
+        log.error(f"RulePresenter 初始化失败: {exc}")
+
     # -- OCR 引擎预热（后台线程，不阻塞 UI） --
 
     def _start_ocr_worker():

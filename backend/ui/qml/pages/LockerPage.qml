@@ -1,8 +1,8 @@
 import QtQuick
-import QtQuick.Controls
 import GenshinUI
 
 Rectangle {
+    property string pageTitle: "圣遗物锁定器"
     color: Theme.bgPrimary
 
     Column {

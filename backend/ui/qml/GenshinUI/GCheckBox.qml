@@ -4,6 +4,8 @@ import QtQuick.Controls
 CheckBox {
     id: control
 
+    topPadding: 0
+    bottomPadding: 0
     leftPadding: indicator.width + 6
 
     indicator: Rectangle {
@@ -18,18 +20,23 @@ CheckBox {
         Text {
             anchors.centerIn: parent
             text: "✓"
-            font.pixelSize: 11
+            font.pixelSize: 12
             color: Theme.bgPrimary
             visible: control.checked
         }
     }
 
-    contentItem: Text {
-        text: control.text
-        font.family: Theme.fontFamily
-        font.pixelSize: 13
-        color: Theme.textPrimary
-        verticalAlignment: Text.AlignVCenter
-        leftPadding: 0
+    contentItem: Item {
+        implicitWidth: textItem.implicitWidth
+        implicitHeight: textItem.implicitHeight
+
+        Text {
+            id: textItem
+            anchors.verticalCenter: parent.verticalCenter
+            text: control.text
+            font.family: Theme.fontFamily
+            font.pixelSize: 13
+            color: Theme.textPrimary
+        }
     }
 }

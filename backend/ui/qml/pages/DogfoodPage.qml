@@ -1,8 +1,8 @@
 import QtQuick
-import QtQuick.Controls
 import GenshinUI
 
 Rectangle {
+    property string pageTitle: "狗粮清理器"
     color: Theme.bgPrimary
 
     Column {

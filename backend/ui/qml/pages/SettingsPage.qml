@@ -8,6 +8,7 @@ import GenshinUI
 
 Rectangle {
     id: root
+    property string pageTitle: "设置"
     color: Theme.bgPrimary
 
     // ============================================================
@@ -39,15 +40,6 @@ Rectangle {
         ColumnLayout {
             width: scrollView.availableWidth
             spacing: 12
-
-            // -- 标题 --
-            Text {
-                text: "设置"
-                font.family: Theme.fontFamily
-                font.pixelSize: 18
-                font.bold: true
-                color: Theme.accent
-            }
 
             // ======== 外观设置 ========
             GCard {

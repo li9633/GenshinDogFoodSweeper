@@ -12,6 +12,7 @@ import "../components"
 
 Rectangle {
     id: root
+    property string pageTitle: "调试"
     color: Theme.bgPrimary
 
     // ============================================================

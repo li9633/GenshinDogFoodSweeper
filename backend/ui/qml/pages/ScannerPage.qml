@@ -8,6 +8,7 @@ import GenshinUI
 
 Rectangle {
     id: root
+    property string pageTitle: "圣遗物扫描器"
     color: Theme.bgPrimary
 
     ScrollView {
@@ -19,15 +20,6 @@ Rectangle {
         ColumnLayout {
             width: scrollView.availableWidth
             spacing: 16
-
-            // ==== 标题 ====
-            Text {
-                text: "圣遗物扫描器"
-                font.family: Theme.fontFamily
-                font.pixelSize: 22
-                font.bold: true
-                color: Theme.accent
-            }
 
             // ==== 游戏状态 ====
             GCard {
