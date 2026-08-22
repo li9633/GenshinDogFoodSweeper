@@ -31,6 +31,8 @@ Dialog {
     property string _formAction: "keep"
     property int _formPriority: 0
     property bool _formEnabled: true
+    property bool _formIncludeUnactivated: true
+    property bool _formIncludeMainStat: false
 
     // —— 动态词条过滤 ——
     property var _mainStatOptions: {
@@ -91,6 +93,8 @@ Dialog {
             _formAction = editRule.action || "keep";
             _formPriority = editRule.priority || 0;
             _formEnabled = editRule.enabled !== false;
+            _formIncludeUnactivated = editRule.include_unactivated !== false;
+            _formIncludeMainStat = editRule.include_main_stat === true;
         } else {
             root.title = "新建规则";
             _formName = "";
@@ -106,6 +110,8 @@ Dialog {
             _formAction = "keep";
             _formPriority = 0;
             _formEnabled = true;
+            _formIncludeUnactivated = true;
+            _formIncludeMainStat = false;
         }
     }
 
@@ -199,6 +205,8 @@ Dialog {
                         action: root._formAction,
                         priority: root._formPriority,
                         enabled: root._formEnabled,
+                        include_unactivated: root._formIncludeUnactivated,
+                        include_main_stat: root._formIncludeMainStat,
                     };
                     const result = RulePresenter.saveRule(data);
                     if (result && result.ok) {
@@ -651,6 +659,40 @@ Dialog {
                 wrapMode: Text.WordWrap
             }
 
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 68
+                spacing: 8
+                GCheckBox {
+                    id: includeUnactivatedCb
+                    checked: root._formIncludeUnactivated
+                    onCheckedChanged: root._formIncludeUnactivated = checked
+                }
+                Text {
+                    text: "副词条匹配时考虑待激活词条"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 13
+                    color: Theme.textSecondary
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 68
+                spacing: 8
+                GCheckBox {
+                    id: includeMainStatCb
+                    checked: root._formIncludeMainStat
+                    onCheckedChanged: root._formIncludeMainStat = checked
+                }
+                Text {
+                    text: "主词条也计入副词条匹配数"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 13
+                    color: Theme.textSecondary
+                }
+            }
+
             // ========== 其他 ==========
             SectionLabel {
                 text: "▎其他"
@@ -674,9 +716,9 @@ Dialog {
                     id: enabledCheck
                     text: "启用"
                     checked: root._formEnabled
-                    onCheckedChanged: root._formEnabled = checked
-                }
+                onCheckedChanged: root._formEnabled = checked
             }
+        }
             Text {
                 Layout.fillWidth: true
                 Layout.leftMargin: 68

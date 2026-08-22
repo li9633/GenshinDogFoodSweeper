@@ -203,7 +203,7 @@ class ArtifactTextParser:
             if not part:
                 continue
             cleaned = cls.LEADING_SYMBOL_RE.sub("", part)
-            is_activated = bool(cls.LOCKED_RE.search(cleaned))
+            is_activated = not bool(cls.LOCKED_RE.search(cleaned))
             cleaned = cls.LOCKED_RE.sub("", cleaned).strip()
             stat = cls._split_stat_value(cleaned, is_activated)
             if stat:

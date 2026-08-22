@@ -67,6 +67,41 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
 
+            // 检测配置选择
+            Text {
+                text: "检测配置:"
+                font.family: Theme.fontFamily
+                font.pixelSize: 13
+                color: Theme.textSecondary
+            }
+            GComboBox {
+                id: configCombo
+                implicitWidth: 160
+                model: RulePresenter.availableSlotConfigs
+                textRole: "name"
+                currentIndex: RulePresenter.selectedSlotConfigIndex
+                onActivated: function(idx) {
+                    RulePresenter.setSelectedSlotConfigIndex(idx);
+                }
+            }
+
+            GButton {
+                text: "测试当前圣遗物"
+                colorType: "success"
+                onClicked: {
+                    RulePresenter.testCurrentArtifact();
+                }
+            }
+
+            Text {
+                id: testStatusText
+                text: ""
+                font.family: Theme.fontFamily
+                font.pixelSize: 12
+                color: Theme.textMuted
+                visible: text !== ""
+            }
+
             Item { Layout.fillWidth: true }
 
             GButton {
@@ -87,6 +122,23 @@ Rectangle {
                 text: "导出选中(" + _selectedCount() + ")"
                 colorType: "warning"
                 onClicked: fileExportSelectedDialog.open()
+            }
+
+            Item { Layout.preferredWidth: 16 }
+
+            Text {
+                text: "未命中时:"
+                font.family: Theme.fontFamily
+                font.pixelSize: 13
+                color: Theme.textSecondary
+            }
+            GComboBox {
+                implicitWidth: 80
+                model: ["保留", "分解"]
+                currentIndex: RulePresenter.defaultAction === "discard" ? 1 : 0
+                onActivated: function(idx) {
+                    RulePresenter.setDefaultAction(idx === 1 ? "discard" : "keep");
+                }
             }
         }
 
@@ -117,7 +169,11 @@ Rectangle {
                 delegate: RuleCard {
                     width: ListView.view.width
                     ruleData: modelData
+                    highlighted: RulePresenter.selectedRule.name === modelData.name
 
+                    onClicked: function(rule) {
+                        RulePresenter.selectRule(rule.name);
+                    }
                     onEditRequested: function(rule) {
                         editDialog.editRule = rule;
                         editDialog.open();
@@ -140,6 +196,24 @@ Rectangle {
         id: editDialog
         editRule: ({})
         onAccepted: RulePresenter.reload()
+    }
+
+    // ==== 测试结果对话框 ====
+    RuleTestResultDialog {
+        id: testResultDialog
+    }
+
+    // ==== 测试结果监听 ====
+    Connections {
+        target: RulePresenter
+        function onTestResultReady(result) {
+            testStatusText.text = "";
+            testResultDialog.resultData = result;
+            testResultDialog.open();
+        }
+        function onTestStatusChanged(status) {
+            testStatusText.text = status;
+        }
     }
 
     // ==== 文件对话框 ====

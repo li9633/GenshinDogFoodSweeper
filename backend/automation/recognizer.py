@@ -529,6 +529,24 @@ class ArtifactRecognizer:
         elapsed = (time.perf_counter() - t0) * 1000
         log.debug(f"[识别完成] 总耗时 {elapsed:.0f}ms")
 
+        # 输出识别到的结构化对象信息
+        _sub_stats_str = " | ".join(
+            f"{s.name}+{s.value}{'%' if s.is_percentage else ''}"
+            f"{'[激活]' if s.is_activated else '[未激活]'}"
+            for s in artifact.sub_stats
+        ) if artifact.sub_stats else "无"
+        log.debug(
+            f"[识别结果] "
+            f"套装={artifact.set_name or '?'} | "
+            f"部位={artifact.piece_type or '?'}({artifact.piece_name or '-'}) | "
+            f"星级={artifact.rarity or '?'} | "
+            f"等级={artifact.level or '?'} | "
+            f"主词条={artifact.main_stat.name if artifact.main_stat else '?'}"
+            f"+{artifact.main_stat.value if artifact.main_stat else '?'} | "
+            f"锁定={artifact.is_locked} | "
+            f"副词条=[{_sub_stats_str}]"
+        )
+
         return artifact
 
     # ---------- OCR 结果解析 ----------

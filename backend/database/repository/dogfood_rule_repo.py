@@ -9,6 +9,7 @@ import json
 
 from database.connection import get_db
 from models.dogfood_rule import DogfoodRule
+from utils.logger import log
 
 
 class DogfoodRuleRepo:
@@ -38,6 +39,20 @@ class DogfoodRuleRepo:
                     updated_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
                 )
             """)
+            # 迁移：新增 include_unactivated 列（v1.1+）
+            try:
+                conn.execute(
+                    "ALTER TABLE dogfood_rules ADD COLUMN include_unactivated INTEGER NOT NULL DEFAULT 1"
+                )
+            except Exception as e:
+                log.debug(f"添加列 include_unactivated 失败(可能已存在): {e}")
+            # 迁移：新增 include_main_stat 列（v1.2+）
+            try:
+                conn.execute(
+                    "ALTER TABLE dogfood_rules ADD COLUMN include_main_stat INTEGER NOT NULL DEFAULT 0"
+                )
+            except Exception as e:
+                log.debug(f"添加列 include_main_stat 失败(可能已存在): {e}")
 
     # ---------- 读 ----------
 
@@ -53,6 +68,8 @@ class DogfoodRuleRepo:
                 d = dict(row)
                 d["sub_stats"] = json.loads(d.get("sub_stats", "[]"))
                 d["enabled"] = bool(d.get("enabled", 1))
+                d["include_unactivated"] = bool(d.get("include_unactivated", 1))
+                d["include_main_stat"] = bool(d.get("include_main_stat", 0))
                 rules.append(DogfoodRule.from_dict(d))
             return rules
 
@@ -68,11 +85,11 @@ class DogfoodRuleRepo:
                 INSERT INTO dogfood_rules
                     (name, part, part_exclude, main_stat, set_name,
                      sub_stats, sub_count, action, priority, enabled,
-                     updated_at)
+                     include_unactivated, include_main_stat, updated_at)
                 VALUES
                     (:name, :part, :part_exclude, :main_stat, :set_name,
                      :sub_stats, :sub_count, :action, :priority, :enabled,
-                     datetime('now','localtime'))
+                     :include_unactivated, :include_main_stat, datetime('now','localtime'))
                 ON CONFLICT(name) DO UPDATE SET
                     part         = excluded.part,
                     part_exclude = excluded.part_exclude,
@@ -83,6 +100,8 @@ class DogfoodRuleRepo:
                     action       = excluded.action,
                     priority     = excluded.priority,
                     enabled      = excluded.enabled,
+                    include_unactivated = excluded.include_unactivated,
+                    include_main_stat = excluded.include_main_stat,
                     updated_at   = excluded.updated_at
                 """,
                 {
@@ -96,6 +115,8 @@ class DogfoodRuleRepo:
                     "action": d["action"],
                     "priority": d["priority"],
                     "enabled": int(d["enabled"]),
+                    "include_unactivated": int(d.get("include_unactivated", True)),
+                    "include_main_stat": int(d.get("include_main_stat", False)),
                 },
             )
 

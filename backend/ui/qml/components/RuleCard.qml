@@ -27,11 +27,14 @@ Rectangle {
     signal editRequested(var rule)
     signal deleteRequested(var rule)
     signal duplicateRequested(var rule)
+    signal clicked(var rule)
+
+    property bool highlighted: false
 
     implicitHeight: contentLayout.implicitHeight + 24
-    color: cardMouse.containsMouse ? Theme.bgTrack : Theme.bgSecondary
+    color: highlighted ? Theme.accentOverlay6 : (cardMouse.containsMouse ? Theme.bgTrack : Theme.bgSecondary)
     radius: Theme.radius
-    border.color: cardMouse.containsMouse ? Theme.borderHover : Theme.border
+    border.color: highlighted ? Theme.accent : (cardMouse.containsMouse ? Theme.borderHover : Theme.border)
     opacity: (ruleData.enabled !== false) ? 1.0 : 0.55
 
     // 左侧强调色条
@@ -59,6 +62,8 @@ Rectangle {
                 ctxMenu.x = mouse.x
                 ctxMenu.y = mouse.y
                 ctxMenu.open()
+            } else if (mouse.button === Qt.LeftButton) {
+                card.clicked(card.ruleData)
             }
         }
     }

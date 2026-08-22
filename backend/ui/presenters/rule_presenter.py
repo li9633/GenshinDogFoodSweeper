@@ -11,12 +11,19 @@ from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.logger import log
 from utils.settings_manager import settings
 
+from backend.automation.dogfood_rule_engine import DogfoodRuleEngine
+from backend.automation.recognizer import ArtifactRecognizer
+from backend.models.artifact_recognition_field import ArtifactRecognitionField
+from backend.models.slot_models import ALL_SLOT_CONFIGS
+
 
 class RulePresenter(QObject):
     rulesChanged = Signal()
     selectedRuleChanged = Signal()
     defaultActionChanged = Signal()
     statusMessage = Signal(str, int, str)  # msg, duration, level
+    testResultReady = Signal("QVariantMap")  # 测试结果
+    testStatusChanged = Signal(str)  # 测试状态提示
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -24,6 +31,7 @@ class RulePresenter(QObject):
         self._selected_name = ""
         self._default_action = "keep"
         self._stats_config: dict | None = None
+        self._selected_config_index = 0
         self._load()
 
     # ========== 持久化 ==========
@@ -313,6 +321,184 @@ class RulePresenter(QObject):
             if r.name == name:
                 return r.to_dict()
         return {}
+
+    # ========== 检测配置 ==========
+
+    @Property("QVariantList", notify=rulesChanged)
+    def availableSlotConfigs(self) -> list[dict]:
+        """可用检测配置列表，供 QML 下拉选择"""
+        return [
+            {"name": c.name, "index": i}
+            for i, c in enumerate(ALL_SLOT_CONFIGS)
+        ]
+
+    @Property(int, notify=rulesChanged)
+    def selectedSlotConfigIndex(self) -> int:
+        return self._selected_config_index
+
+    @Slot(int)
+    def setSelectedSlotConfigIndex(self, index: int) -> None:
+        if 0 <= index < len(ALL_SLOT_CONFIGS):
+            self._selected_config_index = index
+
+    # ========== 规则测试 ==========
+
+    _TEST_FIELDS: frozenset[ArtifactRecognitionField] = frozenset({
+        ArtifactRecognitionField.SET_NAME,
+        ArtifactRecognitionField.PIECE_TYPE,
+        ArtifactRecognitionField.MAIN_STAT,
+        ArtifactRecognitionField.SUB_STATS,
+        ArtifactRecognitionField.LEVEL,
+        ArtifactRecognitionField.RARITY,
+        ArtifactRecognitionField.LOCK_STATUS,
+    })
+
+    @Slot()
+    def testCurrentArtifact(self) -> None:
+        """测试当前选中规则是否匹配游戏中的圣遗物"""
+        if not self._selected_name:
+            self.statusMessage.emit("请先在规则列表中选择一条规则", 3000, "warning")
+            return
+
+        try:
+            from backend.automation.ocr_worker import OcrWorker
+            from backend.utils.screen_capture import ScreenshotCapture
+        except Exception as e:
+            log.error(f"导入测试依赖失败: {e}")
+            self.statusMessage.emit("测试模块加载失败", 3000, "error")
+            return
+
+        config = ALL_SLOT_CONFIGS[self._selected_config_index]
+        rule_name = self._selected_name
+
+        # 截图
+        self.testStatusChanged.emit("正在截图...")
+        capture = ScreenshotCapture()
+        result = capture.capture()
+        if result is None:
+            self.testStatusChanged.emit("截图失败")
+            self.statusMessage.emit("截图失败，请确认原神已启动", 3000, "error")
+            return
+
+        image = result.image
+        roi_configs = dict(config.detail_roi_configs)
+        lock_search = config.lock_anchor_search_region
+        lock_to_level = config.lock_anchor_to_level
+        lock_to_sub = config.lock_anchor_to_sub_stats
+        fields = RulePresenter._TEST_FIELDS
+
+        self.testStatusChanged.emit("正在 OCR 识别...")
+
+        worker = OcrWorker.instance()
+
+        def do_recognize(ocr):
+            return ArtifactRecognizer.recognize(
+                image, roi_configs, ocr,
+                fields=fields,
+                lock_anchor_search_region=lock_search,
+                lock_anchor_to_level=lock_to_level,
+                lock_anchor_to_sub_stats=lock_to_sub,
+            )
+
+        worker.task_done.connect(self._on_test_ocr_done)
+        worker.task_error.connect(self._on_test_ocr_error)
+        worker.submit(do_recognize, callback_data=rule_name)
+
+    def _on_test_ocr_done(self, artifact, callback_data: str) -> None:
+        """OCR 识别完成 → 规则匹配 → 发射结果"""
+        from backend.automation.ocr_worker import OcrWorker
+
+        worker = OcrWorker.instance()
+        try:
+            worker.task_done.disconnect(self._on_test_ocr_done)
+            worker.task_error.disconnect(self._on_test_ocr_error)
+        except Exception as e:
+            log.debug(f"断开 OCR 信号连接失败: {e}")
+
+        rule_name = callback_data
+        self.testStatusChanged.emit("正在匹配规则...")
+
+        # 查找选中规则
+        selected_rule = None
+        for r in self._rules:
+            if r.name == rule_name:
+                selected_rule = r
+                break
+
+        if selected_rule is None:
+            self.testStatusChanged.emit("规则已不存在")
+            self.statusMessage.emit("选中的规则已被删除", 3000, "error")
+            return
+
+        engine = DogfoodRuleEngine(default_action=self._default_action)
+        matched = engine.match(artifact, selected_rule)
+
+        # 所有规则的最终判定
+        final_is_dogfood = engine.evaluate(artifact, self._rules)
+
+        # 查询部位图标
+        piece_icon = ""
+        if artifact.set_id and artifact.piece_type:
+            try:
+                from database.repository.artifact_piece_repo import ArtifactPieceRepo
+                pieces = ArtifactPieceRepo.find_by_set_id(artifact.set_id)
+                for p in pieces:
+                    if p.type == artifact.piece_type:
+                        piece_icon = p.icon
+                        break
+            except Exception as e:
+                log.debug(f"查询部位图标失败: {e}")
+
+        self.testResultReady.emit({
+            "ok": True,
+            "rule_name": rule_name,
+            "rule_action": selected_rule.action,
+            "matched": matched,
+            "detail": {},
+            "final_action": "discard" if final_is_dogfood else "keep",
+            "artifact": {
+                "set_name": artifact.set_name or "未知",
+                "piece_icon": piece_icon,
+                "piece_type": artifact.piece_type or "未知",
+                "piece_name": artifact.piece_name or "",
+                "rarity": artifact.rarity or 0,
+                "level": artifact.level or 0,
+                "main_stat": (
+                    f"{artifact.main_stat.name}+{artifact.main_stat.value}"
+                    if artifact.main_stat else "未知"
+                ),
+                "sub_stats": [
+                    {
+                        "name": s.name,
+                        "value": f"{s.value}{'%' if s.is_percentage else ''}",
+                        "activated": s.is_activated,
+                    }
+                    for s in artifact.sub_stats
+                ],
+                "is_locked": artifact.is_locked,
+                "is_material": artifact.is_material,
+                "material_name": artifact.material_name or "",
+            },
+        })
+        self.testStatusChanged.emit("测试完成")
+
+    def _on_test_ocr_error(self, error_msg: str, callback_data: str) -> None:
+        """OCR 识别失败"""
+        from backend.automation.ocr_worker import OcrWorker
+
+        worker = OcrWorker.instance()
+        try:
+            worker.task_done.disconnect(self._on_test_ocr_done)
+            worker.task_error.disconnect(self._on_test_ocr_error)
+        except Exception as e:
+            log.debug(f"断开 OCR 信号连接失败(错误回调): {e}")
+
+        log.error(f"规则测试 OCR 失败: {error_msg}")
+        self.testStatusChanged.emit("识别失败")
+        self.testResultReady.emit({
+            "ok": False,
+            "error": error_msg,
+        })
 
     @staticmethod
     def _clean_url(url: str) -> str:
