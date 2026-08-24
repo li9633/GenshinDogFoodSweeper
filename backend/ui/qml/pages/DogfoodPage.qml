@@ -1,29 +1,32 @@
 import QtQuick
+import QtQuick.Layouts
 import GenshinUI
+// qmllint disable unqualified
 
 Rectangle {
+    id: root
     property string pageTitle: "狗粮清理器"
     color: Theme.bgPrimary
 
-    Column {
+    ColumnLayout {
         anchors.centerIn: parent
-        spacing: 12
+        spacing: 20
 
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: "狗粮清理器"
-            font.family: Theme.fontFamily
-            font.pixelSize: 22
-            font.bold: true
-            color: Theme.accent
+        GButton {
+            Layout.alignment: Qt.AlignHCenter
+            text: DogfoodPresenter.running ? "运行中..." : "开始分解"
+            colorType: "primary"
+            enabled: !DogfoodPresenter.running
+            onClicked: DogfoodPresenter.startDecompose()
         }
 
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: "狗粮筛选与清理功能将在后续版本实现"
+            Layout.alignment: Qt.AlignHCenter
+            text: DogfoodPresenter.status || ""
             font.family: Theme.fontFamily
             font.pixelSize: 14
             color: Theme.textSecondary
+            visible: text !== ""
         }
     }
 }

@@ -175,6 +175,16 @@ def main():
         traceback.print_exc()
         log.error(f"RulePresenter 初始化失败: {exc}")
 
+    try:
+        from ui.presenters.dogfood_presenter import DogfoodPresenter
+
+        dogfood_presenter = DogfoodPresenter()
+        engine.rootContext().setContextProperty("DogfoodPresenter", dogfood_presenter)
+        log.debug("DogfoodPresenter 注册成功")
+    except Exception as exc:
+        traceback.print_exc()
+        log.error(f"DogfoodPresenter 初始化失败: {exc}")
+
     # -- OCR 引擎预热（后台线程，不阻塞 UI） --
 
     def _start_ocr_worker():
