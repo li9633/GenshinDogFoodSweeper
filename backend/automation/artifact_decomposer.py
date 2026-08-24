@@ -225,7 +225,7 @@ class ArtifactDecomposer(QObject):
             worker.task_done.disconnect(on_done)
             worker.task_error.disconnect(on_error)
         except Exception:
-            log.debug("断开 OCR 信号连接时发生异常", exc_info=True)
+            log.debug("断开 OCR 信号连接时发生异常")
 
         return result_holder[0] if result_holder else None
 
