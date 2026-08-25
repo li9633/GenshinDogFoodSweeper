@@ -45,7 +45,6 @@ class DogfoodRule:
     sub_count: int = 0
     action: str = "keep"  # "keep" / "discard"
     priority: int = 0
-    enabled: bool = True
     include_unactivated: bool = True  # 副词条匹配时是否考虑待激活词条
     include_main_stat: bool = False  # 主词条也计入副词条匹配数
 

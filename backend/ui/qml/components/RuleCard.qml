@@ -30,9 +30,10 @@ Rectangle {
     signal clicked(var rule)
 
     property bool highlighted: false
+    property bool rightClickEnabled: true
 
     implicitHeight: contentLayout.implicitHeight + 24
-    color: highlighted ? Theme.accentOverlay6 : (cardMouse.containsMouse ? Theme.bgTrack : Theme.bgSecondary)
+    color: highlighted ? Theme.accentOverlay10 : (cardMouse.containsMouse ? Theme.bgTrack : Theme.bgSecondary)
     radius: Theme.radius
     border.color: highlighted ? Theme.accent : (cardMouse.containsMouse ? Theme.borderHover : Theme.border)
     opacity: (ruleData.enabled !== false) ? 1.0 : 0.55
@@ -49,6 +50,30 @@ Rectangle {
         color: ruleData.action === "discard" ? Theme.danger : Theme.success
     }
 
+    // 选中标记（✓ 圆形图标）
+    Rectangle {
+        visible: card.highlighted
+        anchors.right: parent.right
+        anchors.rightMargin: 12
+        anchors.verticalCenter: parent.verticalCenter
+        width: 24
+        height: 24
+        radius: 12
+        color: Theme.accent
+
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        Text {
+            anchors.centerIn: parent
+            text: "\u2713"
+            font.family: Theme.fontFamily
+            font.pixelSize: 14
+            font.bold: true
+            color: Theme.bgPrimary
+        }
+    }
+
+    // ============================================================
     // 鼠标交互
     MouseArea {
         id: cardMouse
@@ -59,9 +84,11 @@ Rectangle {
 
         onClicked: function(mouse) {
             if (mouse.button === Qt.RightButton) {
-                ctxMenu.x = mouse.x
-                ctxMenu.y = mouse.y
-                ctxMenu.open()
+                if (card.rightClickEnabled) {
+                    ctxMenu.x = mouse.x
+                    ctxMenu.y = mouse.y
+                    ctxMenu.open()
+                }
             } else if (mouse.button === Qt.LeftButton) {
                 card.clicked(card.ruleData)
             }
@@ -110,7 +137,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: 20
-        anchors.rightMargin: 12
+        anchors.rightMargin: card.highlighted ? 42 : 12
         spacing: 4
 
         // -- 第一行：名称 + 操作标签 + 优先级 --

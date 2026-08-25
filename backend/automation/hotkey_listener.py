@@ -13,6 +13,7 @@ Ctrl+Shift+X → 终止当前所有自动化操作。
 from __future__ import annotations
 
 from time import perf_counter
+from typing import ClassVar
 
 from pynput.keyboard import GlobalHotKeys
 from PySide6.QtCore import QObject, Signal
@@ -28,8 +29,9 @@ class HotkeyListener(QObject):
     """
 
     _instance: HotkeyListener | None = None
+    _stop_callbacks: ClassVar[list] = []
 
-    # 信号：用户按下终止热键
+    # 信号：用户按下终止热键（Qt 事件循环处理，用于 UI 清理）
     stopRequested = Signal()
 
     # 默认热键组合：Ctrl + Shift + X
@@ -37,6 +39,21 @@ class HotkeyListener(QObject):
 
     # 防抖冷却时间（秒）
     DEBOUNCE_MS: float = 0.3
+
+    @classmethod
+    def register_stop_callback(cls, callback) -> None:
+        """注册停止回调，热键触发时在 pynput 线程中直接调用。
+
+        用于绕过 Qt 事件循环阻塞：当主线程被 time.sleep() 阻塞时，
+        Signal 回调无法执行，但直接回调可以立即设置停止标志。
+        """
+        cls._stop_callbacks.append(callback)
+
+    @classmethod
+    def unregister_stop_callback(cls, callback) -> None:
+        """注销停止回调"""
+        if callback in cls._stop_callbacks:
+            cls._stop_callbacks.remove(callback)
 
     @classmethod
     def instance(cls) -> HotkeyListener:
@@ -91,5 +108,11 @@ class HotkeyListener(QObject):
             return  # 防抖：忽略过快的重复触发
         self._last_trigger = now
         log.info("用户按下终止热键，正在停止所有自动化操作...")
-        # Signal 跨线程安全，Qt 会自动将槽调用排入主线程事件循环
+        # 1. 直接回调：在 pynput 线程中立即设置停止标志（绕过 Qt 事件循环阻塞）
+        for cb in self._stop_callbacks:
+            try:
+                cb()
+            except Exception as exc:
+                log.debug(f"停止回调异常: {exc}")
+        # 2. Signal：排队到主线程事件循环，用于 UI 清理
         self.stopRequested.emit()

@@ -34,7 +34,6 @@ class DogfoodRuleRepo:
                     sub_count    INTEGER NOT NULL DEFAULT 0,
                     action       TEXT NOT NULL DEFAULT 'keep',
                     priority     INTEGER NOT NULL DEFAULT 0,
-                    enabled      INTEGER NOT NULL DEFAULT 1,
                     created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
                     updated_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
                 )
@@ -67,7 +66,6 @@ class DogfoodRuleRepo:
             for row in rows:
                 d = dict(row)
                 d["sub_stats"] = json.loads(d.get("sub_stats", "[]"))
-                d["enabled"] = bool(d.get("enabled", 1))
                 d["include_unactivated"] = bool(d.get("include_unactivated", 1))
                 d["include_main_stat"] = bool(d.get("include_main_stat", 0))
                 rules.append(DogfoodRule.from_dict(d))
@@ -84,11 +82,11 @@ class DogfoodRuleRepo:
                 """
                 INSERT INTO dogfood_rules
                     (name, part, part_exclude, main_stat, set_name,
-                     sub_stats, sub_count, action, priority, enabled,
+                     sub_stats, sub_count, action, priority,
                      include_unactivated, include_main_stat, updated_at)
                 VALUES
                     (:name, :part, :part_exclude, :main_stat, :set_name,
-                     :sub_stats, :sub_count, :action, :priority, :enabled,
+                     :sub_stats, :sub_count, :action, :priority,
                      :include_unactivated, :include_main_stat, datetime('now','localtime'))
                 ON CONFLICT(name) DO UPDATE SET
                     part         = excluded.part,
@@ -99,7 +97,6 @@ class DogfoodRuleRepo:
                     sub_count    = excluded.sub_count,
                     action       = excluded.action,
                     priority     = excluded.priority,
-                    enabled      = excluded.enabled,
                     include_unactivated = excluded.include_unactivated,
                     include_main_stat = excluded.include_main_stat,
                     updated_at   = excluded.updated_at
@@ -114,7 +111,6 @@ class DogfoodRuleRepo:
                     "sub_count": d["sub_count"],
                     "action": d["action"],
                     "priority": d["priority"],
-                    "enabled": int(d["enabled"]),
                     "include_unactivated": int(d.get("include_unactivated", True)),
                     "include_main_stat": int(d.get("include_main_stat", False)),
                 },
@@ -146,10 +142,10 @@ class DogfoodRuleRepo:
                     """
                     INSERT INTO dogfood_rules
                         (name, part, part_exclude, main_stat, set_name,
-                         sub_stats, sub_count, action, priority, enabled)
+                         sub_stats, sub_count, action, priority)
                     VALUES
                         (:name, :part, :part_exclude, :main_stat, :set_name,
-                         :sub_stats, :sub_count, :action, :priority, :enabled)
+                         :sub_stats, :sub_count, :action, :priority)
                     """,
                     {
                         "name": d["name"],
@@ -161,6 +157,5 @@ class DogfoodRuleRepo:
                         "sub_count": d["sub_count"],
                         "action": d["action"],
                         "priority": d["priority"],
-                        "enabled": int(d["enabled"]),
                     },
                 )

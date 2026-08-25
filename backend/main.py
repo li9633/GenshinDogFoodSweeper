@@ -181,6 +181,14 @@ def main():
         dogfood_presenter = DogfoodPresenter()
         engine.rootContext().setContextProperty("DogfoodPresenter", dogfood_presenter)
         log.debug("DogfoodPresenter 注册成功")
+
+        # 连接全局热键 → 停止分解流程
+        HotkeyListener.instance().stopRequested.connect(
+            dogfood_presenter._on_hotkey_stop
+        )
+        HotkeyListener.register_stop_callback(
+            dogfood_presenter._decomposer.stop
+        )
     except Exception as exc:
         traceback.print_exc()
         log.error(f"DogfoodPresenter 初始化失败: {exc}")
