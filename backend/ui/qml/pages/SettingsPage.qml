@@ -16,6 +16,7 @@ Rectangle {
     // ============================================================
     property bool syncing: false
     property bool downloading: false
+    property bool capturingHotkey: false
     property string syncProgressText: ""
     property string modelProgressText: ""
 
@@ -241,6 +242,63 @@ Rectangle {
                 }
             }
 
+            // ======== 快捷键设置 ========
+            GCard {
+                title: "快捷键设置"
+                Layout.fillWidth: true
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Text {
+                        text: "终止快捷键:"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 14
+                        color: Theme.textPrimary
+                    }
+
+                    // 快捷键显示
+                    Rectangle {
+                        Layout.preferredWidth: hotkeyLabel.implicitWidth + 24
+                        Layout.preferredHeight: 32
+                        radius: 4
+                        color: capturingHotkey ? Theme.accentOverlay10 : Theme.bgTrack
+                        border.width: 1
+                        border.color: capturingHotkey ? Theme.accent : Theme.border
+
+                        Text {
+                            id: hotkeyLabel
+                            anchors.centerIn: parent
+                            text: capturingHotkey ? "请按下快捷键…" : SettingsPresenter.hotkeyDisplay
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 13
+                            color: capturingHotkey ? Theme.accent : Theme.textPrimary
+                        }
+                    }
+
+                    GButton {
+                        text: capturingHotkey ? "取消录制" : "修改"
+                        colorType: capturingHotkey ? "danger" : "info"
+                        onClicked: {
+                            if (capturingHotkey) {
+                                SettingsPresenter.cancelHotkeyCapture();
+                            } else {
+                                SettingsPresenter.startHotkeyCapture();
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: capturingHotkey ? "按下组合键即可录制" : ""
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.textMuted
+                        visible: capturingHotkey
+                    }
+                }
+            }
+
             // 底部留白
             Item { Layout.fillHeight: true }
         }
@@ -293,6 +351,14 @@ Rectangle {
         function onModelDownloadFinished(success, message) {
             downloading = false
             modelProgressText = ""
+        }
+
+        function onHotkeyCaptureStarted() {
+            capturingHotkey = true
+        }
+
+        function onHotkeyCaptureFinished() {
+            capturingHotkey = false
         }
     }
 }

@@ -68,6 +68,13 @@ def main():
 
         presenter = SettingsPresenter()
         engine.rootContext().setContextProperty("SettingsPresenter", presenter)
+
+        # 快捷键录制结果 → 刷新设置页面
+        from backend.automation.hotkey_listener import HotkeyListener
+        HotkeyListener.instance().hotkeyCaptured.connect(
+            presenter._on_hotkey_captured
+        )
+
         log.debug("SettingsPresenter 注册成功")
     except Exception as exc:
         traceback.print_exc()

@@ -43,6 +43,11 @@ class SettingsPresenter(QObject):
     # -- 圣遗物更新检查 --
     versionCheckIntervalChanged = Signal()
 
+    # -- 快捷键 --
+    hotkeyChanged = Signal()
+    hotkeyCaptureStarted = Signal()
+    hotkeyCaptureFinished = Signal()
+
     # -- 状态栏 --
     statusMessage = Signal(str, int, str)
 
@@ -72,6 +77,34 @@ class SettingsPresenter(QObject):
     @Slot(int)
     def setThemeByIndex(self, index: int) -> None:
         self.setTheme("dark" if index == 0 else "light")
+
+    # ========== 快捷键 ==========
+
+    @Property(str, notify=hotkeyChanged)
+    def hotkey(self) -> str:
+        from backend.automation.hotkey_listener import HotkeyListener
+        return HotkeyListener.get_hotkey()
+
+    @Property(str, notify=hotkeyChanged)
+    def hotkeyDisplay(self) -> str:
+        from backend.automation.hotkey_listener import HotkeyListener
+        return HotkeyListener.human_readable(self.hotkey)
+
+    @Slot()
+    def startHotkeyCapture(self) -> None:
+        from backend.automation.hotkey_listener import HotkeyListener
+        HotkeyListener.start_capture()
+        self.hotkeyCaptureStarted.emit()
+
+    @Slot()
+    def cancelHotkeyCapture(self) -> None:
+        from backend.automation.hotkey_listener import HotkeyListener
+        HotkeyListener.cancel_capture()
+        self.hotkeyCaptureFinished.emit()
+
+    def _on_hotkey_captured(self, _hotkey: str) -> None:
+        self.hotkeyChanged.emit()
+        self.hotkeyCaptureFinished.emit()
 
     # ========== 圣遗物更新检查 ==========
 

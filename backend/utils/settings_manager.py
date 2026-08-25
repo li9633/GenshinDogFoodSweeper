@@ -45,6 +45,9 @@ class SettingsManager:
             "stop_mode": "anchor",
             "fixed_count": "0",
         },
+        "hotkey": {
+            "stop": "<ctrl>+<shift>+x",
+        },
     }
 
     def __init__(self) -> None:

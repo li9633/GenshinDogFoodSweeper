@@ -26,35 +26,6 @@ Rectangle {
         function onRulesChanged() { _updateVisibility(); }
     }
 
-    // 多选状态
-    property var _selected: ({})
-
-    function _toggleSelect(name) {
-        let s = _selected;
-        if (s[name]) {
-            const copy = {};
-            for (let k in s) if (k !== name) copy[k] = true;
-            _selected = copy;
-        } else {
-            const copy2 = {};
-            for (let k2 in s) copy2[k2] = true;
-            copy2[name] = true;
-            _selected = copy2;
-        }
-    }
-
-    function _selectedCount() {
-        return Object.keys(_selected).length;
-    }
-
-    function _selectedNames() {
-        return Object.keys(_selected);
-    }
-
-    function _clearSelection() {
-        _selected = ({});
-    }
-
     // ============================================================
     // 主布局：不使用 ScrollView 包装，避免 Layout.fillHeight 失效
     // ============================================================
@@ -118,8 +89,8 @@ Rectangle {
                 onClicked: fileImportDialog.open()
             }
             GButton {
-                visible: _selectedCount() > 0
-                text: "导出选中(" + _selectedCount() + ")"
+                visible: RulePresenter.multiSelectedCount > 0
+                text: "导出选中(" + RulePresenter.multiSelectedCount + ")"
                 colorType: "warning"
                 onClicked: fileExportSelectedDialog.open()
             }
@@ -173,6 +144,7 @@ Rectangle {
 
                     onClicked: function(rule) {
                         RulePresenter.selectRule(rule.name);
+                        RulePresenter.toggleMultiSelect(rule.name);
                     }
                     onEditRequested: function(rule) {
                         editDialog.editRule = rule;
@@ -181,7 +153,6 @@ Rectangle {
                     // qmllint disable missing-property
                     onDeleteRequested: function(rule) {
                         RulePresenter.deleteRule(rule.name);
-                        ListView.view._page._clearSelection();
                     }
                     onDuplicateRequested: function(rule) {
                         RulePresenter.duplicateRule(rule.name);
@@ -227,14 +198,12 @@ Rectangle {
         }
     }
 
-    FileDialog {
+    FolderDialog {
         id: fileExportSelectedDialog
-        title: "导出选中规则"
-        fileMode: FileDialog.SaveFile
-        nameFilters: ["JSON 文件 (*.json)"]
+        title: "选择导出目录"
         onAccepted: {
-            RulePresenter.exportRules(_selectedNames(), selectedFile);
-            root._clearSelection();
+            RulePresenter.exportRules(RulePresenter.multiSelectedNames, selectedFolder);
+            RulePresenter.clearMultiSelect();
         }
     }
     }

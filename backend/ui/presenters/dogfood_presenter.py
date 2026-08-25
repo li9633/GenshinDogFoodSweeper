@@ -67,6 +67,13 @@ class DogfoodPresenter(QObject):
             self._rules = []
         self.rulesChanged.emit()
 
+    @Slot()
+    def reloadRules(self) -> None:
+        """进入页面时调用，刷新规则列表并清空选中"""
+        self._selected_rule_names.clear()
+        self._load_rules()
+        self.selectedRuleNamesChanged.emit()
+
     @Property("QVariantList", notify=rulesChanged)
     def rules(self) -> list:
         """返回规则列表，每条规则转为 dict 供 QML 使用"""

@@ -21,6 +21,7 @@ class RulePresenter(QObject):
     rulesChanged = Signal()
     selectedRuleChanged = Signal()
     defaultActionChanged = Signal()
+    multiSelectionChanged = Signal()
     statusMessage = Signal(str, int, str)  # msg, duration, level
     testResultReady = Signal("QVariantMap")  # 测试结果
     testStatusChanged = Signal(str)  # 测试状态提示
@@ -29,6 +30,7 @@ class RulePresenter(QObject):
         super().__init__(parent)
         self._rules: list[DogfoodRule] = []
         self._selected_name = ""
+        self._multi_selected: set[str] = set()
         self._default_action = "keep"
         self._stats_config: dict | None = None
         self._selected_config_index = 0
@@ -48,7 +50,9 @@ class RulePresenter(QObject):
         except Exception as e:
             log.error(f"加载规则列表失败: {e}")
             self._rules = []
+        self._multi_selected.clear()
         self.rulesChanged.emit()
+        self.multiSelectionChanged.emit()
 
     # ========== Properties ==========
 
@@ -111,6 +115,29 @@ class RulePresenter(QObject):
     def defaultAction(self) -> str:
         return self._default_action
 
+    # ========== 多选（导出用） ==========
+
+    @Property(int, notify=multiSelectionChanged)
+    def multiSelectedCount(self) -> int:
+        return len(self._multi_selected)
+
+    @Property("QVariantList", notify=multiSelectionChanged)
+    def multiSelectedNames(self) -> list[str]:
+        return list(self._multi_selected)
+
+    @Slot(str)
+    def toggleMultiSelect(self, name: str) -> None:
+        if name in self._multi_selected:
+            self._multi_selected.discard(name)
+        else:
+            self._multi_selected.add(name)
+        self.multiSelectionChanged.emit()
+
+    @Slot()
+    def clearMultiSelect(self) -> None:
+        self._multi_selected.clear()
+        self.multiSelectionChanged.emit()
+
     # ========== CRUD ==========
 
     @Slot("QVariantMap", result="QVariantMap")
@@ -167,6 +194,7 @@ class RulePresenter(QObject):
             if self._selected_name == name:
                 self._selected_name = ""
                 self.selectedRuleChanged.emit()
+            self._multi_selected.discard(name)
             self._reload()
             return True
         except Exception as e:
@@ -191,7 +219,11 @@ class RulePresenter(QObject):
 
     @Slot(str)
     def selectRule(self, name: str) -> None:
-        self._selected_name = name
+        """切换选中：点击已选中则取消，否则选中"""
+        if self._selected_name == name:
+            self._selected_name = ""
+        else:
+            self._selected_name = name
         self.selectedRuleChanged.emit()
 
     @Slot()
@@ -288,22 +320,24 @@ class RulePresenter(QObject):
 
     @Slot("QVariantList", str, result="QVariantMap")
     def exportRules(self, names: list[str], url: str) -> dict:
-        """导出选中规则到文件，返回 {ok: bool, message: str}"""
+        """导出选中规则到目录，每条规则独立生成 {规则名}.json"""
         try:
-            file_path = self._clean_url(url)
+            dir_path = self._clean_url(url)
             name_set = set(names)
             selected = [r for r in self._rules if r.name in name_set]
             if not selected:
                 return {"ok": False, "message": "未选中任何规则"}
-            data = {
-                "version": 1,
-                "default_action": self._default_action,
-                "rules": [r.to_dict() for r in selected],
-            }
-            Path(file_path).write_text(
-                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-            log.info(f"已导出 {len(selected)} 条规则到 {file_path}")
+            for rule in selected:
+                file_path = Path(dir_path) / f"{rule.name}.json"
+                data = {
+                    "version": 1,
+                    "default_action": self._default_action,
+                    "rules": [rule.to_dict()],
+                }
+                file_path.write_text(
+                    json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+            log.info(f"已导出 {len(selected)} 条规则到 {dir_path}")
             return {"ok": True, "message": f"已导出 {len(selected)} 条规则"}
         except Exception as e:
             log.error(f"导出失败: {e}")

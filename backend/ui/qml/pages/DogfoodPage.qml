@@ -13,6 +13,7 @@ Rectangle {
     property var _selectedNames: []
 
     Component.onCompleted: {
+        DogfoodPresenter.reloadRules();
         _selectedNames = DogfoodPresenter.selectedRuleNames;
     }
 
