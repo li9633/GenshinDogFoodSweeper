@@ -24,6 +24,7 @@ from time import sleep
 import numpy as np
 from models.artifact import ArtifactInfo
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
+from ui.lifecycle import OnWindowReady
 from utils.logger import log
 
 from backend.automation.anchor_locator import AnchorLocator
@@ -48,13 +49,14 @@ from backend.automation.slot_detector import (
 )
 from backend.automation.smart_scroller import SmartScroller
 from backend.automation.window_helper import WindowHelper
+from backend.exceptions.automation import OcrModelNotReadyError
 from backend.utils.screen_capture import ScreenshotCapture
 from backend.utils.settings_manager import settings
 
 from .image_provider import PreviewImageProvider
 
 
-class ArtifactScanPresenter(QObject):
+class ArtifactScanPresenter(QObject, OnWindowReady):
     """圣遗物扫描 — 注册为 QML context property
 
     QML 传入的坐标是相对于原神窗口左上角的偏移，
@@ -94,8 +96,12 @@ class ArtifactScanPresenter(QObject):
     activeConfigChanged = Signal()
 
     def __init__(self, parent: QObject | None = None):
-        super().__init__(parent)
+        QObject.__init__(self, parent)
+        OnWindowReady.__init__(self)
         self._mouse = MouseController()
+
+    def on_window_ready(self) -> None:
+        """窗口就绪后初始化（OCR Worker 由 OcrInitializer 统一管理）"""
         self._capture = ScreenshotCapture()
         self._win_helper = WindowHelper(self._capture, self._mouse)
 
@@ -279,6 +285,21 @@ class ArtifactScanPresenter(QObject):
         settings.set("scan.stop_mode", value)
         self.scanOptionsChanged.emit()
 
+    _STOP_MODE_KEYS = ("anchor", "five_star_only", "fixed_count")
+
+    @Property(int, notify=scanOptionsChanged)
+    def scanStopModeIndex(self) -> int:
+        mode = self.scanStopMode or "anchor"
+        try:
+            return self._STOP_MODE_KEYS.index(mode)
+        except ValueError:
+            return 0
+
+    @Slot(int)
+    def setScanStopModeByIndex(self, index: int) -> None:
+        if 0 <= index < len(self._STOP_MODE_KEYS):
+            self.setScanStopMode(self._STOP_MODE_KEYS[index])
+
     @Property(int, notify=scanOptionsChanged)
     def scanFixedCount(self) -> int:
         return settings.get_int("scan.fixed_count")
@@ -390,7 +411,10 @@ class ArtifactScanPresenter(QObject):
 
         # OCR 识别圣遗物数量，计算总页数
         engines_dir = Path(__file__).resolve().parents[3] / "engines"
-        ocr = OcrEngine._create_paddle_ocr(engines_dir)
+        try:
+            ocr = OcrEngine.create_ocr(engines_dir)
+        except OcrModelNotReadyError:
+            return  # 异常已自动完成 log.error + GMessageBox 弹窗
         count = ocr_artifact_count(self._capture, ocr)
         total_pages = max(1, (count + 31) // 32) if count > 0 else 0
         max_pages = total_pages - 1 if total_pages > 0 else 0

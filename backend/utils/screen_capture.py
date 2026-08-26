@@ -61,6 +61,32 @@ try:
 except ImportError:
     pass
 
+_HAS_WIN32_PROCESS = False
+try:
+    import win32api
+    import win32process
+
+    _HAS_WIN32_PROCESS = True
+except ImportError:
+    pass
+
+
+def _get_process_name(hwnd: int) -> str:
+    """获取窗口所属进程的可执行文件名（如 GenshinImpact.exe）"""
+    if not _HAS_WIN32_PROCESS:
+        return ""
+    try:
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        handle = win32api.OpenProcess(
+            win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ,
+            False, pid,
+        )
+        path = win32process.GetModuleFileNameEx(handle, 0)
+        win32api.CloseHandle(handle)
+        return Path(path).name
+    except Exception:
+        return ""
+
 
 # ===================== 枚举 & 数据类 =====================
 
@@ -85,6 +111,7 @@ class WindowInfo:
     top: int
     right: int
     bottom: int
+    process_name: str = ""
 
     @property
     def width(self) -> int:
@@ -245,6 +272,7 @@ class ScreenshotCapture:
 
     GENSHIN_TITLES = ("原神", "Genshin Impact")
     GENSHIN_CLASS = "UnityWndClass"
+    GENSHIN_PROCESSES = ("GenshinImpact.exe", "YuanShen.exe")
 
     def __init__(self, default_method: CaptureMethod = CaptureMethod.WIN32):
         self.default_method = default_method
@@ -270,17 +298,20 @@ class ScreenshotCapture:
                 return True
             title = win32gui.GetWindowText(hwnd)
             class_name = win32gui.GetClassName(hwnd)
-            if not title:
-                return True
             rect = win32gui.GetWindowRect(hwnd)
             w, h = rect[2] - rect[0], rect[3] - rect[1]
             if w < 400 or h < 300:
                 return True
-            info = WindowInfo(hwnd, title, class_name, *rect)
+            proc_name = _get_process_name(hwnd)
+            info = WindowInfo(hwnd, title, class_name, *rect, process_name=proc_name)
+            # 类名匹配优先于标题匹配处理，因为标题可能为空（加载中/切场景）
+            if class_name == ScreenshotCapture.GENSHIN_CLASS:
+                if proc_name and proc_name not in ScreenshotCapture.GENSHIN_PROCESSES:
+                    pass  # 非原神进程的 Unity 窗口，跳过
+                else:
+                    class_matches.append(info)
             if title in ScreenshotCapture.GENSHIN_TITLES:
                 exact_matches.append(info)
-            if class_name == ScreenshotCapture.GENSHIN_CLASS:
-                class_matches.append(info)
             return True
 
         win32gui.EnumWindows(enum_callback, None)
@@ -342,7 +373,9 @@ class ScreenshotCapture:
             if window is None:
                 window = self.find_genshin_window()
             if window is None:
-                raise RuntimeError("未找到原神窗口，不要将游戏窗口最小化")
+                from backend.exceptions.automation import GameWindowNotFoundError
+
+                raise GameWindowNotFoundError()
             img = self._capture_win32(window.hwnd)
         elif method == CaptureMethod.PYAUTOGUI:
             r = region or (0, 0, 1920, 1080)

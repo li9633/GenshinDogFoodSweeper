@@ -35,84 +35,27 @@ Dialog {
     property bool _formIncludeMainStat: false
 
     // —— 动态词条过滤 ——
-    property var _mainStatOptions: {
-        if (_formPart === "*") {
-            const all = [];
-            const map = RulePresenter.mainStatsByPiece;
-            for (const key in map) {
-                const stats = map[key];
-                for (let i = 0; i < stats.length; i++) {
-                    if (all.indexOf(stats[i]) < 0)
-                        all.push(stats[i]);
-                }
-            }
-            return ["不限"].concat(all);
-        }
-        const pieceStats = RulePresenter.mainStatsByPiece[_formPart] || [];
-        return ["不限"].concat(pieceStats);
-    }
-    property var _filteredSubStats: {
-        const all = RulePresenter.subStatNames || [];
-        if (_formMainStat === "*" || _formMainStat === "不限")
-            return all;
-        const cats = RulePresenter.statCategories || {};
-        const mainInfo = cats[_formMainStat] || {};
-        const mainCat = mainInfo.category || "";
-        if (!mainCat)
-            return all;
-        return all.filter(function (s) {
-            const info = cats[s] || {};
-            return info.category !== mainCat;
-        });
-    }
+    property var _mainStatOptions: RulePresenter.getMainStatOptions(root._formPart)
+    property var _filteredSubStats: RulePresenter.getFilteredSubStats(root._formMainStat)
 
     onOpened: {
-        if (editRule && editRule.name) {
-            root.title = "编辑规则 — " + editRule.name;
-            _formName = editRule.name;
-            _formPart = editRule.part || "*";
-            _formPartExclude = editRule.part_exclude || "";
-            _formMainStat = editRule.main_stat || "*";
-            _formSetEnabled = editRule.set_name === "*" || editRule.set_name === "" || editRule.set_name === undefined;
-            _formSetName = editRule.set_name || "*";
-            if (_formSetName !== "*" && _formSetName !== "") {
-                _formSelectedSets = _formSetName.split(",").map(function (s) {
-                    return s.trim();
-                }).filter(function (s) {
-                    return s !== "";
-                });
-            } else {
-                _formSelectedSets = [];
-            }
-            _formSetSearch = "";
-            _formSelectedSubStats = (editRule.sub_stats || []).map(function(s) {
-                return { name: s.name || "", op: s.op || "", value: s.value || 0 };
-            });
-            _formSubStats = _formSelectedSubStats.map(function(s) { return s.name; }).join(", ");
-            _formSubCount = editRule.sub_count || 0;
-            _formAction = editRule.action || "keep";
-            _formPriority = editRule.priority || 0;
-            _formEnabled = editRule.enabled !== false;
-            _formIncludeUnactivated = editRule.include_unactivated !== false;
-            _formIncludeMainStat = editRule.include_main_stat === true;
-        } else {
-            root.title = "新建规则";
-            _formName = "";
-            _formPart = "*";
-            _formPartExclude = "";
-            _formMainStat = "*";
-            _formSetEnabled = true;
-            _formSelectedSets = [];
-            _formSetSearch = "";
-            _formSubStats = "";
-            _formSelectedSubStats = [];
-            _formSubCount = 0;
-            _formAction = "keep";
-            _formPriority = 0;
-            _formEnabled = true;
-            _formIncludeUnactivated = true;
-            _formIncludeMainStat = false;
-        }
+        const defaults = RulePresenter.buildFormDefaults(editRule || {});
+        root.title = defaults.title;
+        _formName = defaults.name;
+        _formPart = defaults.part;
+        _formPartExclude = defaults.part_exclude;
+        _formMainStat = defaults.main_stat;
+        _formSetEnabled = defaults.set_enabled;
+        _formSelectedSets = defaults.selected_sets;
+        _formSetSearch = defaults.set_search;
+        _formSubStats = defaults.selected_sub_stats.map(function(s) { return s.name; }).join(", ");
+        _formSelectedSubStats = defaults.selected_sub_stats;
+        _formSubCount = defaults.sub_count;
+        _formAction = defaults.action;
+        _formPriority = defaults.priority;
+        _formEnabled = defaults.enabled;
+        _formIncludeUnactivated = defaults.include_unactivated;
+        _formIncludeMainStat = defaults.include_main_stat;
     }
 
     // —— 辅助函数（供 Repeater delegate 调用） ——
@@ -193,13 +136,14 @@ Dialog {
                 text: "保存"
                 colorType: "primary"
                 onClicked: {
-                    const data = {
+                    const data = RulePresenter.buildSaveData({
                         name: root._formName,
                         _original_name: (root.editRule && root.editRule.name) ? root.editRule.name : "",
                         part: root._formPart,
                         part_exclude: root._formPartExclude,
                         main_stat: root._formMainStat,
-                        set_name: root._formSetEnabled ? "*" : root._formSelectedSets.join(","),
+                        set_enabled: root._formSetEnabled,
+                        selected_sets: root._formSelectedSets,
                         sub_stats: root._formSelectedSubStats,
                         sub_count: root._formSubCount,
                         action: root._formAction,
@@ -207,7 +151,7 @@ Dialog {
                         enabled: root._formEnabled,
                         include_unactivated: root._formIncludeUnactivated,
                         include_main_stat: root._formIncludeMainStat,
-                    };
+                    });
                     const result = RulePresenter.saveRule(data);
                     if (result && result.ok) {
                         root.accept();
@@ -293,12 +237,8 @@ Dialog {
                     onActivated: function (idx) {
                         const v = partCombo.textAt(idx);
                         root._formPart = v === "不限" ? "*" : v;
-                        // 部位变化后，若当前主词条不在新部位的允许列表中，重置为 *
-                        if (root._formMainStat !== "*" && root._formMainStat !== "不限") {
-                            const allowed = RulePresenter.mainStatsByPiece[root._formPart] || [];
-                            if (allowed.indexOf(root._formMainStat) < 0) {
-                                root._formMainStat = "*";
-                            }
+                        if (!RulePresenter.validateMainStatForPart(root._formPart, root._formMainStat)) {
+                            root._formMainStat = "*";
                         }
                     }
                 }
@@ -856,6 +796,8 @@ Dialog {
                 clip: true
                 model: {
                     const all = RulePresenter.artifactSetNames || [];
+                    if (all.length === 0)
+                        return [];
                     if (root._formSetSearch === "")
                         return all;
                     const kw = root._formSetSearch.toLowerCase();
@@ -916,6 +858,21 @@ Dialog {
                     }
                 }
                 ScrollBar.vertical: ScrollBar {}
+            }
+
+            Text {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: {
+                    const all = RulePresenter.artifactSetNames || [];
+                    return all.length === 0;
+                }
+                text: "暂无套装数据，请先同步圣遗物数据"
+                font.family: Theme.fontFamily
+                font.pixelSize: 13
+                color: Theme.textSecondary
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
             }
         }
     }

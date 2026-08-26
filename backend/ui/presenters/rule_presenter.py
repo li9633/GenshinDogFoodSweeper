@@ -13,6 +13,7 @@ from utils.settings_manager import settings
 
 from backend.automation.dogfood_rule_engine import DogfoodRuleEngine
 from backend.automation.recognizer import ArtifactRecognizer
+from backend.exceptions.automation import GameWindowNotFoundError
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
 from backend.models.slot_models import ALL_SLOT_CONFIGS
 
@@ -114,6 +115,121 @@ class RulePresenter(QObject):
     @Property(str, notify=defaultActionChanged)
     def defaultAction(self) -> str:
         return self._default_action
+
+    # ========== QML 表单辅助 ==========
+
+    @Slot(str, result=str)
+    def actionLabel(self, action: str) -> str:
+        """将 action 值映射为中文显示标签"""
+        return "丢弃" if action == "discard" else "保留"
+
+    @Slot(str, result=str)
+    def actionColor(self, action: str) -> str:
+        """将 action 值映射为 Theme 颜色键名（danger / success）"""
+        return "danger" if action == "discard" else "success"
+
+    @Slot(str, result="QVariantList")
+    def getMainStatOptions(self, part: str) -> list[str]:
+        """获取指定部位的主词条选项列表"""
+        config = self._load_stats_config()
+        main_stats = config.get("main_stats_by_piece", {})
+        result = ["不限"]
+        if part == "*":
+            all_stats: list[str] = []
+            for stats in main_stats.values():
+                for s in stats:
+                    if s not in all_stats:
+                        all_stats.append(s)
+            result.extend(all_stats)
+        else:
+            result.extend(main_stats.get(part, []))
+        return result
+
+    @Slot(str, result="QVariantList")
+    def getFilteredSubStats(self, main_stat: str) -> list[str]:
+        """获取过滤后的副词条列表（排除与主词条类别冲突的）"""
+        config = self._load_stats_config()
+        sub_stat_names = config.get("sub_stat_names", [])
+        if main_stat in ("*", "不限", ""):
+            return sub_stat_names
+        stats = config.get("stats", {})
+        main_info = stats.get(main_stat, {})
+        main_cat = main_info.get("category", "")
+        if not main_cat:
+            return sub_stat_names
+        return [s for s in sub_stat_names if stats.get(s, {}).get("category") != main_cat]
+
+    @Slot(str, str, result=bool)
+    def validateMainStatForPart(self, part: str, main_stat: str) -> bool:
+        """检查主词条对部位是否合法"""
+        if main_stat in ("*", "不限", "", None):
+            return True
+        config = self._load_stats_config()
+        allowed = config.get("main_stats_by_piece", {}).get(part, [])
+        return main_stat in allowed
+
+    @Slot("QVariantMap", result="QVariantMap")
+    def buildSaveData(self, form_data: dict) -> dict:
+        """从表单数据构建保存用的规则数据，将 set_name 转换逻辑从 QML 迁移到 Presenter"""
+        selected_sets = form_data.get("selected_sets") or []
+        return {
+            "name": (form_data.get("name") or "").strip(),
+            "_original_name": form_data.get("_original_name", ""),
+            "part": form_data.get("part", "*"),
+            "part_exclude": form_data.get("part_exclude", ""),
+            "main_stat": form_data.get("main_stat", "*"),
+            "set_name": "*" if form_data.get("set_enabled", True) else ",".join(selected_sets),
+            "sub_stats": form_data.get("sub_stats") or [],
+            "sub_count": form_data.get("sub_count", 0),
+            "action": form_data.get("action", "keep"),
+            "priority": form_data.get("priority", 0),
+            "enabled": form_data.get("enabled", True),
+            "include_unactivated": form_data.get("include_unactivated", True),
+            "include_main_stat": form_data.get("include_main_stat", False),
+        }
+
+    @Slot("QVariantMap", result="QVariantMap")
+    def buildFormDefaults(self, rule: dict) -> dict:
+        """从规则数据构建表单默认值，将数据转换逻辑从 QML 迁移到 Presenter"""
+        if not rule or not rule.get("name"):
+            return {
+                "title": "新建规则",
+                "name": "", "part": "*", "part_exclude": "",
+                "main_stat": "*", "set_enabled": True,
+                "selected_sets": [], "set_search": "",
+                "selected_sub_stats": [], "sub_count": 0,
+                "action": "keep", "priority": 0, "enabled": True,
+                "include_unactivated": True, "include_main_stat": False,
+            }
+
+        set_name = rule.get("set_name") or "*"
+        selected_sets: list[str] = []
+        if set_name not in ("*", ""):
+            selected_sets = [s.strip() for s in set_name.split(",") if s.strip()]
+
+        sub_stats = rule.get("sub_stats") or []
+        selected_sub_stats = [
+            {"name": s.get("name", ""), "op": s.get("op", ""), "value": s.get("value", 0)}
+            for s in sub_stats
+        ]
+
+        return {
+            "title": f"编辑规则 — {rule['name']}",
+            "name": rule.get("name", ""),
+            "part": rule.get("part") or "*",
+            "part_exclude": rule.get("part_exclude") or "",
+            "main_stat": rule.get("main_stat") or "*",
+            "set_enabled": set_name in ("*", ""),
+            "selected_sets": selected_sets,
+            "set_search": "",
+            "selected_sub_stats": selected_sub_stats,
+            "sub_count": rule.get("sub_count") or 0,
+            "action": rule.get("action") or "keep",
+            "priority": rule.get("priority") or 0,
+            "enabled": rule.get("enabled", True),
+            "include_unactivated": rule.get("include_unactivated", True),
+            "include_main_stat": rule.get("include_main_stat", False),
+        }
 
     # ========== 多选（导出用） ==========
 
@@ -408,10 +524,10 @@ class RulePresenter(QObject):
         # 截图
         self.testStatusChanged.emit("正在截图...")
         capture = ScreenshotCapture()
-        result = capture.capture()
-        if result is None:
+        try:
+            result = capture.capture()
+        except GameWindowNotFoundError:
             self.testStatusChanged.emit("截图失败")
-            self.statusMessage.emit("截图失败，请确认原神已启动", 3000, "error")
             return
 
         image = result.image

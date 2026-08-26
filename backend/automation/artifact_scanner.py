@@ -349,8 +349,9 @@ class FullScanWorker(QThread):
 
             self.stepChanged.emit("正在初始化 OCR 引擎...")
             from backend.automation.ocr_engine import OcrEngine
+            from backend.exceptions.automation import OcrModelNotReadyError
 
-            ocr = OcrEngine._create_paddle_ocr(self._engines_dir)
+            ocr = OcrEngine.create_ocr(self._engines_dir)
 
             # Step 1-2: 识别数量 + 计算分页
             artifacts_per_page = self._slot_config.rows * self._slot_config.cols
@@ -656,6 +657,9 @@ class FullScanWorker(QThread):
 
             self.finished.emit(scanned, count)
 
+        except OcrModelNotReadyError:
+            # 异常已在 __init__ 中完成 log.error + GMessageBox 弹窗
+            self.finished.emit(0, 0)
         except Exception as exc:
             import traceback
             self.errorOccurred.emit(f"{exc}\n{traceback.format_exc()}")

@@ -6,20 +6,27 @@ PySide6 + QML 桌面 GUI + FastAPI 后端服务。
 
 import os
 import sys
+import traceback
 from pathlib import Path
 
 # 强制使用 Basic 样式，允许自定义控件外观
 os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
 
+# 修复 PySide6 QSslSocket 警告：Qt 需要找到自带的 OpenSSL DLL
+import PySide6
+
+os.add_dll_directory(str(Path(PySide6.__file__).parent))
+
 # 确保项目根目录在 sys.path 中
 sys.path.insert(0, str(Path(__file__).parent))
 
 from database.init_db import create_tables
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
 from ui.presenters.image_provider import PreviewImageProvider
+from ui.presenters.registry import register_all
 from utils.logger import log, setup_logging
 
 
@@ -54,162 +61,9 @@ def main():
     engine.addImageProvider("preview", PreviewImageProvider())
     log.debug("PreviewImageProvider 注册成功")
 
-    # 将 Python 后端对象暴露给 QML
-    import traceback
-
-    from utils.env_manager import EnvManager
-
-    _env_manager = EnvManager()
-    engine.rootContext().setContextProperty("EnvManager", _env_manager)
-    log.debug(f"EnvManager 注册成功, isDebug={_env_manager.is_debug()}")
-
-    try:
-        from ui.presenters.settings_presenter import SettingsPresenter
-
-        presenter = SettingsPresenter()
-        engine.rootContext().setContextProperty("SettingsPresenter", presenter)
-
-        # 快捷键录制结果 → 刷新设置页面
-        from backend.automation.hotkey_listener import HotkeyListener
-        HotkeyListener.instance().hotkeyCaptured.connect(
-            presenter._on_hotkey_captured
-        )
-
-        log.debug("SettingsPresenter 注册成功")
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"SettingsPresenter 初始化失败: {exc}")
-
-    try:
-        from ui.presenters.region_marker_presenter import RegionMarkerPresenter
-
-        region_marker = RegionMarkerPresenter()
-        engine.rootContext().setContextProperty("RegionMarker", region_marker)
-        log.debug("RegionMarker 注册成功")
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"RegionMarker 初始化失败: {exc}")
-
-    try:
-        from ui.presenters.element_detection_presenter import ElementDetectionPresenter
-
-        element_detection = ElementDetectionPresenter()
-        engine.rootContext().setContextProperty("ElementDetection", element_detection)
-        log.debug("ElementDetection 注册成功")
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"ElementDetection 初始化失败: {exc}")
-
-    try:
-        from ui.presenters.artifact_recognition_presenter import (
-            ArtifactRecognitionPresenter,
-        )
-
-        artifact_recognition = ArtifactRecognitionPresenter()
-        engine.rootContext().setContextProperty(
-            "ArtifactRecognition", artifact_recognition
-        )
-        log.debug("ArtifactRecognition 注册成功")
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"ArtifactRecognition 初始化失败: {exc}")
-
-    try:
-        from ui.presenters.status_bar_presenter import StatusBarPresenter
-        from utils.log_bridge import set_status_callback
-
-        status_bar = StatusBarPresenter()
-        engine.rootContext().setContextProperty("StatusBarPresenter", status_bar)
-        set_status_callback(status_bar.show)
-        log.debug("StatusBar 注册成功，日志桥接已启用")
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"StatusBar 初始化失败: {exc}")
-
-    try:
-        from ui.presenters.artifact_scan_presenter import ArtifactScanPresenter
-
-        artifact_scan = ArtifactScanPresenter()
-        engine.rootContext().setContextProperty("ArtifactScan", artifact_scan)
-        log.debug("ArtifactScan 注册成功")
-
-        # 连接全局热键 → 终止所有自动化操作
-        from backend.automation.hotkey_listener import HotkeyListener
-
-        HotkeyListener.instance().stopRequested.connect(
-            artifact_scan.stopAllOperations
-        )
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"ArtifactScan 初始化失败: {exc}")
-
-    try:
-        from ui.presenters.game_detector import GameDetector
-
-        game_detector = GameDetector()
-        engine.rootContext().setContextProperty("GameDetector", game_detector)
-        log.debug("GameDetector 注册成功")
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"GameDetector 初始化失败: {exc}")
-
-    try:
-        from ui.presenters.version_check_presenter import VersionCheckPresenter
-
-        version_check = VersionCheckPresenter()
-        engine.rootContext().setContextProperty("VersionCheck", version_check)
-        log.debug("VersionCheck 注册成功")
-
-        # 圣遗物更新检查结果 → QMessageBox 弹窗
-        from PySide6.QtWidgets import QMessageBox
-
-        version_check.updateNeeded.connect(
-            lambda title, msg: QMessageBox.warning(None, title, msg)
-        )
-
-        QTimer.singleShot(4000, version_check.checkVersion)
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"VersionCheck 初始化失败: {exc}")
-
-    try:
-        from ui.presenters.rule_presenter import RulePresenter
-
-        rule_presenter = RulePresenter()
-        engine.rootContext().setContextProperty("RulePresenter", rule_presenter)
-        log.debug("RulePresenter 注册成功")
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"RulePresenter 初始化失败: {exc}")
-
-    try:
-        from ui.presenters.dogfood_presenter import DogfoodPresenter
-
-        dogfood_presenter = DogfoodPresenter()
-        engine.rootContext().setContextProperty("DogfoodPresenter", dogfood_presenter)
-        log.debug("DogfoodPresenter 注册成功")
-
-        # 连接全局热键 → 停止分解流程
-        HotkeyListener.instance().stopRequested.connect(
-            dogfood_presenter._on_hotkey_stop
-        )
-        HotkeyListener.register_stop_callback(
-            dogfood_presenter._decomposer.stop
-        )
-    except Exception as exc:
-        traceback.print_exc()
-        log.error(f"DogfoodPresenter 初始化失败: {exc}")
-
-    # -- OCR 引擎预热（后台线程，不阻塞 UI） --
-
-    def _start_ocr_worker():
-        from backend.automation.ocr_worker import OcrWorker
-
-        # OcrWorker 内部通过 log.info/log.error 自动驱动状态栏
-        # （create_db_sink 已将 loguru → 状态栏桥接）
-        OcrWorker.instance()
-
-    QTimer.singleShot(2000, _start_ocr_worker)
+    # 将 Python 后端对象暴露给 QML（统一通过注册表）
+    # 必须持有返回值，否则 presenters 会被 GC 回收
+    _presenters = register_all(engine)
 
     # -- 退出清理 --
     def _cleanup():
@@ -242,7 +96,35 @@ def main():
         log.error("QML 加载失败：engine.rootObjects() 为空，程序退出")
         sys.exit(-1)
 
+    # -- 系统托盘 --
+    try:
+        from ui.tray import TrayManager
+
+        _tray = TrayManager(app=app, engine=engine)
+        log.debug("TrayManager 启动成功")
+    except Exception as exc:
+        traceback.print_exc()
+        log.error(f"TrayManager 初始化失败: {exc}")
+
+    # -- OCR 初始化器：自动注册到 OnWindowReady，窗口就绪时检查模型并启动 Worker --
+    from ui.gmessagebox import GMessageBox
+
+    GMessageBox.init(engine)
+    from backend.automation.ocr_initializer import OcrInitializer
+
+    _ocr_initializer = OcrInitializer()
+
+    # -- 窗口就绪回调：触发所有 OnWindowReady 接口 --
+    from ui.lifecycle import OnWindowReady
+
+    OnWindowReady.trigger_all()
+
     app.exec()
+
+    # 强制同步销毁 QML 引擎，确保 QML 解绑时 Python 对象仍存活
+    import shiboken6
+
+    shiboken6.delete(engine)
 
 
 if __name__ == "__main__":

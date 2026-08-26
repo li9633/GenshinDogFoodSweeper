@@ -136,13 +136,9 @@ Rectangle {
                             anchors.verticalCenter: undefined
                             Layout.preferredWidth: 140
                             model: ["首尾锚点定位", "仅扫描五星", "固定扫描数量"]
-                            Component.onCompleted: {
-                                const map = { anchor: 0, five_star_only: 1, fixed_count: 2 };
-                                currentIndex = map[ArtifactScan.scanStopMode] || 0;
-                            }
+                            currentIndex: ArtifactScan.scanStopModeIndex
                             onActivated: function(index) {
-                                const modes = ["anchor", "five_star_only", "fixed_count"];
-                                ArtifactScan.setScanStopMode(modes[index]);
+                                ArtifactScan.setScanStopModeByIndex(index);
                             }
                         }
                     }

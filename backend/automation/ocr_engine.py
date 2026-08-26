@@ -7,6 +7,7 @@ from pathlib import Path
 from utils.logger import log
 
 from backend.automation.ocr_model_manager import OcrModelManager
+from backend.exceptions.automation import OcrModelNotReadyError
 
 
 class OcrEngine:
@@ -23,12 +24,25 @@ class OcrEngine:
     # ---------- PaddleOCR 实例创建（唯一入口） ----------
 
     @staticmethod
-    def _create_paddle_ocr(engines_dir: Path):
-        """创建 PaddleOCR 实例。
+    def create_ocr(engines_dir: Path):
+        """创建 PaddleOCR 实例（公开 API）。
 
         设置所需环境变量并初始化模型。此方法可在任意线程中调用，
         OcrEngine 和 OcrWorker 均通过此方法创建各自的 OCR 实例。
+
+        调用前会检查模型是否已下载，未下载时抛出 OcrModelNotReadyError
+        （自动完成 log.error + GMessageBox 弹窗）。
+
+        外部调用者使用示例：
+            try:
+                ocr = OcrEngine.create_ocr(engines_dir)
+                result = ocr.ocr(image)
+            except OcrModelNotReadyError:
+                return  # 异常已自动处理日志和弹窗
         """
+        # 模型就绪检查
+        OcrEngine._check_models(engines_dir)
+
         import os
 
         os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
@@ -61,12 +75,24 @@ class OcrEngine:
         self.get()
 
     def get(self):
-        """获取 OCR 实例，首次调用时自动加载模型"""
+        """获取 OCR 实例，首次调用时自动加载模型。
+
+        模型未就绪时抛出 OcrModelNotReadyError（自动完成 log.error + 弹窗）。
+        """
         if OcrEngine._ocr is None:
             if not self._model_manager.is_ready():
-                raise RuntimeError("OCR 模型未下载，请前往「设置」页面点击「下载模型」")
+                raise OcrModelNotReadyError()
 
             log.info("首次加载 OCR 引擎（3-5 秒）…")
-            OcrEngine._ocr = OcrEngine._create_paddle_ocr(self._engines_dir)
+            OcrEngine._ocr = OcrEngine.create_ocr(self._engines_dir)
             log.info("OCR 引擎就绪")
         return OcrEngine._ocr
+
+    # ---------- 内部方法 ----------
+
+    @staticmethod
+    def _check_models(engines_dir: Path) -> None:
+        """检查模型文件是否存在，未就绪时抛出 OcrModelNotReadyError"""
+        manager = OcrModelManager(engines_dir)
+        if not manager.is_ready():
+            raise OcrModelNotReadyError()

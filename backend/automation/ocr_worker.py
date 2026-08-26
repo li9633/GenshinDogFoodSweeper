@@ -46,10 +46,13 @@ class OcrWorker(QThread):
 
     @classmethod
     def instance(cls, engines_dir: Path | None = None) -> OcrWorker:
-        """获取全局单例（未创建时自动初始化并启动线程）"""
+        """获取全局单例（仅创建实例，不启动线程）
+
+        线程启动由 OcrInitializer.on_window_ready() 统一控制，
+        确保模型检查通过后才启动。
+        """
         if cls._instance is None:
             cls._instance = OcrWorker(engines_dir)
-            cls._instance.start()
         return cls._instance
 
     @classmethod
@@ -60,20 +63,17 @@ class OcrWorker(QThread):
             cls._instance = None
 
     def run(self) -> None:
-        """线程主循环：初始化 PaddleOCR → 处理任务队列"""
+        """线程主循环：初始化 PaddleOCR → 处理任务队列
+
+        模型就绪检查已在 OcrInitializer.on_window_ready() 中完成，
+        此处直接创建 OCR 实例。
+        """
         try:
             from backend.automation.ocr_engine import OcrEngine
-            from backend.automation.ocr_model_manager import OcrModelManager
-
-            model_manager = OcrModelManager(self._engines_dir)
-            if not model_manager.is_ready():
-                self.task_error.emit(
-                    "OCR 模型未下载，请前往「设置」页面点击「下载模型」", None
-                )
-                return
+            from backend.exceptions.automation import OcrModelNotReadyError
 
             log.info("OCR 引擎预热中（3-5 秒）…")
-            self._ocr = OcrEngine._create_paddle_ocr(self._engines_dir)
+            self._ocr = OcrEngine.create_ocr(self._engines_dir)
             log.info("OCR 引擎就绪")
             self.ready.emit()
 
@@ -96,6 +96,11 @@ class OcrWorker(QThread):
                     log.error(f"OCR 识别失败:\n{tb}")
                     self.task_error.emit(tb, callback_data)
 
+        except OcrModelNotReadyError:
+            # 异常已在 __init__ 中完成 log.error + GMessageBox 弹窗
+            self.task_error.emit(
+                "OCR 模型未下载，请前往「设置」页面点击「下载模型」", None
+            )
         except Exception:
             tb = traceback.format_exc()
             log.error(f"OCR 引擎初始化失败:\n{tb}")

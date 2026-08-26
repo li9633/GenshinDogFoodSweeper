@@ -37,13 +37,6 @@ Dialog {
                                              })
                               })
 
-    function _actionLabel(a) {
-        return a === "discard" ? "丢弃" : "保留"
-    }
-    function _actionColor(a) {
-        return a === "discard" ? Theme.danger : Theme.success
-    }
-
     background: Rectangle {
         radius: 10
         color: Theme.bgPrimary
@@ -274,13 +267,13 @@ Dialog {
                             }
                             Rectangle {
                                 radius: 3
-                                color: _actionColor(root.resultData.rule_action)
+                                color: Theme[RulePresenter.actionColor(root.resultData.rule_action)]
                                 implicitWidth: actLabel.implicitWidth + 12
                                 implicitHeight: 20
                                 Text {
                                     id: actLabel
                                     anchors.centerIn: parent
-                                    text: _actionLabel(root.resultData.rule_action)
+                                    text: RulePresenter.actionLabel(root.resultData.rule_action)
                                     font.family: Theme.fontFamily
                                     font.pixelSize: 11
                                     font.bold: true
@@ -326,13 +319,13 @@ Dialog {
                             }
                             Rectangle {
                                 radius: 3
-                                color: _actionColor(root.resultData.final_action)
+                                color: Theme[RulePresenter.actionColor(root.resultData.final_action)]
                                 implicitWidth: finalLabel.implicitWidth + 12
                                 implicitHeight: 22
                                 Text {
                                     id: finalLabel
                                     anchors.centerIn: parent
-                                    text: _actionLabel(root.resultData.final_action)
+                                    text: RulePresenter.actionLabel(root.resultData.final_action)
                                     font.family: Theme.fontFamily
                                     font.pixelSize: 13
                                     font.bold: true

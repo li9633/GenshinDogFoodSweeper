@@ -11,7 +11,7 @@ import "pages"
 
 ApplicationWindow {
     id: root
-    visible: true
+    visible: false
     width: 1200
     height: 800
     minimumWidth: 900
@@ -26,6 +26,7 @@ ApplicationWindow {
     // ============================================================
     Component.onCompleted: {
         Theme.isDark = SettingsPresenter.currentTheme === "dark"
+        root.visible = true
     }
 
     ColumnLayout {
@@ -123,5 +124,38 @@ ApplicationWindow {
         function onThemeChanged(theme) {
             Theme.isDark = theme === "dark"
         }
+    }
+
+    // ============================================================
+    // 版本更新提示
+    // ============================================================
+    Connections {
+        target: VersionCheck
+        function onUpdateNeeded(title, msg) {
+            versionMsgBox.title = title
+            versionMsgBox.msgType = "warning"
+            versionMsgBox.msgText = msg
+            versionMsgBox.open()
+        }
+    }
+
+    GMessageBox {
+        id: versionMsgBox
+    }
+
+    // ============================================================
+    // Python 信号桥接弹窗（GMessageBox.error / warning / info / success）
+    // ============================================================
+    Connections {
+        target: GMessageBoxBridge
+        function onShowMessage(msgType, msgText) {
+            pythonMsgBox.msgType = msgType
+            pythonMsgBox.msgText = msgText
+            pythonMsgBox.open()
+        }
+    }
+
+    GMessageBox {
+        id: pythonMsgBox
     }
 }

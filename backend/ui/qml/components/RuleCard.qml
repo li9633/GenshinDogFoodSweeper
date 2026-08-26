@@ -120,14 +120,6 @@ Rectangle {
         return parts.join(", ")
     }
 
-    function _actionLabel(a) {
-        return a === "discard" ? "丢弃" : "保留"
-    }
-
-    function _actionColor(a) {
-        return a === "discard" ? Theme.danger : Theme.success
-    }
-
     // ============================================================
     // 内容区
     // ============================================================
@@ -158,13 +150,13 @@ Rectangle {
             // 操作标签
             Rectangle {
                 radius: 3
-                color: _actionColor(ruleData.action)
+                color: Theme[RulePresenter.actionColor(ruleData.action)]
                 implicitWidth: actionLabel.implicitWidth + 12
                 implicitHeight: 20
                 Text {
                     id: actionLabel
                     anchors.centerIn: parent
-                    text: _actionLabel(ruleData.action)
+                    text: RulePresenter.actionLabel(ruleData.action)
                     font.family: Theme.fontFamily
                     font.pixelSize: 11
                     font.bold: true

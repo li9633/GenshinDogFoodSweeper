@@ -9,6 +9,7 @@ from __future__ import annotations
 import time
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
+from ui.lifecycle import OnWindowReady
 from utils.logger import log
 from utils.settings_manager import settings
 
@@ -38,15 +39,20 @@ class _VersionCheckWorker(QThread):
             self.failed.emit(str(e))
 
 
-class VersionCheckPresenter(QObject):
+class VersionCheckPresenter(QObject, OnWindowReady):
     """圣遗物更新检查 Presenter — 注册为 QML context property"""
 
     # 需要 UI 显示弹窗时发射
     updateNeeded = Signal(str, str)  # (title, message)
 
     def __init__(self, parent: QObject | None = None):
-        super().__init__(parent)
+        QObject.__init__(self, parent)
+        OnWindowReady.__init__(self)
         self._worker: _VersionCheckWorker | None = None
+
+    def on_window_ready(self) -> None:
+        """窗口就绪后自动检查版本"""
+        self.checkVersion()
 
     # ========== 间隔判断 ==========
 

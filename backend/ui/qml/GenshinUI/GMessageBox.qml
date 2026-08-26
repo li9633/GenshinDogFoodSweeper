@@ -10,12 +10,56 @@ Dialog {
     // 类型：info | warning | error | success
     property string msgType: "info"
     property string msgText: ""
+    // 点击蒙层是否关闭弹窗
+    property bool closeOnOverlayClick: true
 
     modal: true
+    closePolicy: closeOnOverlayClick
+        ? Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        : Popup.CloseOnEscape
     width: 380
     implicitHeight: contentLayout.implicitHeight + header.height + padding * 2
     anchors.centerIn: Overlay.overlay
     padding: 20
+
+    // 弹出动画：整个弹窗缩放 + 淡入
+    enter: Transition {
+        NumberAnimation {
+            target: root
+            property: "opacity"
+            from: 0; to: 1
+            duration: 200
+        }
+        NumberAnimation {
+            target: root
+            property: "scale"
+            from: 0.85; to: 1
+            duration: 250
+            easing.type: Easing.OutBack
+        }
+    }
+
+    // 关闭动画：整个弹窗缩小 + 淡出
+    exit: Transition {
+        NumberAnimation {
+            target: root
+            property: "opacity"
+            from: 1; to: 0
+            duration: 150
+        }
+        NumberAnimation {
+            target: root
+            property: "scale"
+            from: 1; to: 0.9
+            duration: 150
+        }
+    }
+
+    // 蒙层淡入淡出
+    Overlay.modal: Rectangle {
+        color: "#80000000"
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+    }
 
     title: {
         switch (msgType) {
