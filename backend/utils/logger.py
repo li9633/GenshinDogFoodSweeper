@@ -33,17 +33,19 @@ def setup_logging(
     logger.remove()
 
     # 控制台输出（彩色）
-    logger.add(
-        sys.stderr,
-        level=level,
-        format=(
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-            "<cyan>{name}</cyan> | "
-            "<level>{level: <8}</level> | "
-            "<level>{message}</level>"
-        ),
-        colorize=True,
-    )
+    # 注意：PyInstaller console=False 模式下 sys.stderr 为 None
+    if sys.stderr is not None:
+        logger.add(
+            sys.stderr,
+            level=level,
+            format=(
+                "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+                "<cyan>{name}</cyan> | "
+                "<level>{level: <8}</level> | "
+                "<level>{message}</level>"
+            ),
+            colorize=True,
+        )
 
     # 文件输出（所有级别）
     logger.add(

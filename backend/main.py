@@ -222,15 +222,24 @@ def main():
 
     app.aboutToQuit.connect(_cleanup)
 
-    qml_dir = Path(__file__).parent / "ui" / "qml"
-    engine.addImportPath(str(qml_dir))
-
     # 全局文本渲染：必须在 load 之前设置，让所有 Text 组件使用 Windows ClearType
     QQuickWindow.setTextRenderType(QQuickWindow.NativeTextRendering)
 
+    # 资源根目录：开发模式用脚本所在目录，打包后用 exe 所在目录
+    if getattr(sys, 'frozen', False):
+        _base_dir = Path(sys.executable).parent
+    else:
+        _base_dir = Path(__file__).parent
+
+    qml_dir = _base_dir / "ui" / "qml"
+    log.debug(f"QML dir: {qml_dir}, exists: {qml_dir.exists()}")
+    engine.addImportPath(str(qml_dir))
     engine.load(str(qml_dir / "main.qml"))
 
-    if not engine.rootObjects():
+    root_objects = engine.rootObjects()
+    log.debug(f"QML rootObjects count: {len(root_objects)}")
+    if not root_objects:
+        log.error("QML 加载失败：engine.rootObjects() 为空，程序退出")
         sys.exit(-1)
 
     app.exec()

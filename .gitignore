@@ -15,6 +15,7 @@ frontend/dist/
 # 构建产物
 backend/static/
 dist/
+build/
 
 # 数据库文件
 backend/data/*.db
