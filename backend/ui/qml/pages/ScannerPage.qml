@@ -167,9 +167,9 @@ Rectangle {
                     // 模式提示
                     Text {
                         visible: ArtifactScan.scanStopMode === "anchor"
-                        text: Icon.lightbulb + " 首锚点为圣遗物, 尾锚点为强化材料(3★/4★)。"
+                        text: "<font face='" + Icon.fontSolid + "'>" + Icon.lightbulb + "</font> 首锚点为圣遗物, 尾锚点为强化材料(3★/4★)。"
                               + "扫描到尾锚点时自动停止。需背包底部有强化材料方可使用。"
-                        font.family: Icon.fontSolid
+                        textFormat: Text.RichText
                         font.pixelSize: 11
                         color: Theme.textSecondary
                         wrapMode: Text.WordWrap
@@ -178,9 +178,9 @@ Rectangle {
 
                     Text {
                         visible: ArtifactScan.scanStopMode === "five_star_only"
-                        text: Icon.lightbulb + " 仅扫描五星圣遗物, 非五星直接跳过。"
+                        text: "<font face='" + Icon.fontSolid + "'>" + Icon.lightbulb + "</font> 仅扫描五星圣遗物, 非五星直接跳过。"
                               + "去重仅对五星生效, 四星不参与去重。"
-                        font.family: Icon.fontSolid
+                        textFormat: Text.RichText
                         font.pixelSize: 11
                         color: Theme.textSecondary
                         wrapMode: Text.WordWrap
@@ -189,8 +189,8 @@ Rectangle {
 
                     Text {
                         visible: ArtifactScan.scanStopMode === "fixed_count"
-                        text: Icon.lightbulb + " 扫描指定数量后自动停止, 进度使用输入数量计算剩余时间。"
-                        font.family: Icon.fontSolid
+                        text: "<font face='" + Icon.fontSolid + "'>" + Icon.lightbulb + "</font> 扫描指定数量后自动停止, 进度使用输入数量计算剩余时间。"
+                        textFormat: Text.RichText
                         font.pixelSize: 11
                         color: Theme.textSecondary
                         wrapMode: Text.WordWrap

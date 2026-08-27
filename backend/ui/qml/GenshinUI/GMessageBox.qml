@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import GenshinUI
 
 // qmllint disable unqualified
 
@@ -10,55 +11,63 @@ Dialog {
     // 类型：info | warning | error | success
     property string msgType: "info"
     property string msgText: ""
-    // 点击蒙层是否关闭弹窗
     property bool closeOnOverlayClick: true
 
     modal: true
     closePolicy: closeOnOverlayClick
         ? Popup.CloseOnEscape | Popup.CloseOnPressOutside
         : Popup.CloseOnEscape
-    width: 380
-    implicitHeight: contentLayout.implicitHeight + header.height + padding * 2
+    width: 400
     anchors.centerIn: Overlay.overlay
-    padding: 20
+    padding: 24
 
-    // 弹出动画：整个弹窗缩放 + 淡入
+    // ========== 动画 ==========
     enter: Transition {
-        NumberAnimation {
-            target: root
-            property: "opacity"
-            from: 0; to: 1
-            duration: 200
-        }
-        NumberAnimation {
-            target: root
-            property: "scale"
-            from: 0.85; to: 1
-            duration: 250
-            easing.type: Easing.OutBack
-        }
+        NumberAnimation { target: root; property: "opacity"; from: 0; to: 1; duration: 200 }
     }
-
-    // 关闭动画：整个弹窗缩小 + 淡出
     exit: Transition {
-        NumberAnimation {
-            target: root
-            property: "opacity"
-            from: 1; to: 0
-            duration: 150
-        }
-        NumberAnimation {
-            target: root
-            property: "scale"
-            from: 1; to: 0.9
-            duration: 150
-        }
+        NumberAnimation { target: root; property: "opacity"; from: 1; to: 0; duration: 150 }
     }
-
-    // 蒙层淡入淡出
     Overlay.modal: Rectangle {
         color: "#80000000"
         Behavior on opacity { NumberAnimation { duration: 200 } }
+    }
+
+    // ========== 语义映射 ==========
+    function _accentColor() {
+        switch (msgType) {
+        case "error": return Theme.danger
+        case "warning": return Theme.warning
+        case "success": return Theme.success
+        default: return Theme.info
+        }
+    }
+
+    function _barColor() {
+        switch (msgType) {
+        case "error": return Theme.dangerMedium
+        case "warning": return Theme.warningMedium
+        case "success": return Theme.successMedium
+        default: return Theme.infoMedium
+        }
+    }
+
+    function _iconBgColor() {
+        switch (msgType) {
+        case "error": return Theme.dangerLight
+        case "warning": return Theme.warningLight
+        case "success": return Theme.successLight
+        default: return Theme.infoLight
+        }
+    }
+
+    function _iconText() {
+        switch (msgType) {
+        case "error": return Icon.circleXmark
+        case "warning": return Icon.exclamation
+        case "success": return Icon.circleCheck
+        default: return Icon.info
+        }
     }
 
     title: {
@@ -70,59 +79,47 @@ Dialog {
         }
     }
 
-    function _accentColor() {
-        switch (msgType) {
-        case "error": return Theme.danger
-        case "warning": return Theme.warning
-        case "success": return Theme.success
-        default: return Theme.info
+    // ========== 顶部强调色条（4px） ==========
+    header: Item {
+        implicitHeight: 4
+        Rectangle {
+            anchors.fill: parent
+            color: root._barColor()
+            radius: Theme.radius
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: Theme.radius
+                color: parent.color
+            }
         }
     }
 
-    function _iconText() {
-        switch (msgType) {
-        case "error": return Icon.close
-        case "warning": return Icon.exclamation
-        case "success": return Icon.check
-        default: return Icon.info
-        }
-    }
-
+    // ========== 背景 ==========
     background: Rectangle {
         color: Theme.bgSecondary
         radius: Theme.radius
         border.color: Theme.border
     }
 
-    header: Rectangle {
-        color: root._accentColor()
-        height: 38
-        radius: Theme.radius
+    // ========== 内容 ==========
+    contentItem: ColumnLayout {
+        spacing: 20
 
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: parent.radius
-            color: parent.color
-        }
-
+        // 图标 + 标题
         RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 14
-            anchors.rightMargin: 10
-            spacing: 8
+            spacing: 16
 
             Rectangle {
-                width: 22; height: 22; radius: 11
-                color: Theme.bgPrimary
+                implicitWidth: 44; implicitHeight: 44; radius: 22
+                color: root._iconBgColor()
 
                 Text {
                     anchors.centerIn: parent
                     text: root._iconText()
                     font.family: Icon.fontSolid
-                    font.pixelSize: 13
-                    font.bold: true
+                    font.pixelSize: 20
                     color: root._accentColor()
                 }
             }
@@ -130,30 +127,25 @@ Dialog {
             Text {
                 text: root.title
                 font.family: Theme.fontFamily
-                font.pixelSize: 14
+                font.pixelSize: 16
                 font.bold: true
-                color: Theme.bgPrimary
+                color: Theme.textPrimary
             }
-
-            Item { Layout.fillWidth: true }
         }
-    }
 
-    contentItem: ColumnLayout {
-        id: contentLayout
-        spacing: 20
-
+        // 消息正文
         Text {
-            id: msgLabel
             Layout.fillWidth: true
+            Layout.leftMargin: 60
             text: root.msgText
             font.family: Theme.fontFamily
             font.pixelSize: 14
-            color: Theme.textPrimary
+            color: Theme.textSecondary
             wrapMode: Text.WordWrap
-            lineHeight: 1.5
+            lineHeight: 1.6
         }
 
+        // 按钮
         RowLayout {
             Layout.fillWidth: true
             Item { Layout.fillWidth: true }

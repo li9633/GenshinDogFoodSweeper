@@ -21,10 +21,10 @@ Button {
         if (btnColor !== "") return btnColor
         switch (colorType) {
             case "primary": return Theme.accent
-            case "success": return Theme.success
-            case "warning": return Theme.warning
-            case "danger":  return Theme.danger
-            case "info":    return Theme.info
+            case "success": return Theme.successMedium
+            case "warning": return Theme.warningMedium
+            case "danger":  return Theme.dangerMedium
+            case "info":    return Theme.infoMedium
             default:        return Theme.bgTrack
         }
     }
@@ -33,10 +33,10 @@ Button {
         if (btnColor !== "") return Qt.lighter(btnColor, 1.15)
         switch (colorType) {
             case "primary": return Theme.accentHover
-            case "success": return Theme.successHover
-            case "warning": return Theme.warningHover
-            case "danger":  return Theme.dangerHover
-            case "info":    return Theme.infoHover
+            case "success": return Theme.success
+            case "warning": return Theme.warning
+            case "danger":  return Theme.danger
+            case "info":    return Theme.info
             default:        return Theme.borderHover
         }
     }
@@ -45,10 +45,10 @@ Button {
         if (btnColor !== "") return Qt.darker(btnColor, 1.15)
         switch (colorType) {
             case "primary": return Qt.darker(Theme.accent, 1.15)
-            case "success": return Theme.successPressed
-            case "warning": return Theme.warningPressed
-            case "danger":  return Theme.dangerPressed
-            case "info":    return Theme.infoPressed
+            case "success": return Theme.successDeep
+            case "warning": return Theme.warningDeep
+            case "danger":  return Theme.dangerDeep
+            case "info":    return Theme.infoDeep
             default:        return Qt.darker(Theme.bgTrack, 1.1)
         }
     }

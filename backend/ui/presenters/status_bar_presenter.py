@@ -17,13 +17,11 @@ class StatusBarPresenter(QObject):
 
     # QML 属性通知信号
     messageChanged = Signal()
-    visibleChanged = Signal()
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
         self._message = "就绪"
         self._level = ""
-        self._visible = True
         self._show_level = False
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -31,10 +29,6 @@ class StatusBarPresenter(QObject):
         self._signal.connect(self._do_show)
 
     # ========== QML 属性 ==========
-
-    @Property(bool, notify=visibleChanged)
-    def visible(self) -> bool:
-        return self._visible
 
     @Property(str, notify=messageChanged)
     def message(self) -> str:
@@ -61,27 +55,10 @@ class StatusBarPresenter(QObject):
         """
         self._signal.emit(level, message, duration)
 
-    @Slot(str)
-    def testLog(self, level: str) -> None:
-        """调试面板：通过 log.xxx 发送消息，测试完整的日志桥接链路"""
-        from utils.logger import log
-
-        msg = f"[调试] 状态栏颜色测试 — {level}"
-        if level == "SUCCESS":
-            log.success(msg)
-        elif level == "WARNING":
-            log.warning(msg)
-        elif level == "ERROR":
-            log.error(msg)
-        elif level == "CRITICAL":
-            log.critical(msg)
-        else:
-            log.info(msg)
-
     @Slot()
     def dismiss(self) -> None:
-        """QML 调用：手动关闭状态栏"""
-        self._hide()
+        """QML 调用：重置状态栏到默认"就绪"状态"""
+        self._reset_to_default()
 
     # ========== 内部实现 ==========
 
@@ -89,10 +66,8 @@ class StatusBarPresenter(QObject):
         self._timer.stop()
         self._level = level.upper()
         self._message = message
-        self._visible = True
         self._show_level = True
         self.messageChanged.emit()
-        self.visibleChanged.emit()
 
         if duration > 0:
             self._timer.start(duration)

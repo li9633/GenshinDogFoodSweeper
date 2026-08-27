@@ -31,7 +31,7 @@ Rectangle {
             }
 
             Repeater {
-                model: ["区域标记", "元素定位", "圣遗物识别", "圣遗物扫描", "智能翻页器", "状态栏"]
+                model: ["区域标记", "元素定位", "圣遗物识别", "圣遗物扫描", "智能翻页器", "基础设施"]
 
                 TabButton {
                     required property int index
@@ -77,7 +77,7 @@ Rectangle {
             ArtifactRecognitionPanel {}
             ArtifactScanPanel {}
             SmartScrollPanel {}
-            StatusBarTestPanel {}
+            InfraDebugPanel {}
         }
 
         // -- 分割线 --

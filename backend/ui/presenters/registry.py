@@ -68,6 +68,11 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("StatusBarPresenter", StatusBarPresenter, [_wire_status]))
 
+    # ---- InfraDebug ----
+    from ui.presenters.infra_debug_presenter import InfraDebugPresenter
+
+    registry.append(("InfraDebug", InfraDebugPresenter, []))
+
     # ---- ArtifactScan ----
     from ui.presenters.artifact_scan_presenter import ArtifactScanPresenter
 

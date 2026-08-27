@@ -31,25 +31,43 @@ QtObject {
     readonly property color border:      isDark ? "#3A3D5C" : "#E0DDD5"
     readonly property color borderHover: isDark ? "#5A5E8A" : "#B8B5A8"
 
-    // -- 危险色 --
-    readonly property color danger:         isDark ? "#EF5350" : "#C62828"
-    readonly property color dangerHover:    isDark ? "#F44336" : "#D32F2F"
-    readonly property color dangerPressed:  isDark ? "#D32F2F" : "#B71C1C"
+    // ============================================================
+    // 语义色：渐进式调色板 (Light → Medium → Default → Deep)
+    // ============================================================
 
-    // -- 成功色 --
-    readonly property color success:         isDark ? "#4CAF50" : "#2E7D32"
-    readonly property color successHover:    isDark ? "#66BB6A" : "#388E3C"
-    readonly property color successPressed:  isDark ? "#388E3C" : "#1B5E20"
+    // -- Danger (红) --
+    readonly property color dangerLight:  isDark ? "#3A1F1F" : "#FDECEC"
+    readonly property color dangerMedium: isDark ? "#C06060" : "#E57373"
+    readonly property color danger:       isDark ? "#D47373" : "#C62828"
+    readonly property color dangerDeep:   isDark ? "#A84848" : "#B71C1C"
 
-    // -- 警告色 --
-    readonly property color warning:         isDark ? "#FF9800" : "#EF6C00"
-    readonly property color warningHover:    isDark ? "#FFA726" : "#F57C00"
-    readonly property color warningPressed:  isDark ? "#F57C00" : "#E65100"
+    // -- Success (绿) --
+    readonly property color successLight:  isDark ? "#1B2E22" : "#E8F5E9"
+    readonly property color successMedium: isDark ? "#5AA868" : "#66BB6A"
+    readonly property color success:       isDark ? "#6EBA7A" : "#2E7D32"
+    readonly property color successDeep:   isDark ? "#4A9258" : "#1B5E20"
 
-    // -- 信息色 --
-    readonly property color info:         isDark ? "#42A5F5" : "#1565C0"
-    readonly property color infoHover:    isDark ? "#64B5F6" : "#1976D2"
-    readonly property color infoPressed:  isDark ? "#1E88E5" : "#0D47A1"
+    // -- Warning (橙) --
+    readonly property color warningLight:  isDark ? "#3D2A1A" : "#FFF3E0"
+    readonly property color warningMedium: isDark ? "#C89840" : "#FFA726"
+    readonly property color warning:       isDark ? "#D8AA52" : "#EF6C00"
+    readonly property color warningDeep:   isDark ? "#B08032" : "#E65100"
+
+    // -- Info (科技蓝) --
+    readonly property color infoLight:  isDark ? "#13283A" : "#EBF5FF"
+    readonly property color infoMedium: isDark ? "#3388CC" : "#66B1FF"
+    readonly property color info:       isDark ? "#409EFF" : "#409EFF"
+    readonly property color infoDeep:   isDark ? "#3070C0" : "#1A6ECC"
+
+    // -- 向后兼容别名 (Hover → Default, Pressed → Deep) --
+    readonly property color dangerHover:    danger
+    readonly property color dangerPressed:  dangerDeep
+    readonly property color successHover:   success
+    readonly property color successPressed: successDeep
+    readonly property color warningHover:   warning
+    readonly property color warningPressed: warningDeep
+    readonly property color infoHover:      info
+    readonly property color infoPressed:    infoDeep
 
     // -- 图标 --
     readonly property string fontFamily: "Microsoft YaHei"
