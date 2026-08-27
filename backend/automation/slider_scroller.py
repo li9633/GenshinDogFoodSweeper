@@ -77,9 +77,6 @@ class SliderScroller:
         region_x, top_y, bottom_y, region_w, region_h = sr
 
         result = self._capture.capture()
-        if result is None:
-            log.warning("确保到顶: 截图失败")
-            return None
 
         slider_y, best_ratio, best_y, _ = SliderDetector.find_slider(
             result.image, region_x, top_y, bottom_y, region_w, region_h
@@ -123,9 +120,6 @@ class SliderScroller:
         region_x, _top_y, region_y, region_w, region_h = sr
 
         result = self._capture.capture()
-        if result is None:
-            log.warning("颜色检测: 截图失败")
-            return (None, False)
 
         img = result.image
         top_y = max(0, region_y - SliderDetector.MAX_SEARCH)
@@ -202,8 +196,6 @@ class SliderScroller:
             sleep(0.15)
 
             result = self._capture.capture()
-            if result is None:
-                continue
 
             current_y, best_ratio, best_y, _ = SliderDetector.find_slider(
                 result.image, region_x, top_y, region_y, region_w, region_h,
@@ -276,8 +268,6 @@ class SliderScroller:
             sleep(0.15)
 
             result = self._capture.capture()
-            if result is None:
-                continue
 
             current_y, best_ratio, best_y, _ = SliderDetector.find_slider(
                 result.image, region_x, top_y, bottom_y, region_w, region_h

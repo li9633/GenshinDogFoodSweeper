@@ -50,15 +50,10 @@ class ArtifactDecomposer(QObject):
         log.info("开始自动分解流程")
 
         # 聚焦原神窗口
-        if not self._window.focus():
-            log.error("聚焦原神窗口失败")
-            return False
+        self._window.focus()
 
         # 1. 截图
         result = self._capture.capture()
-        if result is None:
-            log.error("截图失败")
-            return False
 
         # 2. 如果不在分解页面，则尝试进入
         if not self._is_on_decompose_page(result.image):
@@ -68,9 +63,7 @@ class ArtifactDecomposer(QObject):
                 return False
             time.sleep(1.5)
             result2 = self._capture.capture()
-            if result2 is None:
-                log.error("点击分解按钮后截图失败")
-                return False
+
             if not self._is_on_decompose_page(result2.image):
                 log.error("点击分解按钮后未能进入分解页面")
                 return False
@@ -82,9 +75,7 @@ class ArtifactDecomposer(QObject):
         # 3. 点击快速选择按钮
         time.sleep(0.5)
         result3 = self._capture.capture()
-        if result3 is None:
-            log.error("快速选择前截图失败")
-            return False
+
         if not self._click_quick_select(result3.image):
             log.error("未找到快速选择按钮")
             return False
@@ -93,9 +84,7 @@ class ArtifactDecomposer(QObject):
         # 4. 截图并 OCR 识别快速选择弹窗内容
         time.sleep(0.5)
         result4 = self._capture.capture()
-        if result4 is None:
-            log.error("OCR 截图失败")
-            return False
+
         ocr_result = self._ocr_quick_select(result4.image)
         if ocr_result is None:
             log.error("OCR 识别失败")
@@ -130,9 +119,7 @@ class ArtifactDecomposer(QObject):
         log.info("存在可分解圣遗物，开始执行分解")
         time.sleep(0.5)
         result5 = self._capture.capture()
-        if result5 is None:
-            log.error("分解前截图失败")
-            return False
+
         if not self._click_decompose_button(result5.image):
             log.error("未找到分解按钮")
             return False
@@ -149,14 +136,9 @@ class ArtifactDecomposer(QObject):
         """
         log.info("进入分解页面...")
 
-        if not self._window.focus():
-            log.error("聚焦原神窗口失败")
-            return False
+        self._window.focus()
 
         result = self._capture.capture()
-        if result is None:
-            log.error("截图失败")
-            return False
 
         if self._is_on_decompose_page(result.image):
             log.info("已在分解页面")
@@ -169,9 +151,7 @@ class ArtifactDecomposer(QObject):
 
         time.sleep(1.5)
         result2 = self._capture.capture()
-        if result2 is None:
-            log.error("点击分解按钮后截图失败")
-            return False
+
         if not self._is_on_decompose_page(result2.image):
             log.error("点击分解按钮后未能进入分解页面")
             return False
@@ -202,9 +182,7 @@ class ArtifactDecomposer(QObject):
         """
         time.sleep(0.5)
         result = self._capture.capture()
-        if result is None:
-            log.error("分解前截图失败")
-            return False
+
         if not self._click_decompose_button(result.image):
             log.error("未找到分解按钮")
             return False
@@ -268,9 +246,6 @@ class ArtifactDecomposer(QObject):
 
             # 截图并检测格子
             result = self._capture.capture()
-            if result is None:
-                log.error("截图失败")
-                break
 
             det_result = SlotDetector.detect(result.image, config=config)
             if not det_result.slots:
@@ -303,9 +278,6 @@ class ArtifactDecomposer(QObject):
 
                 # 截图并 OCR 识别圣遗物详情
                 cap_result = self._capture.capture()
-                if cap_result is None:
-                    log.warning(f"[{page}-{idx + 1}] 截图失败，跳过")
-                    continue
 
                 artifact = self._ocr_recognize_artifact(cap_result.image, config)
                 t_ocr = time.perf_counter()

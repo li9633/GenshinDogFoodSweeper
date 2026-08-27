@@ -1223,22 +1223,19 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     @Slot()
     def smartMeasureRowHeight(self) -> None:
         """在顶部检测行高，生成预览图 — 委托 SlotDetector"""
-        try:
-            result = self._capture.capture()
-            if result is None:
-                log.warning("SmartScroll 行高测量: 截图失败")
-                return
-            det = SlotDetector.detect(result.image, config=self._active_config)
-            if det.row_height <= 0:
-                log.warning("SmartScroll 行高测量失败: 未检测到格子")
-                return
-            sc = self._get_smart_scroller()
-            sc._row_height = det.row_height
-            debug_rgb = SlotDetector.generate_row_height_debug(
-                result.image, det, config=self._active_config,
-            )
-            vkey = PreviewImageProvider.put("smart_scroll", debug_rgb)
-            self.debugPreviewReady.emit(vkey)
-            log.info(f"SmartScroll 行高已更新: {det.row_height}px")
-        except Exception as e:
-            log.error(f"SmartScroll 行高测量异常: {e}")
+        result = self._capture.capture()
+        if result is None:
+            log.warning("SmartScroll 行高测量: 截图失败")
+            return
+        det = SlotDetector.detect(result.image, config=self._active_config)
+        if det.row_height <= 0:
+            log.warning("SmartScroll 行高测量失败: 未检测到格子")
+            return
+        sc = self._get_smart_scroller()
+        sc._row_height = det.row_height
+        debug_rgb = SlotDetector.generate_row_height_debug(
+            result.image, det, config=self._active_config,
+        )
+        vkey = PreviewImageProvider.put("smart_scroll", debug_rgb)
+        self.debugPreviewReady.emit(vkey)
+        log.info(f"SmartScroll 行高已更新: {det.row_height}px")

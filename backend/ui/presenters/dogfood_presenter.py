@@ -224,9 +224,8 @@ class DogfoodPresenter(QObject):
 
             # 运行第一批选择
             self._run_selection_batch()
-        except Exception as e:
-            log.error(f"分解流程异常: {e}")
-            self._set_status(f"异常: {e}")
+        except Exception:
+            self._set_status("分解流程异常")
             self._finish()
 
     def _run_selection_batch(self) -> None:
@@ -315,9 +314,8 @@ class DogfoodPresenter(QObject):
                 log.info(f"[Dogfood] {final_msg}")
                 self._set_status(final_msg)
                 self._finish()
-        except Exception as e:
-            log.error(f"确认分解异常: {e}")
-            self._set_status(f"异常: {e}")
+        except Exception:
+            self._set_status("确认分解异常")
             self._finish()
 
     @Slot()

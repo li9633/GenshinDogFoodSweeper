@@ -10,6 +10,7 @@ from __future__ import annotations
 from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
+from backend.exceptions.automation import GameWindowNotFoundError
 from backend.utils.screen_capture import ScreenshotCapture
 
 
@@ -30,7 +31,7 @@ class WindowHelper:
         """获取原神窗口左上角屏幕坐标"""
         window = self._capture.find_genshin_window()
         if window is None:
-            return (0, 0)
+            raise GameWindowNotFoundError()
         return (window.left, window.top)
 
     def get_hwnd(self) -> int | None:
@@ -51,8 +52,7 @@ class WindowHelper:
         """聚焦原神窗口"""
         hwnd = self.get_hwnd()
         if hwnd is None:
-            log.warning("未检测到原神窗口")
-            return False
+            raise GameWindowNotFoundError()
         ok = self._mouse.focus_window(hwnd)
         log.info(f"聚焦原神窗口: {'成功' if ok else '失败'}")
         return ok

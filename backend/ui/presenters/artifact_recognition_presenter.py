@@ -136,8 +136,10 @@ class ArtifactRecognitionPresenter(QObject):
             worker = OcrWorker.instance()
             worker.submit(task_fn, callback_data=None)
 
-        except Exception as exc:
-            self._on_recognize_error(str(exc))
+        except Exception:
+            self._recognizing = False
+            self.recognizingChanged.emit()
+            raise
 
     # ---------- OCR Worker 信号连接 ----------
 

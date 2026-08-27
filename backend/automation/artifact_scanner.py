@@ -343,9 +343,7 @@ class FullScanWorker(QThread):
         try:
             # Step 0: 聚焦游戏窗口
             self.stepChanged.emit("正在聚焦游戏窗口...")
-            if not self._win.focus():
-                self.errorOccurred.emit("聚焦游戏窗口失败，请确认原神已启动")
-                return
+            self._win.focus()
 
             self.stepChanged.emit("正在初始化 OCR 引擎...")
             from backend.automation.ocr_engine import OcrEngine

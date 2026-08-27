@@ -301,9 +301,6 @@ class ElementDetectionPresenter(QObject):
 
             self.detectionFinished.emit(all_passed, detail_text, key)
 
-        except Exception as exc:
-            self.errorOccurred.emit(str(exc))
-            log.error(f"元素检测失败: {exc}")
         finally:
             self._detecting = False
             self.detectingChanged.emit()

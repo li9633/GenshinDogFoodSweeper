@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import time
+
 import cv2
 import numpy as np
 from PySide6.QtCore import Property, QObject, Signal, Slot
@@ -130,7 +132,6 @@ class RegionMarkerPresenter(QObject):
         self._marking = True
         self.markingChanged.emit()
         try:
-            import time
             t0 = time.perf_counter()
             result = _capture()
             self._last_capture = result
@@ -139,9 +140,6 @@ class RegionMarkerPresenter(QObject):
             self.captureFinished.emit(key, self._x, self._y, self._w, self._h)
             elapsed = (time.perf_counter() - t0) * 1000
             log.info(f"区域标记完成 ({elapsed:.0f}ms)")
-        except Exception as exc:
-            self.errorOccurred.emit(str(exc))
-            log.error(f"截图失败: {exc}")
         finally:
             self._marking = False
             self.markingChanged.emit()
@@ -152,17 +150,12 @@ class RegionMarkerPresenter(QObject):
         if not filename.strip():
             self.errorOccurred.emit("请输入文件名")
             return
-        try:
-            import time
-            t0 = time.perf_counter()
-            result = self._last_capture if self._last_capture else _capture()
-            _save_template(result, filename.strip(), self._x, self._y, self._w, self._h)
-            self.templateSaved.emit(filename.strip())
-            elapsed = (time.perf_counter() - t0) * 1000
-            log.info(f"模板保存完成 ({elapsed:.0f}ms)")
-        except Exception as exc:
-            self.errorOccurred.emit(str(exc))
-            log.error(f"保存模板失败: {exc}")
+        t0 = time.perf_counter()
+        result = self._last_capture if self._last_capture else _capture()
+        _save_template(result, filename.strip(), self._x, self._y, self._w, self._h)
+        self.templateSaved.emit(filename.strip())
+        elapsed = (time.perf_counter() - t0) * 1000
+        log.info(f"模板保存完成 ({elapsed:.0f}ms)")
 
     @Slot()
     def extractColor(self) -> None:
@@ -170,7 +163,6 @@ class RegionMarkerPresenter(QObject):
         self._extracting = True
         self.extractingChanged.emit()
         try:
-            import time
             t0 = time.perf_counter()
             result = _capture()
             self._last_capture = result
@@ -182,9 +174,6 @@ class RegionMarkerPresenter(QObject):
             )
             elapsed = (time.perf_counter() - t0) * 1000
             log.info(f"颜色提取完成 ({elapsed:.0f}ms)")
-        except Exception as exc:
-            self.errorOccurred.emit(str(exc))
-            log.error(f"颜色提取失败: {exc}")
         finally:
             self._extracting = False
             self.extractingChanged.emit()
