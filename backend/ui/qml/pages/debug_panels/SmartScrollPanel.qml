@@ -68,8 +68,8 @@ Rectangle {
                         color: Theme.textPrimary
                     }
                     Text {
-                        text: ArtifactScan.smartCalibrated ? "✅ 已校准" : "❌ 未校准 (请先测量行高 → 校准)"
-                        font.family: Theme.fontFamily
+                        text: ArtifactScan.smartCalibrated ? (Icon.circleCheck + " 已校准") : (Icon.circleXmark + " 未校准 (请先测量行高 → 校准)")
+                        font.family: Icon.fontSolid
                         color: ArtifactScan.smartCalibrated ? Theme.accent : Theme.textSecondary
                     }
                 }

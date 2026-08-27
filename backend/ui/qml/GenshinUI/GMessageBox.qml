@@ -81,10 +81,10 @@ Dialog {
 
     function _iconText() {
         switch (msgType) {
-        case "error": return "✕"
-        case "warning": return "!"
-        case "success": return "✓"
-        default: return "i"
+        case "error": return Icon.close
+        case "warning": return Icon.exclamation
+        case "success": return Icon.check
+        default: return Icon.info
         }
     }
 
@@ -120,7 +120,7 @@ Dialog {
                 Text {
                     anchors.centerIn: parent
                     text: root._iconText()
-                    font.family: Theme.fontFamily
+                    font.family: Icon.fontSolid
                     font.pixelSize: 13
                     font.bold: true
                     color: root._accentColor()

@@ -18,17 +18,17 @@ Rectangle {
     // ============================================================
     ListModel {
         id: menuModel
-        ListElement { type: "section"; key: "launcher"; text: "启动"; icon: "🚀"; expanded: true }
-        ListElement { type: "link";   key: "dogfood";  text: "狗粮清理器";   parentKey: "launcher"; indent: true }
-        ListElement { type: "link";   key: "scanner";  text: "圣遗物扫描器"; parentKey: "launcher"; indent: true }
-        ListElement { type: "link";   key: "locker";   text: "圣遗物锁定器"; parentKey: "launcher"; indent: true }
-        ListElement { type: "link";   key: "rules";    text: "规则预设";     icon: "📋" }
-        ListElement { type: "link";   key: "settings"; text: "设置";         icon: "⚙️" }
     }
 
     Component.onCompleted: {
+        menuModel.append({ type: "section", key: "launcher", text: "启动", icon: Icon.rocket, expanded: true })
+        menuModel.append({ type: "link",   key: "dogfood",  text: "狗粮清理器",   parentKey: "launcher", indent: true })
+        menuModel.append({ type: "link",   key: "scanner",  text: "圣遗物扫描器", parentKey: "launcher", indent: true })
+        menuModel.append({ type: "link",   key: "locker",   text: "圣遗物锁定器", parentKey: "launcher", indent: true })
+        menuModel.append({ type: "link",   key: "rules",    text: "规则预设",     icon: Icon.list })
+        menuModel.append({ type: "link",   key: "settings", text: "设置",         icon: Icon.gear })
         if (EnvManager.isDebug) {
-            menuModel.append({ type: "link", key: "debug", text: "调试", icon: "🔧" })
+            menuModel.append({ type: "link", key: "debug", text: "调试", icon: Icon.wrench })
         }
     }
 
@@ -79,7 +79,9 @@ Rectangle {
 
                         Text {
                             text: model.icon || ""
+                            font.family: Icon.fontSolid
                             font.pixelSize: 14
+                            color: Theme.textSecondary
                             anchors.verticalCenter: parent.verticalCenter
                         }
 
@@ -93,7 +95,8 @@ Rectangle {
                         }
 
                         Text {
-                            text: root.expandedSections[model.key] ? "▼" : "▶"
+                            text: root.expandedSections[model.key] ? Icon.chevronDown : Icon.chevronRight
+                            font.family: Icon.fontSolid
                             font.pixelSize: 11
                             color: Theme.textMuted
                             anchors.verticalCenter: parent.verticalCenter
@@ -125,7 +128,9 @@ Rectangle {
 
                         Text {
                             text: model.icon || ""
+                            font.family: Icon.fontSolid
                             font.pixelSize: 14
+                            color: root.currentKey === model.key ? Theme.accent : Theme.textSecondary
                             anchors.verticalCenter: parent.verticalCenter
                             visible: model.icon !== undefined && model.icon !== ""
                         }

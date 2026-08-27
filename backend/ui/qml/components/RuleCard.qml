@@ -65,8 +65,8 @@ Rectangle {
 
         Text {
             anchors.centerIn: parent
-            text: "\u2713"
-            font.family: Theme.fontFamily
+            text: Icon.check
+            font.family: Icon.fontSolid
             font.pixelSize: 14
             font.bold: true
             color: Theme.bgPrimary

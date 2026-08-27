@@ -128,7 +128,7 @@ Rectangle {
         target: ElementDetection
 
         function onDetectionFinished(allPassed, detailText, key) {
-            preview.displayImage(key, allPassed ? "✓ 全部通过" : "✗ 未通过")
+            preview.displayImage(key, allPassed ? (Icon.check + " 全部通过") : (Icon.close + " 未通过"))
             tabBar.currentIndex = 1
         }
     }

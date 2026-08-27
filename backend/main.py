@@ -43,6 +43,16 @@ def main():
     app.setApplicationName("GenshinDogFoodSweeper")
     app.setQuitOnLastWindowClosed(False)
 
+    # 加载 FontAwesome 字体（必须在 QML 引擎之前，避免图标闪烁）
+    from PySide6.QtGui import QFontDatabase
+    fonts_dir = Path(__file__).parent / "ui" / "qml" / "GenshinUI" / "fonts"
+    for font_file in fonts_dir.glob("*.otf"):
+        font_id = QFontDatabase.addApplicationFont(str(font_file))
+        if font_id < 0:
+            log.warning(f"字体加载失败: {font_file.name}")
+        else:
+            log.debug(f"字体已加载: {font_file.name} → {QFontDatabase.applicationFontFamilies(font_id)}")
+
     # 初始化数据库
     create_tables()
 

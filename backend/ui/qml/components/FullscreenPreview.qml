@@ -51,7 +51,8 @@ Popup {
             spacing: 8
 
             GButton {
-                text: "✕"
+                text: Icon.close
+                font.family: Icon.fontSolid
                 implicitWidth: 36
                 implicitHeight: 36
                 colorType: "danger"

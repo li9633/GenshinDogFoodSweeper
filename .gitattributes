@@ -15,13 +15,24 @@
 *.js text eol=lf
 *.vue text eol=lf
 *.css text eol=lf
+*.scss text eol=lf
 *.html text eol=lf
+*.d.ts text eol=lf
+
+# UI 文件
+*.qml text eol=lf
+*.conf text eol=lf
+qmldir text eol=lf
 
 # Markdown / 文档
 *.md text eol=lf
 
 # Shell 脚本
 *.sh text eol=lf
+*.ps1 text eol=lf
+
+# 构建 / 打包
+*.spec text eol=lf
 
 # 二进制文件（禁止 Git 做换行符转换）
 *.png binary
@@ -33,7 +44,9 @@
 *.dll binary
 *.pyd binary
 *.whl binary
+*.otf binary
 
 # 锁文件
 pnpm-lock.yaml text eol=lf
 package-lock.json text eol=lf
+uv.lock text eol=lf

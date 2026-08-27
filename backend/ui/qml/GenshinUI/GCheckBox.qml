@@ -19,7 +19,8 @@ CheckBox {
 
         Text {
             anchors.centerIn: parent
-            text: "✓"
+            text: Icon.check
+            font.family: Icon.fontSolid
             font.pixelSize: 12
             color: Theme.bgPrimary
             visible: control.checked

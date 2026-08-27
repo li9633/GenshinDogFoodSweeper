@@ -140,8 +140,8 @@ Dialog {
                         RowLayout {
                             spacing: 8
                             Text {
-                                text: "⭐".repeat(root.resultData.artifact.rarity || 0)
-                                font.family: Theme.fontFamily
+                                text: Icon.star.repeat(root.resultData.artifact.rarity || 0)
+                                font.family: Icon.fontSolid
                                 font.pixelSize: 14
                                 color: Theme.warning
                             }
@@ -174,8 +174,8 @@ Dialog {
                                 Text {
                                     id: lockLabel
                                     anchors.centerIn: parent
-                                    text: root.resultData.artifact.is_locked ? "🔒 已锁" : "🔓 未锁"
-                                    font.family: Theme.fontFamily
+                                    text: (root.resultData.artifact.is_locked ? Icon.lock : Icon.lockOpen) + (root.resultData.artifact.is_locked ? " 已锁" : " 未锁")
+                                    font.family: Icon.fontSolid
                                     font.pixelSize: 11
                                     color: root.resultData.artifact.is_locked ? Theme.accent : Theme.success
                                 }
@@ -295,8 +295,8 @@ Dialog {
                                 color: root.resultData.matched ? Theme.success : Theme.danger
                             }
                             Text {
-                                text: root.resultData.matched ? "✓ 规则匹配成功" : "✗ 规则不匹配"
-                                font.family: Theme.fontFamily
+                                text: (root.resultData.matched ? Icon.check : Icon.close) + (root.resultData.matched ? " 规则匹配成功" : " 规则不匹配")
+                                font.family: Icon.fontSolid
                                 font.pixelSize: 14
                                 font.bold: true
                                 color: root.resultData.matched ? Theme.success : Theme.danger

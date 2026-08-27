@@ -1,6 +1,7 @@
 module GenshinUI
 
 singleton Theme 1.0 Theme.qml
+singleton Icon 1.0 Icon.qml
 GButton 1.0 GButton.qml
 GSpinBox 1.0 GSpinBox.qml
 GCheckBox 1.0 GCheckBox.qml

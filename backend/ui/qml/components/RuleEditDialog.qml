@@ -520,7 +520,8 @@ Dialog {
                                         color: Theme.accent
                                     }
                                     Text {
-                                        text: "✕"
+                                        text: Icon.close
+                                        font.family: Icon.fontSolid
                                         font.pixelSize: 10
                                         color: Theme.textMuted
                                         MouseArea {
@@ -771,7 +772,8 @@ Dialog {
                     anchors.margins: 6
                     spacing: 4
                     Text {
-                        text: "🔍"
+                        text: Icon.search
+                        font.family: Icon.fontSolid
                         font.pixelSize: 12
                     }
                     TextInput {
@@ -822,7 +824,8 @@ Dialog {
                             Text {
                                 anchors.centerIn: parent
                                 visible: root._formSelectedSets.indexOf(modelData.name) >= 0
-                                text: "✓"
+                                text: Icon.check
+                                font.family: Icon.fontSolid
                                 font.pixelSize: 10
                                 color: Theme.bgPrimary
                             }
