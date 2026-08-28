@@ -14,7 +14,7 @@ class OcrModelNotReadyError(RuntimeError):
     Signal 跨线程安全：即使从后台线程抛出，GMessageBox 弹窗也会自动投递到主线程。
     """
 
-    _MESSAGE = "OCR 模型未下载，请前往「设置」页面点击「下载模型」"
+    _MESSAGE = "OCR 模型未下载，请前往「设置」-> [模型] -> 点击「下载模型」"
 
     def __init__(self) -> None:
         super().__init__(self._MESSAGE)
@@ -47,3 +47,28 @@ class GameWindowNotFoundError(RuntimeError):
         from ui.gmessagebox import GMessageBox
 
         GMessageBox.warning(msg)
+
+
+
+class ArtifactDatabaseEmptyError(RuntimeError):
+    """圣遗物数据库为空异常。
+
+    仅作为消息载体，不在构造时自动弹窗（由调用方决定 UI 展示方式）。
+    """
+
+    _MESSAGE = "本地圣遗物数据库为空，请前往「设置」-> [同步] -> 圣遗物同步，手动同步。"
+
+    def __init__(self) -> None:
+        super().__init__(self._MESSAGE)
+
+
+class ArtifactUpdateAvailableError(RuntimeError):
+    """圣遗物有可用更新异常。
+
+    仅作为消息载体，不在构造时自动弹窗（由调用方决定 UI 展示方式）。
+    """
+
+    _MESSAGE = "检测到圣遗物最新数据更新，请前往「设置」-> [同步] -> 圣遗物同步，拉取最新数据。"
+
+    def __init__(self) -> None:
+        super().__init__(self._MESSAGE)

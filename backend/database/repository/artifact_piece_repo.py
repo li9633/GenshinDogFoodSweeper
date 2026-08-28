@@ -93,6 +93,14 @@ class ArtifactPieceRepo:
             return row[0] if row else 0
 
     @classmethod
+    def delete_all(cls) -> int:
+        """清空所有单件记录，返回删除行数"""
+        with get_db(cls.DB_NAME) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM artifact_pieces").fetchone()[0]
+            conn.execute("DELETE FROM artifact_pieces")
+            return count
+
+    @classmethod
     def find_all(cls) -> list[ArtifactPiece]:
         """查询全部部位"""
         with get_db(cls.DB_NAME) as conn:

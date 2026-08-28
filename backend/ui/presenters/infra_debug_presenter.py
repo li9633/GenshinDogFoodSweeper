@@ -110,3 +110,41 @@ class InfraDebugPresenter(QObject):
         self._debug_progress_value = 1.0
         self._debug_progress_text = "同步完成"
         self.debugProgressChanged.emit()
+
+    # ============================================================
+    # 数据库 & 模型清理
+    # ============================================================
+
+    @Slot()
+    def clearArtifactSets(self) -> None:
+        """清空圣遗物套装表（artifact_sets）"""
+        from database.repository.artifact_set_repo import ArtifactSetRepo
+        from utils.logger import log
+
+        count = ArtifactSetRepo.delete_all()
+        log.info(f"[调试] 已清空 artifact_sets 表（{count} 条记录）")
+
+    @Slot()
+    def clearArtifactPieces(self) -> None:
+        """清空圣遗物单件表（artifact_pieces）"""
+        from database.repository.artifact_piece_repo import ArtifactPieceRepo
+        from utils.logger import log
+
+        count = ArtifactPieceRepo.delete_all()
+        log.info(f"[调试] 已清空 artifact_pieces 表（{count} 条记录）")
+
+    @Slot()
+    def deleteOcrModel(self) -> None:
+        """删除 OCR 模型文件（engine/official_models 目录）"""
+        import shutil
+        from pathlib import Path
+
+        from utils.logger import log
+
+        engines_dir = Path(__file__).resolve().parents[3] / "engines"
+        models_dir = engines_dir / "official_models"
+        if models_dir.exists():
+            shutil.rmtree(models_dir)
+            log.info("[调试] 已删除 OCR 模型目录: official_models")
+        else:
+            log.info("[调试] OCR 模型目录不存在，无需删除")

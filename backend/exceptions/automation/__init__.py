@@ -7,4 +7,4 @@ from backend.exceptions.automation.exceptions import (
     OcrModelNotReadyError,
 )
 
-__all__ = ["GameWindowNotFoundError", "OcrModelNotReadyError"]
+__all__ = ["ArtifactDatabaseEmptyError", "ArtifactUpdateAvailableError", "GameWindowNotFoundError", "OcrModelNotReadyError"]

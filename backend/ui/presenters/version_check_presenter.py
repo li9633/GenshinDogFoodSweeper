@@ -93,14 +93,20 @@ class VersionCheckPresenter(QObject, OnWindowReady):
         db_empty = result.get("db_empty", False)
 
         if db_empty:
+            from backend.exceptions.automation.exceptions import (
+                ArtifactDatabaseEmptyError,
+            )
             self.updateNeeded.emit(
                 "圣遗物数据库为空",
-                "本地圣遗物数据库为空，请前往 设置 → 圣遗物同步，手动同步。",
+                ArtifactDatabaseEmptyError._MESSAGE,
             )
         elif need_update:
+            from backend.exceptions.automation.exceptions import (
+                ArtifactUpdateAvailableError,
+            )
             self.updateNeeded.emit(
                 "圣遗物最新数据更新",
-                "检测到圣遗物最新数据更新，请前往 设置 → 圣遗物同步，手动进行同步。",
+                ArtifactUpdateAvailableError._MESSAGE,
             )
         else:
             log.info("圣遗物更新检查: 本地数据已是最新，无需更新")

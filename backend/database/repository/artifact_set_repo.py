@@ -93,3 +93,11 @@ class ArtifactSetRepo:
         with get_db(cls.DB_NAME) as conn:
             row = conn.execute("SELECT COUNT(*) FROM artifact_sets").fetchone()
             return row[0] if row else 0
+
+    @classmethod
+    def delete_all(cls) -> int:
+        """清空所有套装记录，返回删除行数"""
+        with get_db(cls.DB_NAME) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM artifact_sets").fetchone()[0]
+            conn.execute("DELETE FROM artifact_sets")
+            return count

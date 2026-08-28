@@ -699,8 +699,7 @@ class FullScanWorker(QThread):
             self.finished.emit(scanned, count)
 
         except OcrModelNotReadyError:
-            # 异常已在 __init__ 中完成 log.error + GMessageBox 弹窗
-            self.finished.emit(0, 0)
+            self.errorOccurred.emit(OcrModelNotReadyError._MESSAGE)
         except Exception as exc:
             import traceback
 

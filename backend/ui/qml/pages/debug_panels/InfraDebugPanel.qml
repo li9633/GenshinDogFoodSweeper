@@ -238,6 +238,42 @@ Rectangle {
                 }
             }
 
+            // ---- 数据库 & 模型清理 ----
+            GCard {
+                title: "数据库 & 模型清理"
+                subtitle: "⚠ 危险操作，清空数据不可恢复"
+                Layout.fillWidth: true
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    GButton {
+                        text: "清空套装表"
+                        colorType: "danger"
+                        implicitWidth: 110
+                        implicitHeight: 32
+                        onClicked: InfraDebug.clearArtifactSets()
+                    }
+
+                    GButton {
+                        text: "清空单件表"
+                        colorType: "danger"
+                        implicitWidth: 110
+                        implicitHeight: 32
+                        onClicked: InfraDebug.clearArtifactPieces()
+                    }
+
+                    GButton {
+                        text: "删除 OCR 模型"
+                        colorType: "warning"
+                        implicitWidth: 120
+                        implicitHeight: 32
+                        onClicked: InfraDebug.deleteOcrModel()
+                    }
+                }
+            }
+
             // ---- GMessageBox 实例（QML 渲染用，每个类型独立避免并发冲突） ----
             GMessageBox { id: infoBox }
             GMessageBox { id: successBox }

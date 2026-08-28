@@ -31,7 +31,7 @@ ColumnLayout {
     GCard {
         Layout.fillWidth: true
         title: "圣遗物数据同步"
-        subtitle: "从游戏内同步圣遗物数据到本地数据库"
+        subtitle: "从米游社同步圣遗物数据到本地数据库"
 
         ColumnLayout {
             spacing: 12
