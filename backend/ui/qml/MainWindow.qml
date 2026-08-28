@@ -148,14 +148,55 @@ ApplicationWindow {
     // ============================================================
     Connections {
         target: GMessageBoxBridge
-        function onShowMessage(msgType, msgText) {
+        function onShowMessage(msgType, msgText, bringToFront) {
             pythonMsgBox.msgType = msgType
             pythonMsgBox.msgText = msgText
+            pythonMsgBox.bringToFront = bringToFront
             pythonMsgBox.open()
         }
     }
 
     GMessageBox {
         id: pythonMsgBox
+    }
+
+    // ============================================================
+    // 开发版水印（Canvas 叠加，仅 DEV/ALPHA 渠道显示，不拦截鼠标）
+    // ============================================================
+    Canvas {
+        id: devWatermark
+        anchors.fill: parent
+        z: 9999
+        visible: SettingsPresenter.isDevVersion
+        enabled: false
+
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+
+        onPaint: {
+            var ctx = getContext("2d");
+            ctx.clearRect(0, 0, width, height);
+            ctx.save();
+
+            ctx.translate(width / 2, height / 2);
+            ctx.rotate(-25 * Math.PI / 180);
+            ctx.font = "bold 28px " + Theme.fontFamily;
+            ctx.fillStyle = "rgba(255, 80, 80, 0.10)";
+            ctx.textAlign = "center";
+
+            var text = "内部开发版本，不代表最终品质";
+            var rowSpacing = 130;
+            var colSpacing = 380;
+            var cols = Math.ceil(width / colSpacing) + 2;
+            var rows = Math.ceil(height / rowSpacing) + 2;
+
+            for (let row = -rows; row < rows; row++) {
+                for (let col = -cols; col < cols; col++) {
+                    ctx.fillText(text, col * colSpacing, row * rowSpacing);
+                }
+            }
+
+            ctx.restore();
+        }
     }
 }

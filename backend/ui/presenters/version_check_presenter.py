@@ -58,13 +58,13 @@ class VersionCheckPresenter(QObject, OnWindowReady):
 
     def _should_check(self) -> bool:
         """根据配置判断是否需要执行检查"""
-        interval_key = settings.get("check.version_check_interval")
+        interval_key = settings.get("sync_check.version_check_interval")
         if interval_key == "always":
             return True
         interval_sec = INTERVAL_SECONDS.get(interval_key, 0)
         if interval_sec <= 0:
             return True
-        last_ts = settings.get_int("check.last_version_check_ts")
+        last_ts = settings.get_int("sync_check.last_version_check_ts")
         if last_ts <= 0:
             return True
         return (time.time() - last_ts) >= interval_sec
@@ -87,7 +87,7 @@ class VersionCheckPresenter(QObject, OnWindowReady):
     def _on_check_finished(self, result: dict) -> None:
         """检查完成，记录时间并判断是否需要弹窗"""
         now_ts = int(time.time())
-        settings.set("check.last_version_check_ts", str(now_ts))
+        settings.set("sync_check.last_version_check_ts", str(now_ts))
 
         need_update = result.get("need_update", False)
         db_empty = result.get("db_empty", False)

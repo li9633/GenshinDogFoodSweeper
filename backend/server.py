@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from utils.logger import log
+from utils.version import AppVersion
 
 
 @asynccontextmanager
@@ -21,7 +22,7 @@ async def lifespan(application: FastAPI):
 app = FastAPI(
     title="GenshinDogFoodSweeper",
     description="原神狗粮清扫器 — 后端 API",
-    version="0.1.0",
+    version=AppVersion.semver(),
     lifespan=lifespan,
 )
 

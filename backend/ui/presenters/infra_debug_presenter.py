@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, Slot
+from PySide6.QtCore import Property, QObject, Signal, Slot
 
 
 class InfraDebugPresenter(QObject):
@@ -42,3 +42,71 @@ class InfraDebugPresenter(QObject):
         }
         msg = messages.get(msg_type, messages["info"])
         getattr(GMessageBox, msg_type)(msg)
+
+    @Slot(str, int)
+    def testGMessageBoxDelayed(self, msg_type: str, delay_sec: int) -> None:
+        """测试 GMessageBox 聚焦延迟调用
+
+        延迟指定秒数后触发弹窗，便于切换到其他窗口测试窗口是否被拉到前台。
+        错误/警告类型会触发 requestActivate → 窗口拉起；信息/成功类型不会。
+        """
+        from PySide6.QtCore import QTimer
+        from ui.gmessagebox import GMessageBox
+
+        messages = {
+            "info": "[聚焦测试] 延迟后 — 信息消息（不激活窗口）",
+            "success": "[聚焦测试] 延迟后 — 成功消息（不激活窗口）",
+            "warning": "[聚焦测试] 延迟后 — 警告消息（应激活窗口）",
+            "error": "[聚焦测试] 延迟后 — 错误消息（应激活窗口）",
+        }
+        msg = messages.get(msg_type, messages["info"])
+
+        def _do_show():
+            getattr(GMessageBox, msg_type)(msg)
+
+        QTimer.singleShot(delay_sec * 1000, _do_show)
+
+    # ============================================================
+    # GProgressBar 调试
+    # ============================================================
+
+    _debug_progress_value: float = 0.38
+    _debug_progress_text: str = "翠绿之影  24 / 63"
+    _debug_indeterminate: bool = False
+
+    debugProgressChanged = Signal()
+
+    @Property(float, notify=debugProgressChanged)
+    def debugProgressValue(self) -> float:
+        return self._debug_progress_value
+
+    @Property(str, notify=debugProgressChanged)
+    def debugProgressText(self) -> str:
+        return self._debug_progress_text
+
+    @Property(bool, notify=debugProgressChanged)
+    def debugIndeterminate(self) -> bool:
+        return self._debug_indeterminate
+
+    @Slot()
+    def simulateIndeterminateProgress(self) -> None:
+        """模拟不确定进度：滚动条 + 加载文字"""
+        self._debug_indeterminate = True
+        self._debug_progress_text = "正在拉取圣遗物套装…"
+        self.debugProgressChanged.emit()
+
+    @Slot()
+    def simulateDeterminateProgress(self) -> None:
+        """模拟确定进度：固定进度条 + 当前进度文字"""
+        self._debug_indeterminate = False
+        self._debug_progress_value = 0.38
+        self._debug_progress_text = "翠绿之影  24 / 63"
+        self.debugProgressChanged.emit()
+
+    @Slot()
+    def simulateCompletedProgress(self) -> None:
+        """模拟完成：100% 进度条 + 完成文字"""
+        self._debug_indeterminate = False
+        self._debug_progress_value = 1.0
+        self._debug_progress_text = "同步完成"
+        self.debugProgressChanged.emit()

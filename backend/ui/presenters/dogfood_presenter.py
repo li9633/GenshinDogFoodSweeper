@@ -82,9 +82,14 @@ class DogfoodPresenter(QObject):
                 "name": r.name,
                 "action": r.action,
                 "part": r.part,
+                "part_exclude": r.part_exclude,
                 "main_stat": r.main_stat,
                 "set_name": r.set_name,
+                "sub_stats": [s.to_dict() for s in r.sub_stats],
+                "sub_count": r.sub_count,
                 "priority": r.priority,
+                "include_unactivated": r.include_unactivated,
+                "include_main_stat": r.include_main_stat,
             }
             for r in self._rules
         ]

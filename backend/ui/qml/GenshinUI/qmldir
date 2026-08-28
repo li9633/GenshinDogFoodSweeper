@@ -6,5 +6,7 @@ GButton 1.0 GButton.qml
 GSpinBox 1.0 GSpinBox.qml
 GCheckBox 1.0 GCheckBox.qml
 GComboBox 1.0 GComboBox.qml
+GProgressBar 1.0 GProgressBar.qml
 GCard 1.0 GCard.qml
 GMessageBox 1.0 GMessageBox.qml
+GTextLink 1.0 GTextLink.qml

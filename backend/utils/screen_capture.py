@@ -322,6 +322,38 @@ class ScreenshotCapture:
         )
 
     @staticmethod
+    def is_genshin_process_running() -> bool:
+        """检测原神游戏进程是否在运行（不关心窗口是否可见）。"""
+        try:
+            import psutil
+        except ImportError:
+            return False
+        for proc in psutil.process_iter(["name"]):
+            try:
+                if proc.info["name"].lower() in (
+                    p.lower() for p in ScreenshotCapture.GENSHIN_PROCESSES
+                ):
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return False
+
+    @staticmethod
+    def get_window_not_found_message() -> str:
+        """根据进程状态返回精准的窗口未找到提示。
+
+        由调用方（window_helper / capture）传入 GameWindowNotFoundError。
+        """
+        from backend.exceptions.automation.exceptions import (
+            WINDOW_NOT_FOUND_MINIMIZED_MSG,
+            WINDOW_NOT_FOUND_PROCESS_MSG,
+        )
+
+        if ScreenshotCapture.is_genshin_process_running():
+            return WINDOW_NOT_FOUND_MINIMIZED_MSG
+        return WINDOW_NOT_FOUND_PROCESS_MSG
+
+    @staticmethod
     def list_visible_windows(
         min_width: int = 200, min_height: int = 200
     ) -> list[WindowInfo]:
@@ -375,7 +407,9 @@ class ScreenshotCapture:
             if window is None:
                 from backend.exceptions.automation import GameWindowNotFoundError
 
-                raise GameWindowNotFoundError()
+                raise GameWindowNotFoundError(
+                    ScreenshotCapture.get_window_not_found_message()
+                )
             img = self._capture_win32(window.hwnd)
         elif method == CaptureMethod.PYAUTOGUI:
             r = region or (0, 0, 1920, 1080)

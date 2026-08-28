@@ -37,11 +37,11 @@ Rectangle {
                 width: 8
                 height: 8
                 radius: 4
-                color: GameDetector.isRunning ? Theme.success : Theme.danger
+                color: GameDetector.statusColor
             }
 
             Text {
-                text: GameDetector.isRunning ? "原神已启动" : "原神未启动"
+                text: GameDetector.statusText
                 font.family: Theme.fontFamily
                 font.pixelSize: 12
                 color: Theme.textSecondary

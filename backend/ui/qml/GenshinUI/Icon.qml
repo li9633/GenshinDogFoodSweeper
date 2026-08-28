@@ -28,4 +28,11 @@ QtObject {
     readonly property string circleXmark:    "\uf057"   // fa-circle-xmark
     readonly property string chevronDown:    "\uf078"   // fa-chevron-down
     readonly property string chevronRight:   "\uf054"   // fa-chevron-right
+
+    // -- 设置页 --
+    readonly property string palette:        "\uf53f"   // fa-palette
+    readonly property string arrowsRotate:   "\uf021"   // fa-arrows-rotate
+    readonly property string flask:          "\uf0c3"   // fa-flask
+    readonly property string clock:          "\uf017"   // fa-clock
+    readonly property string keyboard:       "\uf11c"   // fa-keyboard
 }

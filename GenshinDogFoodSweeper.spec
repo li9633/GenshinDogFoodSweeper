@@ -81,6 +81,21 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
+# 过滤掉不需要的二进制文件（约 300MB），项目不使用这些功能
+_EXCLUDE_BIN_PATTERNS = (
+    'Qt6WebEngine', 'Qt6Pdf', 'Qt6QmlWebEngine',  # Web 引擎 (~195MB)
+    'opencv_videoio_ffmpeg',                         # 视频 I/O (~55MB)
+    '_avif',                                         # AVIF 格式 (~8MB)
+    'pdfium',                                        # PDF 渲染 (~7MB)
+    'hf_xet',                                        # HuggingFace XET (~9MB)
+)
+a.binaries = [
+    (name, path, typ)
+    for name, path, typ in a.binaries
+    if not any(p in name for p in _EXCLUDE_BIN_PATTERNS)
+]
+print(f'已过滤 {len(_EXCLUDE_BIN_PATTERNS)} 类无关二进制，剩余 {len(a.binaries)} 个')
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -98,7 +113,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon='resources/app.ico',
 )
 coll = COLLECT(
     exe,
@@ -122,3 +137,12 @@ _tpl_src = Path('resources') / 'templates'
 if _tpl_src.exists():
     shutil.copytree(_tpl_src, _dist_dir / 'resources' / 'templates', dirs_exist_ok=True)
     print(f'已复制模板资源: {_tpl_src} -> {_dist_dir / "resources" / "templates"}')
+
+# 复制应用图标
+for _icon_name in ('app.ico', 'app.png'):
+    _icon_src = Path('resources') / _icon_name
+    if _icon_src.exists():
+        _dist_dir_res = _dist_dir / 'resources'
+        _dist_dir_res.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(_icon_src, _dist_dir_res / _icon_name)
+        print(f'已复制图标: {_icon_src}')

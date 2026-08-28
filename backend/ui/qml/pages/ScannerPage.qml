@@ -33,15 +33,15 @@ Rectangle {
                         width: 10
                         height: 10
                         radius: 5
-                        color: GameDetector.isRunning ? "#4CAF50" : "#EF5350"
+                        color: GameDetector.statusColor
                     }
 
                     Text {
-                        text: GameDetector.isRunning ? "原神运行中" : "未检测到原神"
+                        text: GameDetector.statusText
                         font.family: Theme.fontFamily
                         font.pixelSize: 14
                         font.bold: true
-                        color: GameDetector.isRunning ? "#4CAF50" : Theme.textSecondary
+                        color: GameDetector.isRunning ? GameDetector.statusColor : Theme.textSecondary
                     }
 
                     Text {
@@ -56,7 +56,7 @@ Rectangle {
                 GButton {
                     text: "聚焦窗口"
                     colorType: "default"
-                    onClicked: ArtifactScan.focusGame()
+                    onClicked: GameDetector.focusGame()
                 }
             }
 

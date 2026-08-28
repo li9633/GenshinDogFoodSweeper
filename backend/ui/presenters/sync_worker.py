@@ -16,6 +16,9 @@ class SyncWorker(QThread):
         from crawler.artifact_set_fetcher import ArtifactSetFetcher
 
         try:
+            # 不确定阶段：通知 QML 显示滚动进度条
+            self.progress.emit(0, 0, "正在拉取圣遗物套装…")
+
             data = ArtifactSetFetcher.run_concurrent(
                 progress_callback=self.progress.emit
             )

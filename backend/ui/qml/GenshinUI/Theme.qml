@@ -12,6 +12,7 @@ QtObject {
     // -- 背景 --
     readonly property color bgPrimary:   isDark ? "#1A1B2E" : "#F7F5F0"
     readonly property color bgSecondary: isDark ? "#252640" : "#FFFFFF"
+    readonly property color bgCard:      isDark ? "#252640" : "#FFFEF9"
     readonly property color bgSidebar:   isDark ? "#111224" : "#E8E5DD"
     readonly property color bgTrack:     isDark ? "#2E3055" : "#EFEDE8"
 

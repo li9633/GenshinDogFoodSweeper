@@ -11,6 +11,7 @@ Pane {
     // 公开属性
     // ============================================================
     property string title: ""
+    property string subtitle: ""
 
     // 默认插槽：GCard { } 内的子组件自动放入 contentSlot
     // 等价于 Vue 的 <slot />
@@ -23,7 +24,7 @@ Pane {
     // 背景
     // ============================================================
     background: Rectangle {
-        color: Theme.bgSecondary
+        color: Theme.bgCard
         radius: Theme.radius
         border.color: Theme.border
     }
@@ -42,6 +43,15 @@ Pane {
             font.bold: true
             color: Theme.textPrimary
             visible: control.title !== ""
+        }
+
+        // -- 副标题 --
+        Text {
+            text: control.subtitle
+            font.family: Theme.fontFamily
+            font.pixelSize: 12
+            color: Theme.textSecondary
+            visible: control.subtitle !== ""
         }
 
         // -- 内容插槽（GCard 的子组件会出现在这里）--

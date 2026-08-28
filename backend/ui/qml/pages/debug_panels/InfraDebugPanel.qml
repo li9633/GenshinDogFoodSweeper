@@ -153,6 +153,91 @@ Rectangle {
                 }
             }
 
+            // ---- GMessageBox 聚焦测试（延迟触发，可切到其他窗口测试） ----
+            GCard {
+                title: "GMessageBox 聚焦测试（延迟触发）"
+                subtitle: "点击后延迟3秒弹窗，可切换到其他窗口测试是否拉到前台"
+                Layout.fillWidth: true
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    GButton {
+                        text: "错误 (3s后)"
+                        colorType: "danger"
+                        implicitWidth: 110
+                        implicitHeight: 32
+                        onClicked: InfraDebug.testGMessageBoxDelayed("error", 3)
+                    }
+
+                    GButton {
+                        text: "警告 (3s后)"
+                        colorType: "warning"
+                        implicitWidth: 110
+                        implicitHeight: 32
+                        onClicked: InfraDebug.testGMessageBoxDelayed("warning", 3)
+                    }
+
+                    GButton {
+                        text: "信息 (3s后)"
+                        colorType: "info"
+                        implicitWidth: 110
+                        implicitHeight: 32
+                        onClicked: InfraDebug.testGMessageBoxDelayed("info", 3)
+                    }
+
+                    GButton {
+                        text: "成功 (3s后)"
+                        colorType: "success"
+                        implicitWidth: 110
+                        implicitHeight: 32
+                        onClicked: InfraDebug.testGMessageBoxDelayed("success", 3)
+                    }
+                }
+            }
+
+            // ---- GProgressBar（进度条调试） ----
+            GCard {
+                title: "GProgressBar（进度条调试）"
+                subtitle: "状态由 InfraDebug Presenter 管理"
+                Layout.fillWidth: true
+
+                ColumnLayout {
+                    spacing: 12
+
+                    GProgressBar {
+                        id: debugProgress
+                        Layout.fillWidth: true
+                        indeterminate: InfraDebug.debugIndeterminate
+                        value: InfraDebug.debugProgressValue
+                        progressText: InfraDebug.debugProgressText
+                    }
+
+                    RowLayout {
+                        spacing: 10
+                        GButton {
+                            text: "模拟不确定"
+                            colorType: "info"
+                            implicitHeight: 30
+                            onClicked: InfraDebug.simulateIndeterminateProgress()
+                        }
+                        GButton {
+                            text: "模拟确定进度"
+                            colorType: "primary"
+                            implicitHeight: 30
+                            onClicked: InfraDebug.simulateDeterminateProgress()
+                        }
+                        GButton {
+                            text: "模拟完成"
+                            colorType: "success"
+                            implicitHeight: 30
+                            onClicked: InfraDebug.simulateCompletedProgress()
+                        }
+                    }
+                }
+            }
+
             // ---- GMessageBox 实例（QML 渲染用，每个类型独立避免并发冲突） ----
             GMessageBox { id: infoBox }
             GMessageBox { id: successBox }

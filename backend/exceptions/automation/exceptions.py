@@ -23,20 +23,27 @@ class OcrModelNotReadyError(RuntimeError):
 
         GMessageBox.error(self._MESSAGE)
 
+# 窗口未找到的两种场景消息（screen_capture 判断场景，exception_handler 过滤 QML 日志）
+WINDOW_NOT_FOUND_PROCESS_MSG = "请先启动原神游戏"
+WINDOW_NOT_FOUND_MINIMIZED_MSG = "请将原神窗口置于前台"
+
+
 class GameWindowNotFoundError(RuntimeError):
     """游戏窗口未找到异常。
 
-    当截图模块无法定位原神窗口时抛出，调用方可选择：
-    - 捕获后提示用户打开游戏
-    - 捕获后重试
-    - 向上传播由 QML UI 层展示错误
+    由调用方（screen_capture / window_helper）根据进程状态传入对应消息：
+    - WINDOW_NOT_FOUND_PROCESS_MSG    → 进程未启动
+    - WINDOW_NOT_FOUND_MINIMIZED_MSG  → 窗口不可见
+
+    构造时自动完成 log + GMessageBox 弹窗，调用方无需额外处理。
     """
 
-    _MESSAGE = "未找到原神窗口，不要将游戏窗口最小化"
+    _MESSAGE = WINDOW_NOT_FOUND_PROCESS_MSG  # 用于 exception_handler 匹配
 
-    def __init__(self) -> None:
-        super().__init__(self._MESSAGE)
-        log.warning(self._MESSAGE)
+    def __init__(self, message: str = "") -> None:
+        msg = message or self._MESSAGE
+        super().__init__(msg)
+        log.warning(msg)
         from ui.gmessagebox import GMessageBox
 
-        GMessageBox.warning(self._MESSAGE)
+        GMessageBox.warning(msg)

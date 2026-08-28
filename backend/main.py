@@ -30,6 +30,19 @@ from ui.presenters.registry import register_all
 from utils.logger import log, setup_logging
 
 
+def _find_icon() -> str | None:
+    """查找应用图标，兼容开发模式和 PyInstaller 打包后"""
+    if getattr(sys, 'frozen', False):
+        base = Path(sys.executable).parent
+    else:
+        base = Path(__file__).parent.parent
+    for name in ("app.ico", "app.png"):
+        p = base / "resources" / name
+        if p.exists():
+            return str(p)
+    return None
+
+
 def main():
     # 日志初始化（必须在任何日志调用之前）
     setup_logging()
@@ -43,9 +56,22 @@ def main():
     app.setApplicationName("GenshinDogFoodSweeper")
     app.setQuitOnLastWindowClosed(False)
 
+    # 设置应用图标（任务栏 + 窗口标题栏）
+    from PySide6.QtGui import QIcon
+    icon_path = _find_icon()
+    if icon_path:
+        app.setWindowIcon(QIcon(icon_path))
+
+    # 资源根目录：开发模式用脚本所在目录，打包后用 exe 所在目录
+    if getattr(sys, 'frozen', False):
+        _base_dir = Path(sys.executable).parent
+    else:
+        _base_dir = Path(__file__).parent
+
     # 加载 FontAwesome 字体（必须在 QML 引擎之前，避免图标闪烁）
     from PySide6.QtGui import QFontDatabase
-    fonts_dir = Path(__file__).parent / "ui" / "qml" / "GenshinUI" / "fonts"
+    fonts_dir = _base_dir / "ui" / "qml" / "GenshinUI" / "fonts"
+    log.debug(f"Fonts dir: {fonts_dir}, exists: {fonts_dir.exists()}")
     for font_file in fonts_dir.glob("*.otf"):
         font_id = QFontDatabase.addApplicationFont(str(font_file))
         if font_id < 0:
@@ -88,12 +114,6 @@ def main():
 
     # 全局文本渲染：必须在 load 之前设置，让所有 Text 组件使用 Windows ClearType
     QQuickWindow.setTextRenderType(QQuickWindow.NativeTextRendering)
-
-    # 资源根目录：开发模式用脚本所在目录，打包后用 exe 所在目录
-    if getattr(sys, 'frozen', False):
-        _base_dir = Path(sys.executable).parent
-    else:
-        _base_dir = Path(__file__).parent
 
     qml_dir = _base_dir / "ui" / "qml"
     log.debug(f"QML dir: {qml_dir}, exists: {qml_dir.exists()}")

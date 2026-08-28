@@ -27,6 +27,12 @@ qmldir text eol=lf
 # Markdown / 文档
 *.md text eol=lf
 
+# 图片资源（二进制，禁止文本转换）
+*.png binary
+*.ico binary
+*.jpg binary
+*.otf binary
+
 # Shell 脚本
 *.sh text eol=lf
 *.ps1 text eol=lf

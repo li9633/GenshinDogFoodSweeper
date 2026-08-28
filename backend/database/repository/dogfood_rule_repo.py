@@ -9,7 +9,6 @@ import json
 
 from database.connection import get_db
 from models.dogfood_rule import DogfoodRule
-from utils.logger import log
 
 
 class DogfoodRuleRepo:
@@ -34,24 +33,12 @@ class DogfoodRuleRepo:
                     sub_count    INTEGER NOT NULL DEFAULT 0,
                     action       TEXT NOT NULL DEFAULT 'keep',
                     priority     INTEGER NOT NULL DEFAULT 0,
+                    include_unactivated INTEGER NOT NULL DEFAULT 1,
+                    include_main_stat    INTEGER NOT NULL DEFAULT 0,
                     created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
                     updated_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
                 )
             """)
-            # 迁移：新增 include_unactivated 列（v1.1+）
-            try:
-                conn.execute(
-                    "ALTER TABLE dogfood_rules ADD COLUMN include_unactivated INTEGER NOT NULL DEFAULT 1"
-                )
-            except Exception as e:
-                log.debug(f"添加列 include_unactivated 失败(可能已存在): {e}")
-            # 迁移：新增 include_main_stat 列（v1.2+）
-            try:
-                conn.execute(
-                    "ALTER TABLE dogfood_rules ADD COLUMN include_main_stat INTEGER NOT NULL DEFAULT 0"
-                )
-            except Exception as e:
-                log.debug(f"添加列 include_main_stat 失败(可能已存在): {e}")
 
     # ---------- 读 ----------
 

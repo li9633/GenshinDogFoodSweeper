@@ -16,6 +16,7 @@ from typing import ClassVar
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.datetime_helper import DateTimeHelper
 from utils.settings_manager import settings
+from utils.version import AppVersion, Channel
 
 
 class SettingsPresenter(QObject):
@@ -51,11 +52,69 @@ class SettingsPresenter(QObject):
     # -- 状态栏 --
     statusMessage = Signal(str, int, str)
 
+    # -- 关于 --
+    _APP_TITLE: ClassVar[str] = "原神狗粮清扫器"
+    _APP_SUBTITLE: ClassVar[str] = "原神圣遗物自动化管理工具"
+    _APP_VERSION: ClassVar[str] = AppVersion.display()
+    _APP_DESCRIPTION: ClassVar[str] = (
+        "基于 OCR 视觉识别的原神圣遗物自动管理工具。"
+        "通过截图识别圣遗物属性，根据自定义规则自动筛选和标记狗粮，"
+        "帮助旅行者高效清理背包、告别手动对比属性的繁琐操作。"
+    )
+    _GITHUB_URL: ClassVar[str] = "https://github.com/li9633/GenshinDogFoodSweeper"
+    _ISSUES_URL: ClassVar[str] = f"{_GITHUB_URL}/issues"
+
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
         self._sync_worker = None
         self._model_manager = None
         self._download_worker = None
+
+    # ========== 关于 ==========
+
+    @Property(str, constant=True)
+    def appTitle(self) -> str:
+        return self._APP_TITLE
+
+    @Property(str, constant=True)
+    def appSubtitle(self) -> str:
+        return self._APP_SUBTITLE
+
+    @Property(str, constant=True)
+    def appVersion(self) -> str:
+        return self._APP_VERSION
+
+    @Property(bool, constant=True)
+    def isDevVersion(self) -> bool:
+        """是否为开发/内部版本（需要显示水印）"""
+        return AppVersion.CHANNEL in (Channel.DEV, Channel.ALPHA)
+
+    @Property(str, constant=True)
+    def appDescription(self) -> str:
+        return self._APP_DESCRIPTION
+
+    @Property(str, constant=True)
+    def githubUrl(self) -> str:
+        return self._GITHUB_URL
+
+    @Property(str, constant=True)
+    def issuesUrl(self) -> str:
+        return self._ISSUES_URL
+
+    @Property(str, constant=True)
+    def appIconPath(self) -> str:
+        """应用图标路径，兼容开发模式和 PyInstaller 打包"""
+        import sys
+        from pathlib import Path
+        if getattr(sys, 'frozen', False):
+            base = Path(sys.executable).parent
+        else:
+            base = Path(__file__).parent.parent.parent.parent
+        for name in ("app.png", "app.ico"):
+            p = base / "resources" / name
+            if p.exists():
+                return "file:///" + str(p).replace("\\", "/")
+        return ""
 
     # ========== 主题 ==========
 
@@ -117,7 +176,7 @@ class SettingsPresenter(QObject):
 
     @Property(int, notify=versionCheckIntervalChanged)
     def versionCheckIntervalIndex(self) -> int:
-        key = settings.get("check.version_check_interval")
+        key = settings.get("sync_check.version_check_interval")
         try:
             return self._VERSION_CHECK_INTERVALS.index(key)
         except ValueError:
@@ -127,9 +186,9 @@ class SettingsPresenter(QObject):
     def setVersionCheckIntervalByIndex(self, index: int) -> None:
         if 0 <= index < len(self._VERSION_CHECK_INTERVALS):
             new_key = self._VERSION_CHECK_INTERVALS[index]
-            if new_key == settings.get("check.version_check_interval"):
+            if new_key == settings.get("sync_check.version_check_interval"):
                 return
-            settings.set("check.version_check_interval", new_key)
+            settings.set("sync_check.version_check_interval", new_key)
             self.versionCheckIntervalChanged.emit()
 
     # ========== 同步 ==========

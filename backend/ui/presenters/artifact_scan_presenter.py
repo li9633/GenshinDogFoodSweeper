@@ -110,7 +110,9 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         self._active_config_index = 0
 
         self._slider_scroller = SliderScroller(
-            self._mouse, self._capture, self._win_helper,
+            self._mouse,
+            self._capture,
+            self._win_helper,
             self._active_config,
             debug_callback=self._emit_slider_debug,
         )
@@ -181,7 +183,9 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         """懒初始化 SmartScroller"""
         if self._smart_scroller is None:
             self._smart_scroller = SmartScroller(
-                self._capture, self._mouse, self._win_helper,
+                self._capture,
+                self._mouse,
+                self._win_helper,
                 slider=self._slider_scroller,
                 config=self._active_config,
             )
@@ -219,10 +223,6 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         log.debug(
             f"鼠标点击: 窗口({x}, {y}) → 屏幕({ax}, {ay}) {'成功' if ok else '失败'}"
         )
-
-    @Slot()
-    def focusGame(self) -> None:
-        self._win_helper.focus()
 
     @Slot(int, int)
     def moveAndClick(self, x: int, y: int) -> None:
@@ -386,14 +386,17 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         self, flag_x: int, flag_y: int, scroll_delay_ms: int = 80
     ) -> None:
         """格子翻页：截图 → 检测 → 计算 → 滚动，全部委托 PageScroller。"""
-        self.focusGame()
+        self._win_helper.focus()
         ox, oy = self._window_origin()
         if ox == 0 and oy == 0:
             log.warning("未检测到原神窗口")
             return
         self._page_scroller.set_config(self._active_config)
         self._page_scroller.scroll_to_next_page(
-            ox, oy, flag_x, flag_y,
+            ox,
+            oy,
+            flag_x,
+            flag_y,
             tick_delay_ms=scroll_delay_ms,
         )
         log.info("格子翻页完成")
@@ -403,7 +406,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         self, flag_x: int, flag_y: int, scroll_delay_ms: int = 80
     ) -> None:
         """自动翻到底：OCR 识别数量 → 计算总页数 → 循环 截图→检测→滚动。"""
-        self.focusGame()
+        self._win_helper.focus()
         ox, oy = self._window_origin()
         if ox == 0 and oy == 0:
             log.warning("未检测到原神窗口")
@@ -414,7 +417,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         try:
             ocr = OcrEngine.create_ocr(engines_dir)
         except OcrModelNotReadyError:
-            return  # 异常已自动完成 log.error + GMessageBox 弹窗
+            return
         count = ocr_artifact_count(self._capture, ocr)
         total_pages = max(1, (count + 31) // 32) if count > 0 else 0
         max_pages = total_pages - 1 if total_pages > 0 else 0
@@ -423,7 +426,10 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         )
         self._page_scroller.set_config(self._active_config)
         pages = self._page_scroller.scroll_to_bottom(
-            ox, oy, flag_x, flag_y,
+            ox,
+            oy,
+            flag_x,
+            flag_y,
             tick_delay_ms=scroll_delay_ms,
             max_pages=max_pages,
             total_pages=total_pages,
@@ -586,7 +592,6 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         log.info(f"首锚点已定位: 第1个格子 ({sx}, {sy}), 开始OCR识别...")
         self._recognize_anchor_item(cx, cy, "first")
 
-
     def _calculate_anchor_pages(self) -> None:
         """根据首尾锚点计算总页数 — 委托给 AnchorLocator"""
         if self._anchor_first_y == 0 or self._anchor_last_y == 0:
@@ -646,11 +651,14 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         self._anchor_ocr_connected = True
 
     def _recognize_anchor_item(
-        self, cx: int, cy: int, anchor_type: str,
+        self,
+        cx: int,
+        cy: int,
+        anchor_type: str,
     ) -> None:
         """点击锚点物品 → 延迟等待详情面板 → 截图 → 提交OCR任务"""
         self._connect_anchor_ocr_worker()
-        self.focusGame()
+        self._win_helper.focus()
         ax, ay = self._to_absolute(cx, cy)
         self._mouse.move_and_click(ax, ay)
 
@@ -664,7 +672,9 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
                 for name, dx, dy, dw, dh in ANCHOR_ROI_DEFINITIONS
             }
             task = self._create_anchor_ocr_task(
-                result.image, roi_configs, anchor_type,
+                result.image,
+                roi_configs,
+                anchor_type,
             )
             from backend.automation.ocr_worker import OcrWorker
 
@@ -682,19 +692,20 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
 
             artifact = ArtifactRecognizer.recognize(image, roi_configs, ocr)
             display_lines = AnchorLocator.format_artifact_display(artifact)
-            structured_lines = (
-                ArtifactRecognitionPresenter._format_structured(artifact)
-            )
+            structured_lines = ArtifactRecognitionPresenter._format_structured(artifact)
             return {
                 "anchor_type": anchor_type,
                 "artifact": artifact,
                 "display_lines": display_lines,
                 "structured_lines": structured_lines,
             }
+
         return task
 
     def _on_anchor_ocr_done(
-        self, result: dict, callback_data: object,
+        self,
+        result: dict,
+        callback_data: object,
     ) -> None:
         if not isinstance(result, dict) or "anchor_type" not in result:
             return
@@ -712,7 +723,9 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
             log.info(f"尾锚点识别完成:\n{display_text}")
 
     def _on_anchor_ocr_error(
-        self, error: str, callback_data: object,
+        self,
+        error: str,
+        callback_data: object,
     ) -> None:
         log.error(f"锚点OCR识别失败({callback_data}): {error}")
 
@@ -947,15 +960,11 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
             initial_slider_y=slider_y,
             window_bottom=window_bottom,
         )
-        self._scroll_to_bottom_worker.progress.connect(
-            self._onScrollToBottomProgress
-        )
+        self._scroll_to_bottom_worker.progress.connect(self._onScrollToBottomProgress)
         self._scroll_to_bottom_worker.final_slider_y.connect(
             self._on_smart_scroll_final_slider_y
         )
-        self._scroll_to_bottom_worker.finished.connect(
-            self._onScrollToBottomFinished
-        )
+        self._scroll_to_bottom_worker.finished.connect(self._onScrollToBottomFinished)
         self._scroll_to_bottom_worker.start()
         self._anchor_scroll_running = True
         self.anchorScrollRunningChanged.emit()
@@ -1035,8 +1044,16 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     ) -> None:
         """生成滑块调试预览图并发射信号 — 委托 DebugPreview"""
         debug_rgb = DebugPreview.generate_slider_debug(
-            img, region_x, top_y, bottom_y,
-            region_w, region_h, slider_y, label, best_ratio, best_y,
+            img,
+            region_x,
+            top_y,
+            bottom_y,
+            region_w,
+            region_h,
+            slider_y,
+            label,
+            best_ratio,
+            best_y,
         )
         key = "slider_debug"
         vkey = PreviewImageProvider.put(key, debug_rgb)
@@ -1073,7 +1090,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
             log.warning("定位失败: 未检测到原神窗口")
             return
 
-        self.focusGame()
+        self._win_helper.focus()
 
         sc = self._get_smart_scroller()
 
@@ -1102,22 +1119,20 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
 
         det_result = SlotDetector.detect(result.image, config=cfg)
         if row >= cfg.rows or col >= cfg.cols:
-            log.warning(
-                f"定位失败: 行列({row},{col})超出范围({cfg.rows}x{cfg.cols})"
-            )
+            log.warning(f"定位失败: 行列({row},{col})超出范围({cfg.rows}x{cfg.cols})")
             return
 
         col_lefts, col_rights, row_bottoms, _, _ = SlotDetector._compute_grid(
-            (rx, ry, rw, rh), cfg, det_result.bottom_y,
+            (rx, ry, rw, rh),
+            cfg,
+            det_result.bottom_y,
         )
         cx = (col_lefts[col] + col_rights[col]) // 2
         cy = row_bottoms[row] - cfg.slot_h // 2
         screen_x = ox + cx
         screen_y = oy + cy
         self._mouse.move_and_click(screen_x, screen_y)
-        log.info(
-            f"定位完成: P{page}R{row}C{col} → 屏幕({screen_x}, {screen_y})"
-        )
+        log.info(f"定位完成: P{page}R{row}C{col} → 屏幕({screen_x}, {screen_y})")
 
     @Slot()
     def detectSlots(self) -> None:
@@ -1129,12 +1144,15 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
 
         cfg = self._active_config
         det_result = SlotDetector.detect(
-            result.image, config=cfg,
+            result.image,
+            config=cfg,
         )
         log.info(f"格子检测: 找到 {len(det_result.slots)} 个格子 [{cfg.name}]")
 
         debug_rgb = SlotDetector.draw_debug(
-            result.image, det_result.slots, config=cfg,
+            result.image,
+            det_result.slots,
+            config=cfg,
             page_bottom=det_result.bottom_y,
             debug_infos=det_result.debug_infos,
         )
@@ -1234,7 +1252,9 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         sc = self._get_smart_scroller()
         sc._row_height = det.row_height
         debug_rgb = SlotDetector.generate_row_height_debug(
-            result.image, det, config=self._active_config,
+            result.image,
+            det,
+            config=self._active_config,
         )
         vkey = PreviewImageProvider.put("smart_scroll", debug_rgb)
         self.debugPreviewReady.emit(vkey)

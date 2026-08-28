@@ -112,6 +112,7 @@ class TrayManager(QObject):
 
         candidates = [
             base / "resources" / "app.ico",
+            base / "resources" / "app.png",
             base / "resources" / "icons" / "app.ico",
         ]
         for p in candidates:

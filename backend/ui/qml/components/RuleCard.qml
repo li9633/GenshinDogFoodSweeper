@@ -33,7 +33,7 @@ Rectangle {
     property bool rightClickEnabled: true
 
     implicitHeight: contentLayout.implicitHeight + 24
-    color: highlighted ? Theme.accentOverlay10 : (cardMouse.containsMouse ? Theme.bgTrack : Theme.bgSecondary)
+    color: highlighted ? Theme.accentOverlay10 : (cardMouse.containsMouse ? Theme.bgTrack : Theme.bgCard)
     radius: Theme.radius
     border.color: highlighted ? Theme.accent : (cardMouse.containsMouse ? Theme.borderHover : Theme.border)
     opacity: (ruleData.enabled !== false) ? 1.0 : 0.55
@@ -181,11 +181,13 @@ Rectangle {
             }
         }
 
-        // -- 第二行：部位 + 主词条 + 套装 --
+        // -- 第二行：部位 + 排除 + 主词条 + 套装 --
         Text {
             Layout.fillWidth: true
             text: {
                 const parts = [_fmtPart(ruleData.part)]
+                const pe = ruleData.part_exclude || ""
+                if (pe && pe !== "*") parts.push("排除: " + pe)
                 const ms = _fmtMainStat(ruleData.main_stat)
                 if (ms !== "任意主词条") parts.push(ms)
                 const sn = _fmtSetName(ruleData.set_name)
@@ -199,22 +201,61 @@ Rectangle {
             visible: text !== ""
         }
 
-        // -- 第三行：副词条 --
-        Text {
+        // -- 第三行：副词条 + 配置标签 --
+        RowLayout {
             Layout.fillWidth: true
-            text: {
-                const subs = _fmtSubStats(ruleData.sub_stats)
-                if (!subs) return ""
-                let line = "副词条: " + subs
-                if (ruleData.sub_count > 0)
-                    line += "  (≥" + ruleData.sub_count + "条匹配)"
-                return line
+            spacing: 6
+            visible: _fmtSubStats(ruleData.sub_stats) !== ""
+
+            Text {
+                Layout.fillWidth: true
+                text: {
+                    const subs = _fmtSubStats(ruleData.sub_stats)
+                    if (!subs) return ""
+                    let line = "副词条: " + subs
+                    if (ruleData.sub_count > 0)
+                        line += "  (≥" + ruleData.sub_count + "条匹配)"
+                    return line
+                }
+                font.family: Theme.fontFamily
+                font.pixelSize: 12
+                color: Theme.textSecondary
+                elide: Text.ElideRight
             }
-            font.family: Theme.fontFamily
-            font.pixelSize: 12
-            color: Theme.textSecondary
-            elide: Text.ElideRight
-            visible: text !== ""
+
+            // 包含待激活
+            Rectangle {
+                radius: 3
+                color: Theme.accentOverlay6
+                implicitWidth: tagUnactivated.implicitWidth + 8
+                implicitHeight: 18
+                visible: ruleData.include_unactivated !== false
+                Text {
+                    id: tagUnactivated
+                    anchors.centerIn: parent
+                    text: "含待激活"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 10
+                    color: Theme.accent
+                }
+            }
+
+            // 主词条计入
+            Rectangle {
+                radius: 3
+                color: Theme.accentOverlay6
+                implicitWidth: tagMainStat.implicitWidth + 8
+                implicitHeight: 18
+                visible: ruleData.include_main_stat === true
+                Text {
+                    id: tagMainStat
+                    anchors.centerIn: parent
+                    text: "主词条计入"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 10
+                    color: Theme.accent
+                }
+            }
         }
     }
 

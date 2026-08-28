@@ -36,15 +36,17 @@ from backend.utils.screen_capture import ScreenshotCapture
 from backend.utils.settings_manager import settings
 
 # 扫描识别策略：全部识别，仅跳过套装效果查询（省 DB 开销）
-_SCAN_FIELDS: frozenset[ArtifactRecognitionField] = frozenset({
-    ArtifactRecognitionField.SET_NAME,
-    ArtifactRecognitionField.PIECE_TYPE,
-    ArtifactRecognitionField.MAIN_STAT,
-    ArtifactRecognitionField.SUB_STATS,
-    ArtifactRecognitionField.LEVEL,
-    ArtifactRecognitionField.RARITY,
-    ArtifactRecognitionField.LOCK_STATUS,
-})
+_SCAN_FIELDS: frozenset[ArtifactRecognitionField] = frozenset(
+    {
+        ArtifactRecognitionField.SET_NAME,
+        ArtifactRecognitionField.PIECE_TYPE,
+        ArtifactRecognitionField.MAIN_STAT,
+        ArtifactRecognitionField.SUB_STATS,
+        ArtifactRecognitionField.LEVEL,
+        ArtifactRecognitionField.RARITY,
+        ArtifactRecognitionField.LOCK_STATUS,
+    }
+)
 
 # ====================================================================
 # 网格点击核心函数
@@ -78,10 +80,15 @@ def run_grid_click(
 
     for idx, (row, col, x, y) in enumerate(
         GridCalculator.iter_cells(
-            config.rows, config.cols,
-            config.margin_x, config.margin_y,
-            config.item_w, config.item_h, config.gap,
-            config.origin_x, config.origin_y,
+            config.rows,
+            config.cols,
+            config.margin_x,
+            config.margin_y,
+            config.item_w,
+            config.item_h,
+            config.gap,
+            config.origin_x,
+            config.origin_y,
         ),
         start=1,
     ):
@@ -186,7 +193,10 @@ class SmartScrollToBottomWorker(QThread):
         self._win = WindowHelper(self._capture, self._mouse)
         self._page_scroller = PageScroller(self._mouse, self._capture)
         self._slider_scroller = SliderScroller(
-            self._mouse, self._capture, self._win, self._slot_config,
+            self._mouse,
+            self._capture,
+            self._win,
+            self._slot_config,
         )
 
     def stop(self) -> None:
@@ -211,8 +221,12 @@ class SmartScrollToBottomWorker(QThread):
             drag_from_y = self._oy + prev_y + slider_h // 2
             drag_to_y = min(drag_from_y + chunk, window_bottom - 10)
             self._mouse.drag(
-                drag_x, drag_from_y, drag_x, drag_to_y,
-                SliderDetector.DRAG_STEPS, SliderDetector.DRAG_DELAY,
+                drag_x,
+                drag_from_y,
+                drag_x,
+                drag_to_y,
+                SliderDetector.DRAG_STEPS,
+                SliderDetector.DRAG_DELAY,
             )
             sleep(0.2)
 
@@ -327,7 +341,10 @@ class FullScanWorker(QThread):
         self._tail_is_material: bool = False
         self._win = WindowHelper(self._capture, self._mouse)
         self._slider_scroller = SliderScroller(
-            self._mouse, self._capture, self._win, self._slot_config,
+            self._mouse,
+            self._capture,
+            self._win,
+            self._slot_config,
         )
         self._page_scroller: PageScroller = PageScroller(self._mouse, self._capture)
 
@@ -360,11 +377,15 @@ class FullScanWorker(QThread):
                 if self._stop:
                     return
                 if count <= 0:
-                    self.errorOccurred.emit("未能识别圣遗物数量，请确认背包界面已打开")
+                    self.errorOccurred.emit(
+                        "未能识别圣遗物数量，请确认已打开背包界面并切换到圣遗物页面"
+                    )
                     return
-            total_pages = max(
-                1, (count + artifacts_per_page - 1) // artifacts_per_page
-            ) if count > 0 else 1
+            total_pages = (
+                max(1, (count + artifacts_per_page - 1) // artifacts_per_page)
+                if count > 0
+                else 1
+            )
             if count > 0:
                 self.stepChanged.emit(f"共 {count} 个圣遗物, {total_pages} 页")
                 effective_count = count
@@ -417,9 +438,7 @@ class FullScanWorker(QThread):
                 if result is None:
                     self.errorOccurred.emit("截图失败")
                     return
-                det_result = SlotDetector.detect(
-                    result.image, config=self._slot_config
-                )
+                det_result = SlotDetector.detect(result.image, config=self._slot_config)
                 if self._stop:
                     return
                 if det_result.slots:
@@ -443,8 +462,7 @@ class FullScanWorker(QThread):
                             self._tail_is_material = True
                         else:
                             log.warning(
-                                "尾锚点不是强化材料，无法使用锚点停止，"
-                                "将扫描至末尾"
+                                "尾锚点不是强化材料，无法使用锚点停止，将扫描至末尾"
                             )
                             self._tail_info = None
                             self._tail_is_material = False
@@ -469,28 +487,39 @@ class FullScanWorker(QThread):
                     effective_count = fixed_count
 
             grid_config = GridClickConfig(
-                origin_x=ox, origin_y=oy,
-                margin_x=self._margin_x, margin_y=self._margin_y,
-                item_w=self._item_w, item_h=self._item_h, gap=self._gap,
-                rows=self._slot_config.rows, cols=self._slot_config.cols,
+                origin_x=ox,
+                origin_y=oy,
+                margin_x=self._margin_x,
+                margin_y=self._margin_y,
+                item_w=self._item_w,
+                item_h=self._item_h,
+                gap=self._gap,
+                rows=self._slot_config.rows,
+                cols=self._slot_config.cols,
                 interval_ms=self._click_interval_ms,
             )
 
             def _scan_callback(
-                row: int, col: int, x: int, y: int,
-                idx: int, total: int,
+                row: int,
+                col: int,
+                x: int,
+                y: int,
+                idx: int,
+                total: int,
             ) -> bool:
                 if self._stop:
                     return False
                 cx, cy = GridCalculator.cell_center(
-                    self._margin_x, self._margin_y,
-                    self._item_w, self._item_h, self._gap,
-                    row, col,
+                    self._margin_x,
+                    self._margin_y,
+                    self._item_w,
+                    self._item_h,
+                    self._gap,
+                    row,
+                    col,
                 )
                 screenshot = self._capture.capture()
-                if screenshot and AnchorLocator.is_empty_slot(
-                    cx, cy, screenshot.image
-                ):
+                if screenshot and AnchorLocator.is_empty_slot(cx, cy, screenshot.image):
                     return True
                 info = self._recognize_current_artifact(ocr)
                 if info:
@@ -500,14 +529,20 @@ class FullScanWorker(QThread):
 
                     # 停止模式: 仅扫描五星 → 跳过非五星
                     stop_mode = settings.get("scan.stop_mode")
-                    if stop_mode == "five_star_only" and info.rarity != ArtifactRarity.FIVE:
+                    if (
+                        stop_mode == "five_star_only"
+                        and info.rarity != ArtifactRarity.FIVE
+                    ):
                         return True
 
                     from backend.utils.artifact_deduplicator import (
                         ArtifactDeduplicator,
                     )
+
                     # 去重检查（仅对5星生效，由设置 scan.enable_dedup 控制）
-                    if info.rarity == ArtifactRarity.FIVE and settings.get_bool("scan.enable_dedup"):
+                    if info.rarity == ArtifactRarity.FIVE and settings.get_bool(
+                        "scan.enable_dedup"
+                    ):
                         dup_existing = next(
                             (
                                 e
@@ -557,10 +592,13 @@ class FullScanWorker(QThread):
                     self.progressChanged.emit(
                         len(self._results),
                         min(fixed_count, count)
-                        if (stop_mode == "fixed_count"
-                            and (fixed_count := settings.get_int("scan.fixed_count")) > 0
-                            and count > 0)
-                        else count
+                        if (
+                            stop_mode == "fixed_count"
+                            and (fixed_count := settings.get_int("scan.fixed_count"))
+                            > 0
+                            and count > 0
+                        )
+                        else count,
                     )
 
                     # 停止模式: 固定数量
@@ -579,7 +617,8 @@ class FullScanWorker(QThread):
                     if stop_mode == "fixed_count":
                         fixed_count = settings.get_int("scan.fixed_count")
                         effective_count = (
-                            min(fixed_count, count) if fixed_count > 0 and count > 0
+                            min(fixed_count, count)
+                            if fixed_count > 0 and count > 0
                             else (count if count > 0 else fixed_count)
                         )
                     else:
@@ -615,9 +654,13 @@ class FullScanWorker(QThread):
                 if stop_mode == "five_star_only":
                     screenshot = self._capture.capture()
                     if screenshot:
-                        det = SlotDetector.detect(screenshot.image, config=self._slot_config)
+                        det = SlotDetector.detect(
+                            screenshot.image, config=self._slot_config
+                        )
                         slot_rarity = {(s.row, s.col): s.rarity for s in det.slots}
-                        pre_check = lambda r, c, _m=slot_rarity: _m.get((r, c)) == ArtifactRarity.FIVE
+                        pre_check = lambda r, c, _m=slot_rarity: (
+                            _m.get((r, c)) == ArtifactRarity.FIVE
+                        )
                     else:
                         pre_check = None
                 else:
@@ -660,6 +703,7 @@ class FullScanWorker(QThread):
             self.finished.emit(0, 0)
         except Exception as exc:
             import traceback
+
             self.errorOccurred.emit(f"{exc}\n{traceback.format_exc()}")
 
     # ========== 窗口工具 ==========
@@ -690,8 +734,11 @@ class FullScanWorker(QThread):
             return None
         slider_y, _, _, _ = SliderDetector.find_slider(
             result.image,
-            slider_x, slider_top,
-            slider_bottom, slider_w, slider_h,
+            slider_x,
+            slider_top,
+            slider_bottom,
+            slider_w,
+            slider_h,
         )
         if slider_y is None:
             log.warning("滚动到底: 未检测到滑块")
@@ -704,8 +751,11 @@ class FullScanWorker(QThread):
                 return None
             slider_y, _, _, _ = SliderDetector.find_slider(
                 result.image,
-                slider_x, slider_top,
-                slider_bottom, slider_w, slider_h,
+                slider_x,
+                slider_top,
+                slider_bottom,
+                slider_w,
+                slider_h,
             )
             if slider_y is None:
                 return None
@@ -729,8 +779,12 @@ class FullScanWorker(QThread):
             drag_from_y = oy + prev_y + slider_h // 2
             drag_to_y = min(drag_from_y + chunk, window_bottom - 10)
             self._mouse.drag(
-                drag_x, drag_from_y, drag_x, drag_to_y,
-                SliderDetector.DRAG_STEPS, SliderDetector.DRAG_DELAY,
+                drag_x,
+                drag_from_y,
+                drag_x,
+                drag_to_y,
+                SliderDetector.DRAG_STEPS,
+                SliderDetector.DRAG_DELAY,
             )
             sleep(0.2)
             result = self._capture.capture()
@@ -741,7 +795,8 @@ class FullScanWorker(QThread):
                 slider_x,
                 max(0, slider_bottom - SliderDetector.MAX_SEARCH),
                 slider_bottom,
-                slider_w, slider_h,
+                slider_w,
+                slider_h,
             )
             if current_y is None:
                 continue
@@ -770,7 +825,9 @@ class FullScanWorker(QThread):
 
     # ========== 圣遗物识别 ==========
 
-    def _click_and_recognize_artifact(self, cx: int, cy: int, ocr) -> ArtifactInfo | None:
+    def _click_and_recognize_artifact(
+        self, cx: int, cy: int, ocr
+    ) -> ArtifactInfo | None:
         ox, oy = self._win.get_origin()
         self._mouse.move_and_click(ox + cx, oy + cy)
         return self._recognize_current_artifact(ocr)
@@ -782,7 +839,9 @@ class FullScanWorker(QThread):
             return None
         try:
             return ArtifactRecognizer.recognize(
-                result.image, self._slot_config.detail_roi_configs, ocr,
+                result.image,
+                self._slot_config.detail_roi_configs,
+                ocr,
                 fields=_SCAN_FIELDS,
                 lock_anchor_search_region=self._slot_config.lock_anchor_search_region,
                 lock_anchor_to_level=self._slot_config.lock_anchor_to_level,
@@ -797,7 +856,10 @@ class FullScanWorker(QThread):
     def _scroll_one_page(self) -> None:
         ox, oy = self._win.get_origin()
         self._page_scroller.scroll_to_next_page(
-            ox, oy,
-            self._scroll_flag_x, self._scroll_flag_y,
-            self._tick_delay_ms, self._page_settle_ms,
+            ox,
+            oy,
+            self._scroll_flag_x,
+            self._scroll_flag_y,
+            self._tick_delay_ms,
+            self._page_settle_ms,
         )

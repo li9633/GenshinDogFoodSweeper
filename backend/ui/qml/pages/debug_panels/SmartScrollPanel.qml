@@ -33,7 +33,7 @@ Rectangle {
 
                     GButton {
                         text: "聚焦游戏"
-                        onClicked: ArtifactScan.focusGame()
+                        onClicked: GameDetector.focusGame()
                     }
 
                     GButton {

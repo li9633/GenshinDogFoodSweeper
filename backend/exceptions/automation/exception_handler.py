@@ -13,13 +13,16 @@ import sys
 from PySide6.QtCore import QtMsgType, qInstallMessageHandler
 
 from backend.exceptions.automation.exceptions import (
+    WINDOW_NOT_FOUND_MINIMIZED_MSG,
+    WINDOW_NOT_FOUND_PROCESS_MSG,
     GameWindowNotFoundError,
     OcrModelNotReadyError,
 )
 
 # 已知异常的消息文本（用于匹配 Qt/QML 错误消息）
 _KNOWN_MESSAGES = (
-    GameWindowNotFoundError._MESSAGE,
+    WINDOW_NOT_FOUND_PROCESS_MSG,
+    WINDOW_NOT_FOUND_MINIMIZED_MSG,
     OcrModelNotReadyError._MESSAGE,
 )
 

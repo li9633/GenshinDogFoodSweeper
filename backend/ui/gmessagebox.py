@@ -17,23 +17,51 @@
 
 from __future__ import annotations
 
+import ctypes
+from ctypes import wintypes
 from typing import ClassVar
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtQml import QQmlApplicationEngine
 from utils.logger import log
 
+# ---- Windows API 常量 ----
+_SWP_NOMOVE = 0x0002
+_SWP_NOSIZE = 0x0001
+_SWP_SHOWWINDOW = 0x0040
+_HWND_TOPMOST = -1
+_HWND_NOTOPMOST = -2
+
+
+def _force_foreground(hwnd: int) -> None:
+    """使用 Windows API 强制将窗口拉到前台（绕过前台锁定）
+
+    Windows 默认禁止后台进程通过 SetForegroundWindow 抢焦点，
+    但先设为 TOPMOST 再调用 SetForegroundWindow 可以绕过此限制。
+    """
+    user32 = ctypes.windll.user32
+    user32.SetWindowPos(
+        wintypes.HWND(hwnd), wintypes.HWND(_HWND_TOPMOST),
+        0, 0, 0, 0, _SWP_NOMOVE | _SWP_NOSIZE | _SWP_SHOWWINDOW,
+    )
+    user32.SetForegroundWindow(wintypes.HWND(hwnd))
+    user32.SetWindowPos(
+        wintypes.HWND(hwnd), wintypes.HWND(_HWND_NOTOPMOST),
+        0, 0, 0, 0, _SWP_NOMOVE | _SWP_NOSIZE,
+    )
+
 
 class GMessageBoxBridge(QObject):
     """信号桥：Python → QML，触发 GMessageBox 弹窗"""
 
-    showMessage = Signal(str, str)  # (msgType, msgText)
+    showMessage = Signal(str, str, bool)  # (msgType, msgText, bringToFront)
 
 
 class GMessageBox:
     """GMessageBox 调用入口（静态方法）"""
 
     _bridge: ClassVar[GMessageBoxBridge | None] = None
+    _main_hwnd: ClassVar[int | None] = None
 
     @classmethod
     def init(cls, engine: QQmlApplicationEngine) -> None:
@@ -45,27 +73,34 @@ class GMessageBox:
         else:
             log.error("GMessageBoxBridge 未在 QML 上下文中找到")
 
-    @classmethod
-    def error(cls, msg: str) -> None:
-        cls._show("error", msg)
+        # 获取主窗口 HWND，用于 Windows API 强制前台
+        root_objects = engine.rootObjects()
+        if root_objects:
+            cls._main_hwnd = int(root_objects[0].winId())
 
     @classmethod
-    def warning(cls, msg: str) -> None:
-        cls._show("warning", msg)
+    def error(cls, msg: str, bring_to_front: bool = True) -> None:
+        cls._show("error", msg, bring_to_front)
 
     @classmethod
-    def info(cls, msg: str) -> None:
-        cls._show("info", msg)
+    def warning(cls, msg: str, bring_to_front: bool = True) -> None:
+        cls._show("warning", msg, bring_to_front)
 
     @classmethod
-    def success(cls, msg: str) -> None:
-        cls._show("success", msg)
+    def info(cls, msg: str, bring_to_front: bool = False) -> None:
+        cls._show("info", msg, bring_to_front)
+
+    @classmethod
+    def success(cls, msg: str, bring_to_front: bool = False) -> None:
+        cls._show("success", msg, bring_to_front)
 
     # ---------- 内部实现 ----------
 
     @classmethod
-    def _show(cls, msg_type: str, msg: str) -> None:
+    def _show(cls, msg_type: str, msg: str, bring_to_front: bool) -> None:
         if cls._bridge is None:
             log.error("GMessageBox 未初始化，请先调用 GMessageBox.init(engine)")
             return
-        cls._bridge.showMessage.emit(msg_type, msg)
+        if bring_to_front and cls._main_hwnd is not None:
+            _force_foreground(cls._main_hwnd)
+        cls._bridge.showMessage.emit(msg_type, msg, bring_to_front)

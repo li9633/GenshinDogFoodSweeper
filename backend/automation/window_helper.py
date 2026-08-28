@@ -31,7 +31,9 @@ class WindowHelper:
         """获取原神窗口左上角屏幕坐标"""
         window = self._capture.find_genshin_window()
         if window is None:
-            raise GameWindowNotFoundError()
+            raise GameWindowNotFoundError(
+                ScreenshotCapture.get_window_not_found_message()
+            )
         return (window.left, window.top)
 
     def get_hwnd(self) -> int | None:
@@ -52,7 +54,9 @@ class WindowHelper:
         """聚焦原神窗口"""
         hwnd = self.get_hwnd()
         if hwnd is None:
-            raise GameWindowNotFoundError()
+            raise GameWindowNotFoundError(
+                ScreenshotCapture.get_window_not_found_message()
+            )
         ok = self._mouse.focus_window(hwnd)
         log.info(f"聚焦原神窗口: {'成功' if ok else '失败'}")
         return ok
