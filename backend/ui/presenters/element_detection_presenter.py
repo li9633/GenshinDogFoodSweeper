@@ -9,7 +9,6 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-import cv2
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.logger import log
 
@@ -232,7 +231,6 @@ class ElementDetectionPresenter(QObject):
             t0 = time.perf_counter()
             cap = ScreenshotCapture()
             result = cap.capture()
-            full_gray = cv2.cvtColor(result.image, cv2.COLOR_RGB2GRAY)
 
             all_passed = True
             detail_parts: list[str] = []
@@ -245,32 +243,23 @@ class ElementDetectionPresenter(QObject):
                     all_passed = False
                     continue
 
-                if region:
-                    rx, ry, rw, rh = region
-                    search_area = full_gray[ry : ry + rh, rx : rx + rw]
-                    if search_area.size == 0:
-                        detail_parts.append(f"✗ {template_key}: 搜索区域无效")
-                        all_passed = False
-                        continue
-                else:
-                    rx, ry = 0, 0
-                    search_area = full_gray
-
-                best_score, best_loc, best_scale, best_size = multi_scale_match(
-                    search_area, template
+                best_score, (cx, cy), best_scale, (tw, th) = multi_scale_match(
+                    result.image,
+                    template,
+                    use_region=(region is not None),
+                    search_region=region,
                 )
 
                 passed = best_score >= threshold
                 if not passed:
                     all_passed = False
 
+                lx = cx - tw // 2
+                ly = cy - th // 2
+
                 color = (0, 255, 0) if passed else (255, 0, 0)
-                tw, th = best_size
                 result.draw_rect(
-                    best_loc[0] + rx,
-                    best_loc[1] + ry,
-                    tw,
-                    th,
+                    lx, ly, tw, th,
                     color=color,
                     thickness=3,
                     label=f"{template_key} {best_score:.2f}",
@@ -279,9 +268,7 @@ class ElementDetectionPresenter(QObject):
                     f"{'✓' if passed else '✗'} {template_key}: {best_score:.3f}"
                     f"@{best_scale:.2f}x ({tw}x{th})"
                 )
-                last_matches.append(
-                    (template_key, best_loc[0] + rx, best_loc[1] + ry, tw, th)
-                )
+                last_matches.append((template_key, lx, ly, tw, th))
 
             elapsed = (time.perf_counter() - t0) * 1000
             passed_count = sum(1 for p in detail_parts if p.startswith("✓"))

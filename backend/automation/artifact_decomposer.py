@@ -42,57 +42,43 @@ class ArtifactDecomposer(QObject):
 
     # ========== 入口 ==========
 
-    def run(self) -> bool:
+    def try_quick_select_decompose(self) -> bool:
         """
-        主入口（旧版快速选择模式）：确保当前在分解页面，然后执行分解逻辑。
+        尝试快速选择4星及以下圣遗物并分解。
+
+        前提：调用方已确保当前在分解页面（已调用 enter_decompose_page()）。
+
+        流程：点击快速选择 → OCR识别弹窗 → 有4星及以下圣遗物则分解。
 
         Returns:
-            True 成功进入分解页面，False 失败
+            True 已执行快速分解，False 无4星及以下圣遗物（需进入主流程）
         """
-        log.info("开始自动分解流程")
+        log.info("尝试快速选择4星及以下圣遗物...")
 
-        # 聚焦原神窗口
-        self._window.focus()
-
-        # 1. 截图
+        # 1. 点击快速选择按钮
+        time.sleep(0.5)
         result = self._capture.capture()
 
-        # 2. 如果不在分解页面，则尝试进入
-        if not self._is_on_decompose_page(result.image):
-            log.info("未在分解页面，尝试查找分解按钮")
-            if not self._click_decompose_button(result.image):
-                log.error("未找到分解按钮")
-                return False
-            time.sleep(1.5)
-            result2 = self._capture.capture()
-
-            if not self._is_on_decompose_page(result2.image):
-                log.error("点击分解按钮后未能进入分解页面")
-                return False
-        else:
-            log.info("已在分解页面")
-
-        log.info("已进入分解页面，开始执行分解操作")
-
-        # 3. 点击快速选择按钮
-        time.sleep(0.5)
-        result3 = self._capture.capture()
-
-        if not self._click_quick_select(result3.image):
-            log.error("未找到快速选择按钮")
+        if not self._click_quick_select(result.image):
+            log.warning("未找到快速选择按钮，跳过快速选择")
             return False
-        log.info("已点击快速选择，开始 OCR 识别")
 
-        # 4. 截图并 OCR 识别快速选择弹窗内容
+        # 2. 截图并 OCR 识别快速选择弹窗内容
         time.sleep(0.5)
-        result4 = self._capture.capture()
+        result2 = self._capture.capture()
 
-        ocr_result = self._ocr_quick_select(result4.image)
+        ocr_result = self._ocr_quick_select(result2.image)
         if ocr_result is None:
-            log.error("OCR 识别失败")
+            log.warning("快速选择 OCR 识别失败，跳过快速选择")
+            # 尝试关闭弹窗
+            if self._quick_select_pos:
+                MouseController.move_and_click(*self._quick_select_pos)
+                time.sleep(0.3)
             return False
-        log.info(f"OCR 识别完成: {len(ocr_result)} 个区域")
-        # 解析快速选择结果
+
+        log.info(f"快速选择 OCR 识别完成: {len(ocr_result)} 个区域")
+
+        # 3. 解析快速选择结果
         options = ArtifactDecomposer._parse_quick_select_result(
             ocr_result, roi_offset=(self.QUICK_SELECT_ROI[0], self.QUICK_SELECT_ROI[1])
         )
@@ -101,31 +87,37 @@ class ArtifactDecomposer(QObject):
                 f"  {opt['star']}星圣遗物 ×{opt['count']} "
                 f"位置(窗口相对)=({opt['pos'][0]}, {opt['pos'][1]})"
             )
-        if not options:
-            log.warning("未解析到任何快速选择选项")
+
+        # 4. 检查是否有4星及以下圣遗物
+        low_star_options = [opt for opt in options if opt["star"] <= 4]
+        has_any = any(opt["count"] > 0 for opt in low_star_options)
+
+        if not has_any:
+            log.info("无4星及以下圣遗物，关闭快速选择弹窗，进入主流程")
+            if self._quick_select_pos:
+                MouseController.move_and_click(*self._quick_select_pos)
+                time.sleep(0.3)
             return False
 
-        # 5. 关闭快速选择弹窗
+        # 5. 有4星及以下圣遗物，关闭弹窗并执行分解
+        log.info(
+            f"发现4星及以下圣遗物: "
+            f"{[f'{opt["star"]}星×{opt["count"]}' for opt in low_star_options if opt['count'] > 0]}"
+        )
+
         if self._quick_select_pos is None:
             log.error("快速选择按钮坐标丢失，无法关闭弹窗")
             return False
         MouseController.move_and_click(*self._quick_select_pos)
         log.info("已关闭快速选择弹窗")
 
-        # 6. 根据数量决定是否分解
-        has_any = any(opt["count"] > 0 for opt in options)
-        if not has_any:
-            log.info("所有星级圣遗物数量均为0，暂无需要分解的圣遗物")
-            return True
-
-        log.info("存在可分解圣遗物，开始执行分解")
         time.sleep(0.5)
-        result5 = self._capture.capture()
+        result3 = self._capture.capture()
 
-        if not self._click_decompose_button(result5.image):
+        if not self._click_decompose_button(result3.image):
             log.error("未找到分解按钮")
             return False
-        log.info("已点击分解按钮")
+        log.info("快速选择分解完成")
         return True
 
     # ========== 规则评估分解入口 ==========
@@ -487,12 +479,27 @@ class ArtifactDecomposer(QObject):
     # ========== 模板检测 ==========
 
     def _is_on_decompose_page(self, image: np.ndarray) -> bool:
-        """通过模板匹配判断当前是否在分解页面"""
-        template = TemplateManager.get("圣遗物分解文本")
-        if template is None:
-            log.error("未找到模板: 圣遗物分解文本")
-            return False
-        return self._match_template(image, template, self.MATCH_THRESHOLD)
+        """判断当前是否在分解页面。
+
+        优先匹配「圣遗物分解文本」标题，若得分不足则用「圣遗物分解页面
+        分解按钮」辅助判断（按钮在页面上则说明已在分解页面）。
+        """
+        # 主判断：页面标题
+        text_template = TemplateManager.get("圣遗物分解文本")
+        if text_template is not None and self._match_template(
+            image, text_template, self.MATCH_THRESHOLD
+        ):
+            return True
+
+        # 辅助判断：分解页面独有的分解按钮
+        btn_template = TemplateManager.get("圣遗物分解页面分解按钮")
+        if btn_template is not None:
+            score, _, _, _ = multi_scale_match(image, btn_template)
+            if score >= self.MATCH_THRESHOLD:
+                log.info("圣遗物分解文本未匹配，但检测到分解页面按钮，判定为在分解页面")
+                return True
+
+        return False
 
     def _click_decompose_button(self, image: np.ndarray) -> bool:
         """查找并点击分解按钮"""
@@ -703,16 +710,13 @@ class ArtifactDecomposer(QObject):
 
     # ========== 底层工具 ==========
 
+    #TODO: 快速选择4星以下圣遗物，需要创建 对话框的模板匹配
+
     def _match_template(
         self, image: np.ndarray, template: object, threshold: float
     ) -> bool:
-        """模板匹配，返回是否匹配成功"""
-        gray = np.dot(image[..., :3], [0.299, 0.587, 0.114]).astype(np.uint8)
-        score, loc, scale, size = multi_scale_match(gray, template)
-        log.debug(
-            f"[_match_template] 得分={score:.3f} 阈值={threshold:.3f} "
-            f"位置(窗口相对)={loc} 缩放={scale:.2f} 模板尺寸={size}"
-        )
+        """模板匹配，返回是否匹配成功。"""
+        score, _, _, _ = multi_scale_match(image, template)
         return score >= threshold
 
     def _match_and_click(
@@ -729,16 +733,13 @@ class ArtifactDecomposer(QObject):
         与 _match_and_click 逻辑相同，但额外返回点击坐标，
         供后续复用（如快速选择按钮的二次点击）。
         """
-        gray = np.dot(image[..., :3], [0.299, 0.587, 0.114]).astype(np.uint8)
-        score, loc, scale, size = multi_scale_match(gray, template)
+        score, (rel_x, rel_y), scale, (_w, _h) = multi_scale_match(image, template)
         if score < self.MATCH_THRESHOLD:
             log.warning(
                 f"[{name}] 匹配失败: 得分={score:.3f} < 阈值={self.MATCH_THRESHOLD}"
             )
             return None
-        tw, th = size
-        rel_x = loc[0] + tw // 2
-        rel_y = loc[1] + th // 2
+
         abs_x, abs_y = self._window.to_absolute(rel_x, rel_y)
         win_origin = self._window.get_origin()
         log.info(

@@ -23,20 +23,49 @@ DEFAULT_SCALES: tuple[float, ...] = (
 
 
 def multi_scale_match(
-    screen_gray: np.ndarray,
+    image: np.ndarray,
     template: Template,
+    use_region: bool = True,
+    search_region: tuple[int, int, int, int] | None = None,
     scales: tuple[float, ...] = DEFAULT_SCALES,
 ) -> tuple[float, tuple[int, int], float, tuple[int, int]]:
-    """多尺度模板匹配，返回 (最高分, 位置, 缩放比, 模板尺寸)
+    """在 RGB 图像中匹配模板，自动处理灰度转换和区域裁剪。
 
     Args:
-        screen_gray: 搜索区域灰度图
-        template: Template 对象，内部加载图片并提取 display_name 用于日志
+        image: RGB 彩色图像
+        template: Template 对象（含 region 信息）
+        use_region: 是否使用区域裁剪。
+            - True 时优先使用 search_region，其次使用 template.region，都没有则全图搜索
+            - False 时忽略所有 region，全图搜索
+        search_region: 覆盖 template.region 的搜索区域 (x, y, w, h)，
+            用于弹窗等场景下模板位置与默认注册位置不同的情况
+        scales: 多尺度列表
+
+    Returns:
+        (score, (center_x, center_y), scale, (w, h))
+        center_x/center_y 是匹配中心在原始图像（全图）中的坐标
     """
     tmpl = cv2.imread(str(template.path), cv2.IMREAD_GRAYSCALE)
     if tmpl is None:
         log.warning(f"[模板匹配] 无法加载模板: {template.path}")
         return -1.0, (0, 0), 1.0, (0, 0)
+
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
+    if use_region:
+        region = search_region if search_region is not None else template.region
+        if region:
+            rx, ry, rw, rh = region
+            search_area = gray[ry:ry + rh, rx:rx + rw]
+            if search_area.size == 0:
+                log.warning(f"[模板匹配] {template.display_name} 搜索区域无效")
+                return -1.0, (0, 0), 1.0, (0, 0)
+        else:
+            rx, ry = 0, 0
+            search_area = gray
+    else:
+        rx, ry = 0, 0
+        search_area = gray
 
     best_score = -1.0
     best_loc = (0, 0)
@@ -44,7 +73,7 @@ def multi_scale_match(
     best_size = tmpl.shape[::-1]
 
     th, tw = tmpl.shape
-    sh, sw = screen_gray.shape
+    sh, sw = search_area.shape
 
     for scale in scales:
         new_w = int(tw * scale)
@@ -52,7 +81,7 @@ def multi_scale_match(
         if new_w > sw or new_h > sh or new_w < 5 or new_h < 5:
             continue
         scaled = cv2.resize(tmpl, (new_w, new_h))
-        match_result = cv2.matchTemplate(screen_gray, scaled, cv2.TM_CCOEFF_NORMED)
+        match_result = cv2.matchTemplate(search_area, scaled, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(match_result)
         if max_val > best_score:
             best_score = float(max_val)
@@ -60,11 +89,14 @@ def multi_scale_match(
             best_scale = scale
             best_size = (new_w, new_h)
 
+    cx = rx + best_loc[0] + best_size[0] // 2
+    cy = ry + best_loc[1] + best_size[1] // 2
+
     log.debug(
         f"[模板匹配] [{template.display_name}] 模板={tw}x{th} 搜索区域={sw}x{sh} "
-        f"最佳得分={best_score:.3f} 位置={best_loc} 缩放={best_scale:.2f} 尺寸={best_size}"
+        f"最佳得分={best_score:.3f} 中心=({cx}, {cy}) 缩放={best_scale:.2f} 尺寸={best_size}"
     )
-    return best_score, best_loc, best_scale, best_size
+    return best_score, (cx, cy), best_scale, best_size
 
 
 def find_all_matches(

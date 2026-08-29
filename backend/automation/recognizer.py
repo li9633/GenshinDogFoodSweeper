@@ -188,20 +188,13 @@ class ArtifactRecognizer:
         locked_region = search_region if search_region is not None else locked.region
         unlocked_region = search_region if search_region is not None else unlocked.region
 
-        full_gray = cv2.cvtColor(full_image, cv2.COLOR_RGB2GRAY)
-
         def _match(
             template: Template, region: tuple[int, int, int, int] | None
         ) -> float:
-            if region:
-                rx, ry, rw, rh = region
-                search_area = full_gray[ry : ry + rh, rx : rx + rw]
-                if search_area.size == 0:
-                    return -1.0
-            else:
-                search_area = full_gray
-            best, _, _, _ = multi_scale_match(search_area, template)
-            return best
+            score, _, _, _ = multi_scale_match(
+                full_image, template, search_region=region
+            )
+            return score
 
         locked_score = _match(locked, locked_region)
         unlocked_score = _match(unlocked, unlocked_region)
@@ -234,8 +227,6 @@ class ArtifactRecognizer:
         Returns:
             (x, y) 匹配区域的左上角绝对坐标，未找到返回 None
         """
-        full_gray = cv2.cvtColor(full_image, cv2.COLOR_RGB2GRAY)
-
         # 优先匹配解锁（大部分圣遗物），失败再匹配锁定
         for key in ("圣遗物状态已解锁", "圣遗物状态已锁定"):
             template = TemplateManager.get(key)
@@ -246,15 +237,14 @@ class ArtifactRecognizer:
             if region is None:
                 continue
             rx, ry, rw, rh = region
-            if rx < 0 or ry < 0 or rx + rw > full_gray.shape[1] or ry + rh > full_gray.shape[0]:
+            if rx < 0 or ry < 0 or rx + rw > full_image.shape[1] or ry + rh > full_image.shape[0]:
                 continue
 
-            search_area = full_gray[ry : ry + rh, rx : rx + rw]
-            score, loc, _scale, (_tw, _th) = multi_scale_match(search_area, template)
+            score, (cx, cy), _scale, (tw, th) = multi_scale_match(
+                full_image, template, search_region=region
+            )
             if score >= 0.8:
-                x = rx + loc[0]
-                y = ry + loc[1]
-                return (x, y)
+                return (cx - tw // 2, cy - th // 2)
 
         return None
 
