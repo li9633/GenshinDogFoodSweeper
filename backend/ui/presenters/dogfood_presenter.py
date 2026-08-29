@@ -247,6 +247,12 @@ class DogfoodPresenter(QObject):
             self._max_discard_count,
         )
 
+        # 检查是否发生致命错误（如 OCR 模型未下载）
+        if self._decomposer._fatal_error:
+            self._set_status(self._decomposer._fatal_error)
+            self._finish()
+            return
+
         # 检查是否被热键停止
         if self._decomposer._stop_event.is_set():
             self._set_status("用户手动停止")

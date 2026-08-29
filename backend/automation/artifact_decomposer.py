@@ -6,7 +6,7 @@ import threading
 import time
 
 import numpy as np
-from PySide6.QtCore import QEventLoop, QObject
+from PySide6.QtCore import QEventLoop, QObject, QTimer
 from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
@@ -28,6 +28,7 @@ class ArtifactDecomposer(QObject):
         self._window = WindowHelper()
         self._quick_select_pos: tuple[int, int] | None = None  # 屏幕绝对坐标
         self._stop_event = threading.Event()
+        self._fatal_error: str | None = None  # 致命错误信息，非空时表示发生不可恢复的错误
 
     def stop(self) -> None:
         """线程安全：设置停止标志，终止正在运行的分解循环。"""
@@ -35,8 +36,9 @@ class ArtifactDecomposer(QObject):
         log.info("[ArtifactDecomposer] 停止标志已设置")
 
     def reset_stop(self) -> None:
-        """清除停止标志，允许下次运行。"""
+        """清除停止标志和致命错误，允许下次运行。"""
         self._stop_event.clear()
+        self._fatal_error = None
 
     # ========== 入口 ==========
 
@@ -286,6 +288,8 @@ class ArtifactDecomposer(QObject):
                         f"[{page}-{idx + 1}] OCR 识别失败, "
                         f"耗时={t_ocr - t_click:.2f}s"
                     )
+                    if self._stop_event.is_set():
+                        break
                     continue
 
                 # 规则评估
@@ -345,6 +349,9 @@ class ArtifactDecomposer(QObject):
             if reached_limit:
                 break
 
+            if self._stop_event.is_set():
+                break
+
             # 翻页
             flag_x = config.roi[0] + config.roi[2] + config.slider_x_offset + 5
             flag_y = config.roi[1] + config.roi[3] // 2
@@ -390,22 +397,74 @@ class ArtifactDecomposer(QObject):
 
         return task
 
+    @staticmethod
+    def _ensure_ocr_worker_ready() -> None:
+        """确保 OCR Worker 线程正在运行且模型已就绪。
+
+        Raises:
+            OcrModelNotReadyError: 模型未下载（自动完成弹窗 + 日志）
+        """
+        from backend.automation.ocr_model_manager import OcrModelManager
+        from backend.automation.ocr_worker import OcrWorker
+        from backend.exceptions.automation import OcrModelNotReadyError
+
+        worker = OcrWorker.instance()
+        if worker.isRunning():
+            return
+
+        manager = OcrModelManager()
+        if not manager.is_ready():
+            raise OcrModelNotReadyError()
+
+        log.warning("OCR 模型已下载但 Worker 线程未运行，尝试启动...")
+        try:
+            worker.start()
+        except RuntimeError:
+            # QThread 只能启动一次，如果线程已结束则销毁单例并重建
+            log.warning("OcrWorker 线程已终止，销毁并重建...")
+            OcrWorker.destroy_instance()
+            worker = OcrWorker.instance()
+            worker.start()
+            log.info("OcrWorker 线程已重建并启动")
+
     def _ocr_recognize_artifact(self, image: np.ndarray, config) -> object | None:
         """通过 OcrWorker 同步执行圣遗物详情 OCR 识别。
 
         使用 QEventLoop 等待异步结果，返回 ArtifactInfo 或 None。
         """
+        from backend.exceptions.automation import OcrModelNotReadyError
+
+        try:
+            ArtifactDecomposer._ensure_ocr_worker_ready()
+        except OcrModelNotReadyError:
+            self._fatal_error = "OCR 模型未下载"
+            self._stop_event.set()
+            return None
+
         from backend.automation.ocr_worker import OcrWorker
 
         result_holder: list = []
         loop = QEventLoop()
 
+        timeout_timer = QTimer()
+        timeout_timer.setSingleShot(True)
+
+        def on_timeout():
+            if not result_holder:
+                log.error("[分解OCR] 识别超时（30秒），请检查 OCR 模型是否正常")
+            loop.quit()
+
+        timeout_timer.timeout.connect(on_timeout)
+        timeout_timer.start(30000)
+
         def on_done(result, _cb):
             result_holder.append(result)
+            timeout_timer.stop()
             loop.quit()
 
         def on_error(err, _cb):
             log.debug(f"[分解OCR] 失败: {err}")
+            timeout_timer.stop()
             loop.quit()
 
         worker = OcrWorker.instance()
@@ -495,17 +554,37 @@ class ArtifactDecomposer(QObject):
         使用 QEventLoop 等待 OcrWorker 异步结果，
         不阻塞主线程事件循环，确保跨线程信号可正常投递。
         """
+        from backend.exceptions.automation import OcrModelNotReadyError
+
+        try:
+            ArtifactDecomposer._ensure_ocr_worker_ready()
+        except OcrModelNotReadyError:
+            return None
+
         from backend.automation.ocr_worker import OcrWorker
 
         result_holder: list = []
         loop = QEventLoop()
 
+        timeout_timer = QTimer()
+        timeout_timer.setSingleShot(True)
+
+        def on_timeout():
+            if not result_holder:
+                log.error("[快速选择OCR] 识别超时（30秒），请检查 OCR 模型是否正常")
+            loop.quit()
+
+        timeout_timer.timeout.connect(on_timeout)
+        timeout_timer.start(30000)
+
         def on_done(result, _cb):
             result_holder.append(result)
+            timeout_timer.stop()
             loop.quit()
 
         def on_error(err, _cb):
             log.error(f"[快速选择OCR] 失败: {err}")
+            timeout_timer.stop()
             loop.quit()
 
         worker = OcrWorker.instance()
@@ -522,7 +601,7 @@ class ArtifactDecomposer(QObject):
             worker.task_done.disconnect(on_done)
             worker.task_error.disconnect(on_error)
         except Exception:
-            log.debug("断开 OCR 信号连接时发生异常")
+            log.debug("断开快速选择OCR信号连接时发生异常")
 
         return result_holder[0] if result_holder else None
 

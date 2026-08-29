@@ -147,6 +147,7 @@ ApplicationWindow {
         target: GMessageBoxBridge
         function onShowMessage(msgType, msgText, bringToFront) {
                 pythonMsgBox.msgType = msgType
+                pythonMsgBox.title = ""
                 pythonMsgBox.msgText = msgText
                 pythonMsgBox.bringToFront = bringToFront
                 pythonMsgBox.buttonModel = []

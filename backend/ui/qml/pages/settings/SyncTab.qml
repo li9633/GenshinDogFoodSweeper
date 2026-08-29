@@ -17,6 +17,7 @@ ColumnLayout {
     onVisibleChanged: {
         if (visible) {
             syncProgressText = ""
+            SettingsPresenter.refreshSyncInfo()
         }
     }
 
@@ -70,6 +71,13 @@ ColumnLayout {
                     font.pixelSize: 12
                     color: Theme.textSecondary
                 }
+            }
+
+            Text {
+                text: SettingsPresenter.dbStats
+                font.family: Theme.fontFamily
+                font.pixelSize: 12
+                color: Theme.textSecondary
             }
         }
     }

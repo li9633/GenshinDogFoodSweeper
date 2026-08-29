@@ -15,6 +15,7 @@ from typing import ClassVar
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.datetime_helper import DateTimeHelper
+from utils.logger import log
 from utils.settings_manager import settings
 from utils.version import AppVersion, Channel
 
@@ -213,6 +214,26 @@ class SettingsPresenter(QObject):
             return f"已同步 {sets} 个套装，{slots} 个部位"
         return "尚未同步数据"
 
+    @Property(str, notify=syncStatsChanged)
+    def dbStats(self) -> str:
+        """当前数据库实际存储的圣遗物数据量（可能因手动删除等操作与上次同步记录不一致）"""
+        try:
+            from database.repository.artifact_piece_repo import ArtifactPieceRepo
+            from database.repository.artifact_set_repo import ArtifactSetRepo
+            sets = ArtifactSetRepo.count()
+            pieces = ArtifactPieceRepo.count()
+            if sets > 0:
+                return f"本地已同步: {sets} 个套装，{pieces} 个部位"
+            return "本地数据库内暂无数据，请先同步圣遗物数据"
+        except Exception:
+            return "本地数据库内无法读取"
+
+    @Slot()
+    def refreshSyncInfo(self) -> None:
+        """刷新同步信息显示（Tab 切换时触发，确保当前数据库状态为最新）"""
+        self.syncTimeChanged.emit()
+        self.syncStatsChanged.emit()
+
     @Slot()
     def startSync(self) -> None:
         from backend.ui.presenters.sync_worker import SyncWorker
@@ -291,5 +312,14 @@ class SettingsPresenter(QObject):
         self.modelDownloadFinished.emit(success, message)
         if success:
             self.statusMessage.emit(message, 3000, "SUCCESS")
+            # 模型下载成功后自动启动 OcrWorker，避免用户立即使用时等待初始化
+            try:
+                from backend.automation.ocr_worker import OcrWorker
+                worker = OcrWorker.instance()
+                if not worker.isRunning():
+                    worker.start()
+                    log.info("模型下载完成，OcrWorker 线程已自动启动")
+            except Exception:
+                log.warning("模型下载后启动 OcrWorker 失败，将在首次使用时延迟启动")
         else:
             self.statusMessage.emit(message, 5000, "ERROR")
