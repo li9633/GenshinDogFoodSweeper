@@ -27,7 +27,7 @@ def convert():
         format="ICO",
         sizes=[(s, s) for s in SIZES if s <= img.width],
     )
-    print(f"✅ 已生成 ICO: {ICO_PATH} ({ICO_PATH.stat().st_size} bytes)")
+    print(f"√ 已生成 ICO: {ICO_PATH} ({ICO_PATH.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":

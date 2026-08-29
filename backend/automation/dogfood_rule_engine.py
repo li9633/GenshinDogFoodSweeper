@@ -40,24 +40,24 @@ class DogfoodRuleEngine:
 
         if rule.part != "*" and rule.part != artifact.piece_type:
             log.debug(
-                f"  [{rule.name}] ❌ 部位不匹配: 要求={rule.part} "
+                f"  [{rule.name}] X 部位不匹配: 要求={rule.part} "
                 f"实际={artifact.piece_type}"
             )
             return False
         if rule.part_exclude and rule.part_exclude == artifact.piece_type:
             log.debug(
-                f"  [{rule.name}] ❌ 部位被排除: {rule.part_exclude}"
+                f"  [{rule.name}] X 部位被排除: {rule.part_exclude}"
             )
             return False
         if rule.main_stat != "*" and artifact.main_stat and rule.main_stat != artifact.main_stat.name:
             log.debug(
-                f"  [{rule.name}] ❌ 主词条不匹配: 要求={rule.main_stat} "
+                f"  [{rule.name}] X 主词条不匹配: 要求={rule.main_stat} "
                 f"实际={artifact.main_stat.name}"
             )
             return False
         if rule.set_name != "*" and artifact.set_name and rule.set_name not in artifact.set_name:
             log.debug(
-                f"  [{rule.name}] ❌ 套装不匹配: 要求包含={rule.set_name} "
+                f"  [{rule.name}] X 套装不匹配: 要求包含={rule.set_name} "
                 f"实际={artifact.set_name}"
             )
             return False
@@ -81,7 +81,7 @@ class DogfoodRuleEngine:
                             break
             if matched < rule.sub_count:
                 log.debug(
-                    f"  [{rule.name}] ❌ 副词条不足: 匹配{matched}条 "
+                    f"  [{rule.name}] X 副词条不足: 匹配{matched}条 "
                     f"要求≥{rule.sub_count}条"
                 )
                 return False
