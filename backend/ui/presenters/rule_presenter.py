@@ -8,6 +8,7 @@ from pathlib import Path
 from database.repository.dogfood_rule_repo import DogfoodRuleRepo
 from models.dogfood_rule import DogfoodRule
 from PySide6.QtCore import Property, QObject, Signal, Slot
+from ui.gmessagebox import GMessageBox
 from utils.logger import log
 from utils.settings_manager import settings
 
@@ -256,14 +257,14 @@ class RulePresenter(QObject):
 
     # ========== CRUD ==========
 
-    @Slot("QVariantMap", result="QVariantMap")
-    def saveRule(self, rule_map: dict) -> dict:
+    @Slot("QVariantMap", result=bool)
+    def saveRule(self, rule_map: dict) -> bool:
         """保存规则（新增或更新），名称为主键"""
         try:
             name = rule_map.get("name", "").strip()
             if not name:
-                log.warning("请输入规则名称")
-                return {"ok": False, "message": "请输入规则名称"}
+                GMessageBox.warning("请输入规则名称")
+                return False
 
             original_name = rule_map.get("_original_name", "")
             log.debug(f"saveRule 收到: name={name}, _original_name={original_name}, keys={list(rule_map.keys())}")
@@ -280,28 +281,29 @@ class RulePresenter(QObject):
             if original_name and original_name == name:
                 DogfoodRuleRepo.upsert(rule)
                 self._reload()
-                return {"ok": True, "message": "规则已保存"}
+                return True
 
             # 编辑模式：名称已变，需检查新名称是否冲突，再删旧存新
             if original_name and original_name != name:
                 if DogfoodRuleRepo.exists(name):
-                    log.warning(f"规则名称「{name}」已存在，请更换名称")
-                    return {"ok": False, "message": f"规则名称「{name}」已存在，请更换名称"}
+                    GMessageBox.warning(f"规则名称「{name}」已存在，请更换名称")
+                    return False
                 DogfoodRuleRepo.delete(original_name)
                 DogfoodRuleRepo.upsert(rule)
                 self._reload()
-                return {"ok": True, "message": "规则已保存"}
+                return True
 
             # 新建模式：检查名称是否重复
             if DogfoodRuleRepo.exists(name):
-                log.warning(f"规则名称「{name}」已存在，请更换名称")
-                return {"ok": False, "message": f"规则名称「{name}」已存在，请更换名称"}
+                GMessageBox.warning(f"规则名称「{name}」已存在，请更换名称")
+                return False
             DogfoodRuleRepo.upsert(rule)
             self._reload()
-            return {"ok": True, "message": "规则已保存"}
+            return True
         except Exception as e:
             log.error(f"保存规则失败: {e}")
-            return {"ok": False, "message": f"保存失败: {e}"}
+            GMessageBox.error(f"保存失败: {e}")
+            return False
 
     @Slot(str, result=bool)
     def deleteRule(self, name: str) -> bool:

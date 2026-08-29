@@ -4,7 +4,7 @@ import QtQuick.Controls
 Button {
     id: control
 
-    // 预设主题：primary | success | warning | danger | info | default
+    // 预设主题：primary | success | warning | danger | info | secondary | default
     property string colorType: "default"
     // 自定义颜色（优先级高于 colorType），自动推导 hover/pressed 变体
     property string btnColor: ""
@@ -25,6 +25,7 @@ Button {
             case "warning": return Theme.warningMedium
             case "danger":  return Theme.dangerMedium
             case "info":    return Theme.infoMedium
+            case "secondary": return Theme.bgTrack
             default:        return Theme.bgTrack
         }
     }
@@ -37,6 +38,7 @@ Button {
             case "warning": return Theme.warning
             case "danger":  return Theme.danger
             case "info":    return Theme.info
+            case "secondary": return Theme.borderHover
             default:        return Theme.borderHover
         }
     }
@@ -49,12 +51,13 @@ Button {
             case "warning": return Theme.warningDeep
             case "danger":  return Theme.dangerDeep
             case "info":    return Theme.infoDeep
+            case "secondary": return Qt.darker(Theme.bgTrack, 1.1)
             default:        return Qt.darker(Theme.bgTrack, 1.1)
         }
     }
 
     function _isColored() {
-        return btnColor !== "" || colorType !== "default"
+        return btnColor !== "" || (colorType !== "default" && colorType !== "secondary")
     }
 
     contentItem: Text {

@@ -60,6 +60,7 @@ class ArtifactDatabaseEmptyError(RuntimeError):
 
     def __init__(self) -> None:
         super().__init__(self._MESSAGE)
+        log.warning(self._MESSAGE)
 
 
 class ArtifactUpdateAvailableError(RuntimeError):
@@ -72,3 +73,4 @@ class ArtifactUpdateAvailableError(RuntimeError):
 
     def __init__(self) -> None:
         super().__init__(self._MESSAGE)
+        log.warning(self._MESSAGE)

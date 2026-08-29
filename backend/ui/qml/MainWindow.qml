@@ -127,20 +127,17 @@ ApplicationWindow {
     }
 
     // ============================================================
-    // 版本更新提示
+    // 版本更新 → 导航到同步Tab
     // ============================================================
     Connections {
         target: VersionCheck
-        function onUpdateNeeded(title, msg) {
-            versionMsgBox.title = title
-            versionMsgBox.msgType = "warning"
-            versionMsgBox.msgText = msg
-            versionMsgBox.open()
+        function onNavigateToSyncTab() {
+            sidebar.currentKey = "settings"
+            stackView.replace(null, settingsPage, StackView.Immediate)
+            if (stackView.currentItem) {
+                stackView.currentItem.currentTab = 1
+            }
         }
-    }
-
-    GMessageBox {
-        id: versionMsgBox
     }
 
     // ============================================================
@@ -149,15 +146,27 @@ ApplicationWindow {
     Connections {
         target: GMessageBoxBridge
         function onShowMessage(msgType, msgText, bringToFront) {
-            pythonMsgBox.msgType = msgType
-            pythonMsgBox.msgText = msgText
-            pythonMsgBox.bringToFront = bringToFront
-            pythonMsgBox.open()
-        }
+                pythonMsgBox.msgType = msgType
+                pythonMsgBox.msgText = msgText
+                pythonMsgBox.bringToFront = bringToFront
+                pythonMsgBox.buttonModel = []
+                pythonMsgBox.open()
+            }
+            function onShowDialog(msgType, title, msgText, bringToFront, buttonsJson) {
+                pythonMsgBox.msgType = msgType
+                pythonMsgBox.title = title
+                pythonMsgBox.msgText = msgText
+                pythonMsgBox.bringToFront = bringToFront
+                pythonMsgBox.buttonModel = JSON.parse(buttonsJson)
+                pythonMsgBox.open()
+            }
     }
 
     GMessageBox {
         id: pythonMsgBox
+        onButtonClicked: function(role) {
+            GMessageBoxBridge.handleButtonClicked(role)
+        }
     }
 
     // ============================================================
@@ -180,7 +189,7 @@ ApplicationWindow {
 
             ctx.translate(width / 2, height / 2);
             ctx.rotate(-25 * Math.PI / 180);
-            ctx.font = "bold 28px " + Theme.fontFamily;
+            ctx.font = "12px '" + Theme.fontFamily + "'";
             ctx.fillStyle = "rgba(255, 80, 80, 0.10)";
             ctx.textAlign = "center";
 

@@ -152,13 +152,9 @@ Dialog {
                         include_unactivated: root._formIncludeUnactivated,
                         include_main_stat: root._formIncludeMainStat,
                     });
-                    const result = RulePresenter.saveRule(data);
-                    if (result && result.ok) {
+                    const ok = RulePresenter.saveRule(data);
+                    if (ok) {
                         root.accept();
-                    } else if (result) {
-                        errorBox.msgType = "warning";
-                        errorBox.msgText = result.message || "保存失败";
-                        errorBox.open();
                     }
                 }
             }
@@ -983,8 +979,5 @@ Dialog {
             Layout.preferredWidth: 60
             Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
         }
-    }
-    GMessageBox {
-        id: errorBox
     }
 }

@@ -14,6 +14,12 @@ Popup {
     property string msgText: ""
     property bool bringToFront: false
     property bool closeOnOverlayClick: true
+    property var buttonModel: []
+
+    // 信号
+    signal accepted()
+    signal rejected()
+    signal buttonClicked(string role)
 
     function accept() { close() }
 
@@ -184,7 +190,9 @@ Popup {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
 
+                // 默认按钮（无自定义按钮时）
                 GButton {
+                    visible: root.buttonModel.length === 0
                     text: "确定"
                     implicitWidth: 80
                     colorType: {
@@ -195,7 +203,30 @@ Popup {
                         default: return "primary"
                         }
                     }
-                    onClicked: root.accept()
+                    onClicked: {
+                        root.buttonClicked("accept")
+                        root.accepted()
+                        root.accept()
+                    }
+                }
+
+                // 自定义按钮（从 buttonModel 动态渲染）
+                Repeater {
+                    model: root.buttonModel
+                    GButton {
+                        required property var modelData
+                        visible: root.buttonModel.length > 0
+                        text: modelData.text || ""
+                        implicitWidth: 80
+                        colorType: modelData.colorType || "primary"
+                        onClicked: {
+                            const role = modelData.role || ""
+                            root.buttonClicked(role)
+                            if (role === "accept") root.accepted()
+                            else if (role === "reject") root.rejected()
+                            root.close()
+                        }
+                    }
                 }
             }
         }

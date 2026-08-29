@@ -51,65 +51,6 @@ Rectangle {
                 }
             }
 
-            // ---- GMessageBox（QML 直接渲染） ----
-            GCard {
-                title: "GMessageBox（QML 渲染）"
-                Layout.fillWidth: true
-
-                Flow {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    GButton {
-                        text: "信息 (蓝)"
-                        colorType: "info"
-                        implicitWidth: 100
-                        implicitHeight: 32
-                        onClicked: {
-                            infoBox.msgType = "info"
-                            infoBox.msgText = "[基础设施调试] QML渲染 — 信息消息"
-                            infoBox.open()
-                        }
-                    }
-
-                    GButton {
-                        text: "成功 (绿)"
-                        colorType: "success"
-                        implicitWidth: 100
-                        implicitHeight: 32
-                        onClicked: {
-                            successBox.msgType = "success"
-                            successBox.msgText = "[基础设施调试] QML渲染 — 成功消息"
-                            successBox.open()
-                        }
-                    }
-
-                    GButton {
-                        text: "警告 (橙)"
-                        colorType: "warning"
-                        implicitWidth: 100
-                        implicitHeight: 32
-                        onClicked: {
-                            warningBox.msgType = "warning"
-                            warningBox.msgText = "[基础设施调试] QML渲染 — 警告消息"
-                            warningBox.open()
-                        }
-                    }
-
-                    GButton {
-                        text: "错误 (红)"
-                        colorType: "danger"
-                        implicitWidth: 100
-                        implicitHeight: 32
-                        onClicked: {
-                            errorBox.msgType = "error"
-                            errorBox.msgText = "[基础设施调试] QML渲染 — 错误消息"
-                            errorBox.open()
-                        }
-                    }
-                }
-            }
-
             // ---- GMessageBox（Python 桥接） ----
             GCard {
                 title: "GMessageBox（Python 桥接）"
@@ -274,11 +215,6 @@ Rectangle {
                 }
             }
 
-            // ---- GMessageBox 实例（QML 渲染用，每个类型独立避免并发冲突） ----
-            GMessageBox { id: infoBox }
-            GMessageBox { id: successBox }
-            GMessageBox { id: warningBox }
-            GMessageBox { id: errorBox }
         }
     }
 }

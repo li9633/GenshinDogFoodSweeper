@@ -11,6 +11,11 @@ import requests
 from database.repository.artifact_set_repo import ArtifactSetRepo
 from utils.logger import log
 
+from backend.exceptions.automation.exceptions import (
+    ArtifactDatabaseEmptyError,
+    ArtifactUpdateAvailableError,
+)
+
 # 与 artifact_set_fetcher 共用同一 API
 API_URL = (
     "https://act-api-takumi-static.mihoyo.com/"
@@ -64,29 +69,22 @@ class VersionChecker:
         return ArtifactSetRepo.count()
 
     @classmethod
-    def check(cls) -> dict:
+    def check(cls) -> None:
         """
         执行圣遗物更新检查。
 
-        返回:
-            {
-                "api_count": int,       # API 返回的套装数量
-                "db_count": int,        # 本地数据库套装数量
-                "need_update": bool,    # 是否需要提示更新
-                "db_empty": bool,       # 本地数据库是否为空
-            }
+        抛出:
+            ArtifactDatabaseEmptyError: 本地数据库为空
+            ArtifactUpdateAvailableError: 有可用更新
         """
         api_count = cls.fetch_api_set_count()
         db_count = cls.get_db_set_count()
 
         log.info(f"圣遗物更新检查: API={api_count}, DB={db_count}")
 
-        db_empty = db_count == 0
-        need_update = api_count > 0 and api_count > db_count
+        if db_count == 0:
+            raise ArtifactDatabaseEmptyError()
+        if api_count > 0 and api_count > db_count:
+            raise ArtifactUpdateAvailableError()
 
-        return {
-            "api_count": api_count,
-            "db_count": db_count,
-            "need_update": need_update,
-            "db_empty": db_empty,
-        }
+        log.info("圣遗物更新检查: 本地数据已是最新，无需更新")
