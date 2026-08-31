@@ -8,6 +8,8 @@ Button {
     property string colorType: "default"
     // 自定义颜色（优先级高于 colorType），自动推导 hover/pressed 变体
     property string btnColor: ""
+    // 自定义字体（默认使用 Theme 字体，设为 Icon.fontSolid 可显示图标）
+    property string fontFamily: Theme.fontFamily
 
     implicitHeight: 34
     implicitWidth: Math.max(64, contentItem.implicitWidth + 24)
@@ -62,7 +64,7 @@ Button {
 
     contentItem: Text {
         text: control.text
-        font.family: Theme.fontFamily
+        font.family: control.fontFamily
         font.pixelSize: 14
         color: {
             if (!control.enabled) return Theme.textMuted

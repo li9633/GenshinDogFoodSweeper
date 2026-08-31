@@ -151,7 +151,7 @@ class RegionMarkerPresenter(QObject):
             self.errorOccurred.emit("请输入文件名")
             return
         t0 = time.perf_counter()
-        result = self._last_capture if self._last_capture else _capture()
+        result = _capture()
         _save_template(result, filename.strip(), self._x, self._y, self._w, self._h)
         self.templateSaved.emit(filename.strip())
         elapsed = (time.perf_counter() - t0) * 1000
@@ -236,7 +236,10 @@ def _save_template(
     save_dir = TemplateManager.IMAGES_DIR
     save_dir.mkdir(parents=True, exist_ok=True)
     save_path = save_dir / f"{filename}.png"
-    cv2.imwrite(str(save_path), cv2.cvtColor(roi, cv2.COLOR_RGB2BGR))
+    # cv2.imwrite 不支持中文路径，改用 imencode + 二进制写入
+    success, buf = cv2.imencode(".png", cv2.cvtColor(roi, cv2.COLOR_RGB2BGR))
+    if success:
+        save_path.write_bytes(buf.tobytes())
     TemplateManager.register(filename, f"images/{filename}.png", (x, y, w, h))
     TemplateManager.save()
     log.info(f"已保存模板: {filename}.png ({w}x{h})，区域已写入 templates.json")

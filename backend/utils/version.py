@@ -40,6 +40,7 @@ class Channel(Enum):
 _VERSION_MAJOR = 1
 _VERSION_MINOR = 0
 _VERSION_PATCH = 0
+_CHANNEL_NUM_DEFAULT = 5
 
 # ---- 构建时注入的渠道配置 ----
 try:
@@ -49,7 +50,7 @@ try:
     _CHANNEL_NUM = BUILD_CHANNEL_NUM
 except ImportError:
     _CHANNEL = Channel.ALPHA
-    _CHANNEL_NUM = 1
+    _CHANNEL_NUM = _CHANNEL_NUM_DEFAULT
 
 
 class AppVersion:

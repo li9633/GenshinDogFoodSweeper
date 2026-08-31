@@ -103,7 +103,8 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     def on_window_ready(self) -> None:
         """窗口就绪后初始化（OCR Worker 由 OcrInitializer 统一管理）"""
         self._capture = ScreenshotCapture()
-        self._win_helper = WindowHelper(self._capture, self._mouse)
+        self._win_helper = WindowHelper(self._capture)
+        MouseController.set_window_helper(self._win_helper)
 
         self._available_configs = ALL_SLOT_CONFIGS
         self._active_config = BAG_SLOT_CONFIG
@@ -197,41 +198,6 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
 
     def _window_origin(self) -> tuple[int, int]:
         return self._win_helper.get_origin()
-
-    def _genshin_hwnd(self) -> int | None:
-        return self._win_helper.get_hwnd()
-
-    def _to_absolute(self, x: int, y: int) -> tuple[int, int]:
-        return self._win_helper.to_absolute(x, y)
-
-    # ==================================================================
-    # 基础鼠标操作
-    # ==================================================================
-
-    @Slot(int, int)
-    def moveTo(self, x: int, y: int) -> None:
-        ax, ay = self._to_absolute(x, y)
-        ok = self._mouse.move_to(ax, ay)
-        log.info(
-            f"鼠标移动: 窗口({x}, {y}) → 屏幕({ax}, {ay}) {'成功' if ok else '失败'}"
-        )
-
-    @Slot(int, int)
-    def clickAt(self, x: int, y: int) -> None:
-        ax, ay = self._to_absolute(x, y)
-        ok = self._mouse.move_and_click(ax, ay)
-        log.debug(
-            f"鼠标点击: 窗口({x}, {y}) → 屏幕({ax}, {ay}) {'成功' if ok else '失败'}"
-        )
-
-    @Slot(int, int)
-    def moveAndClick(self, x: int, y: int) -> None:
-        self.clickAt(x, y)
-
-    @Slot(int)
-    def scrollWheel(self, clicks: int) -> None:
-        ok = self._mouse.scroll(clicks)
-        log.info(f"滚轮: {clicks} {'成功' if ok else '失败'}")
 
     # 操作参数（供 QML 展示，暂不开放修改）
 
@@ -659,8 +625,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         """点击锚点物品 → 延迟等待详情面板 → 截图 → 提交OCR任务"""
         self._connect_anchor_ocr_worker()
         self._win_helper.focus()
-        ax, ay = self._to_absolute(cx, cy)
-        self._mouse.move_and_click(ax, ay)
+        self._mouse.move_and_click(cx, cy)
 
         def _capture_and_ocr() -> None:
             result = self._capture.capture()
@@ -1017,9 +982,10 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
             log.info(f"追加{SliderDetector.EXTRA_TICKS}次滚动确保100%到底")
             ox, oy = self._window_origin()
             if ox != 0 or oy != 0:
-                abs_x = ox + region_x + region_w // 2
-                abs_y = oy + region_y + region_h // 2
-                self._mouse.move_to(abs_x, abs_y)
+                self._mouse.move_to(
+                    region_x + region_w // 2,
+                    region_y + region_h // 2,
+                )
                 for _ in range(SliderDetector.EXTRA_TICKS):
                     self._mouse.scroll_one_tick()
                     sleep(0.03)
@@ -1129,10 +1095,8 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         )
         cx = (col_lefts[col] + col_rights[col]) // 2
         cy = row_bottoms[row] - cfg.slot_h // 2
-        screen_x = ox + cx
-        screen_y = oy + cy
-        self._mouse.move_and_click(screen_x, screen_y)
-        log.info(f"定位完成: P{page}R{row}C{col} → 屏幕({screen_x}, {screen_y})")
+        self._mouse.move_and_click(cx, cy)
+        log.info(f"定位完成: P{page}R{row}C{col} → 窗口相对({cx}, {cy})")
 
     @Slot()
     def detectSlots(self) -> None:

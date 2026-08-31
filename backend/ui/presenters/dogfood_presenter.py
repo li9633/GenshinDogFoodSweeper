@@ -227,15 +227,16 @@ class DogfoodPresenter(QObject):
                 self._finish()
                 return
 
-            # 先尝试快速选择4星及以下圣遗物
+            # 先尝试快速选择4星及以下圣遗物（前置优化）
             self._set_status("正在快速选择4星及以下圣遗物...")
-            if self._decomposer.try_quick_select_decompose():
-                self._set_status("快速分解完成，无4星及以下圣遗物需处理")
-                self._finish()
-                return
+            quick_ok = self._decomposer.try_quick_select_decompose()
+            if quick_ok:
+                log.info("快速选择已处理4星及以下圣遗物，继续主流程...")
+            else:
+                log.info("无4星及以下圣遗物或快速选择跳过，继续主流程...")
 
-            # 无4星及以下圣遗物，进入主流程逐格识别+规则分析
-            self._set_status("无4星及以下圣遗物，进入主流程...")
+            # 无论快速选择结果如何，都进入主流程逐格识别+规则分析
+            self._set_status("进入主流程逐格识别...")
             self._run_selection_batch()
         except Exception:
             self._set_status("分解流程异常")

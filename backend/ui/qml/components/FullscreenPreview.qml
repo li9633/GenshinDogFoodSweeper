@@ -52,7 +52,7 @@ Popup {
 
             GButton {
                 text: Icon.close
-                font.family: Icon.fontSolid
+                fontFamily: Icon.fontSolid
                 implicitWidth: 36
                 implicitHeight: 36
                 colorType: "danger"

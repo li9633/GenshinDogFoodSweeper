@@ -36,12 +36,12 @@
   },
   {
     "display_name": "背包页面分解按钮",
-    "file": "images/decompose_button.png",
+    "file": "images/decompose_button_backpack.png",
     "region": [
       543,
-      1008,
-      247,
-      79
+      1020,
+      246,
+      58
     ]
   },
   {
@@ -102,6 +102,16 @@
       999,
       303,
       85
+    ]
+  },
+  {
+    "display_name": "分解页面确认分解按钮",
+    "file": "images/decomposition_confirmation_decomposition_button.png",
+    "region": [
+      980,
+      750,
+      380,
+      75
     ]
   }
 ]

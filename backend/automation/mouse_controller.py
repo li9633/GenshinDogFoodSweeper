@@ -13,6 +13,8 @@ from ctypes import wintypes
 
 from utils.logger import log
 
+from backend.automation.window_helper import WindowHelper
+
 # Win32 API 常量
 INPUT_MOUSE = 0
 MOUSEEVENTF_MOVE = 0x0001
@@ -48,7 +50,6 @@ class MouseController:
     """鼠标控制器 — 基于 Win32 SendInput
 
     性能设计（参考 yas）：
-      - focus_window() 只在扫描开始时调用一次，不在每次点击中调用
       - move_to() 即时完成（SendInput），无 sleep
       - click() 仅 down + 10ms + up，无额外延迟
       - 每次点击耗时 ~10ms，2000 个圣遗物约 20s
@@ -60,6 +61,13 @@ class MouseController:
     # 点击间隔常量（秒）
     CLICK_DOWN_UP_DELAY = 0.01  # 按下到释放间隔
 
+    _window_helper: WindowHelper | None = None  # 由外部注入
+
+    @classmethod
+    def set_window_helper(cls, helper: WindowHelper) -> None:
+        """注入 WindowHelper，此后所有坐标视为窗口相对坐标"""
+        cls._window_helper = helper
+
     @staticmethod
     def is_admin() -> bool:
         """检查当前进程是否以管理员权限运行"""
@@ -68,19 +76,7 @@ class MouseController:
         except Exception:
             return False
 
-    @staticmethod
-    def focus_window(hwnd: int) -> bool:
-        """
-        将指定窗口设为前台窗口。
-        应在扫描开始时调用一次，不在每次点击时调用。
-        """
-        try:
-            ctypes.windll.user32.SetForegroundWindow(hwnd)
-            time.sleep(0.1)
-            return True
-        except Exception as e:
-            log.warning(f"SetForegroundWindow 失败: {e}")
-            return False
+
 
     @staticmethod
     def screen_size() -> tuple[int, int]:
@@ -93,10 +89,21 @@ class MouseController:
     @staticmethod
     def move_to(x: int, y: int) -> bool:
         """
-        移动鼠标到屏幕绝对坐标 (x, y)。
+        移动鼠标到坐标 (x, y)。
+        若已注入 WindowHelper，则 x, y 视为窗口相对坐标并自动转换。
         使用 SendInput 绝对坐标，即时完成，无 sleep。
         """
         try:
+            rel_x, rel_y = x, y  # 保存原始窗口相对坐标
+            helper = MouseController._window_helper
+            if helper is not None:
+                ox, oy = helper.get_origin()
+                x += ox
+                y += oy
+
+            pt_before = wintypes.POINT()
+            ctypes.windll.user32.GetCursorPos(ctypes.byref(pt_before))
+
             screen_w, screen_h = MouseController.screen_size()
             abs_x = int(x * 65535 / screen_w)
             abs_y = int(y * 65535 / screen_h)
@@ -113,6 +120,12 @@ class MouseController:
             if result == 0:
                 log.warning(f"SendInput 移动失败: ({x}, {y})")
                 return False
+            if helper is not None:
+                log.debug(
+                    f"鼠标移动: 窗口相对({rel_x}, {rel_y}) → 屏幕绝对({x}, {y})"
+                )
+            else:
+                log.debug(f"鼠标移动: 屏幕绝对({pt_before.x}, {pt_before.y}) → ({x}, {y})")
             return True
         except Exception as e:
             log.error(f"鼠标移动异常: {e}")
@@ -126,6 +139,16 @@ class MouseController:
         调用前应先 move_to() 定位。
         """
         try:
+            pt = wintypes.POINT()
+            ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+
+            helper = MouseController._window_helper
+            if helper is not None:
+                ox, oy = helper.get_origin()
+                log.debug(f"鼠标点击: 屏幕绝对({pt.x}, {pt.y}) 窗口相对({pt.x - ox}, {pt.y - oy})")
+            else:
+                log.debug(f"鼠标点击: 屏幕绝对({pt.x}, {pt.y})")
+
             inp_down = INPUT()
             inp_down.type = INPUT_MOUSE
             inp_down.mi.dwFlags = MOUSEEVENTF_LEFTDOWN

@@ -22,11 +22,15 @@ class ArtifactDecomposer(QObject):
     # 模板匹配阈值
     MATCH_THRESHOLD = 0.80
 
+    # 快速选择弹窗的 OCR 识别区域 (x, y, w, h)
+    QUICK_SELECT_ROI = (23, 114, 639, 360)
+
     def __init__(self) -> None:
         super().__init__()
         self._capture = ScreenshotCapture()
         self._window = WindowHelper()
-        self._quick_select_pos: tuple[int, int] | None = None  # 屏幕绝对坐标
+        self._quick_select_pos: tuple[int, int] | None = None  # 窗口相对坐标
+        self._decompose_button_pos: tuple[int, int] | None = None  # 窗口相对坐标
         self._stop_event = threading.Event()
         self._fatal_error: str | None = None  # 致命错误信息，非空时表示发生不可恢复的错误
 
@@ -117,7 +121,20 @@ class ArtifactDecomposer(QObject):
         if not self._click_decompose_button(result3.image):
             log.error("未找到分解按钮")
             return False
-        log.info("快速选择分解完成")
+
+        # 等待确认弹窗出现
+        time.sleep(0.3)
+        result4 = self._capture.capture()
+        confirm_pos = self._click_confirm_decompose_button(result4.image)
+        if confirm_pos is None:
+            log.error("未找到确认分解按钮，确认弹窗可能未出现")
+            return False
+        log.info("已确认快速选择分解")
+
+        # 等待分解完成，关闭蒙层
+        time.sleep(0.2)
+        self._dismiss_result_overlay()
+        log.info("已关闭快速选择分解结果蒙层")
         return True
 
     # ========== 规则评估分解入口 ==========
@@ -132,6 +149,9 @@ class ArtifactDecomposer(QObject):
 
         self._window.focus()
 
+        # 注入 WindowHelper，此后 MouseController 所有坐标均为窗口相对坐标
+        MouseController.set_window_helper(self._window)
+
         result = self._capture.capture()
 
         if self._is_on_decompose_page(result.image):
@@ -139,7 +159,7 @@ class ArtifactDecomposer(QObject):
             return True
 
         log.info("未在分解页面，尝试查找分解按钮")
-        if not self._click_decompose_button(result.image):
+        if not self._click_backpack_decompose_button(result.image):
             log.error("未找到分解按钮")
             return False
 
@@ -169,10 +189,10 @@ class ArtifactDecomposer(QObject):
         return self._decompose_loop(rules, default_action, max_per_batch)
 
     def execute_decompose(self) -> bool:
-        """点击游戏内的分解按钮执行分解。
+        """点击游戏内的分解按钮并确认弹窗，完成分解。
 
         Returns:
-            True 点击成功，False 未找到按钮
+            True 分解成功，False 未找到按钮或确认失败
         """
         time.sleep(0.5)
         result = self._capture.capture()
@@ -181,6 +201,21 @@ class ArtifactDecomposer(QObject):
             log.error("未找到分解按钮")
             return False
         log.info("已点击分解按钮")
+
+        # 等待确认弹窗出现（0.2~0.4秒）
+        time.sleep(0.3)
+        result2 = self._capture.capture()
+
+        confirm_pos = self._click_confirm_decompose_button(result2.image)
+        if confirm_pos is None:
+            log.error("未找到确认分解按钮，确认弹窗可能未出现")
+            return False
+        log.info("已确认分解")
+
+        # 等待分解完成弹窗，再次点击关闭蒙层
+        time.sleep(0.2)
+        self._dismiss_result_overlay()
+        log.info("已关闭分解结果蒙层")
         return True
 
     # ========== 逐格评估循环 ==========
@@ -257,15 +292,14 @@ class ArtifactDecomposer(QObject):
                     log.info("收到停止信号，退出格子循环")
                     break
 
-                abs_x, abs_y = self._window.to_absolute(slot.cx, slot.cy)
                 t_start = time.perf_counter()
                 log.debug(
                     f"[{page}-{idx + 1}/{len(det_result.slots)}] "
-                    f"点击格子 ({abs_x}, {abs_y})"
+                    f"点击格子 ({slot.cx}, {slot.cy})"
                 )
 
                 # 点击选中格子
-                MouseController.move_and_click(abs_x, abs_y)
+                MouseController.move_and_click(slot.cx, slot.cy)
                 time.sleep(0.35)
                 t_click = time.perf_counter()
                 log.debug(f"[{page}-{idx + 1}] 等待弹窗完成, 耗时={t_click - t_start:.2f}s")
@@ -324,7 +358,7 @@ class ArtifactDecomposer(QObject):
                         f"本页剩余≈{remaining_est:.0f}s"
                     )
                     # 再次点击反选（取消选中）
-                    MouseController.move_and_click(abs_x, abs_y)
+                    MouseController.move_and_click(slot.cx, slot.cy)
                     time.sleep(0.2)
 
                 # 每处理 10 个或每 5 秒输出一次进度日志
@@ -502,12 +536,52 @@ class ArtifactDecomposer(QObject):
         return False
 
     def _click_decompose_button(self, image: np.ndarray) -> bool:
-        """查找并点击分解按钮"""
+        """查找并点击分解页面上的分解按钮（执行分解），保存坐标供后续复用"""
         template = TemplateManager.get("圣遗物分解页面分解按钮")
         if template is None:
             log.error("未找到模板: 圣遗物分解页面分解按钮")
             return False
-        return self._match_and_click(image, template, "圣遗物分解页面分解按钮")
+        pos = self._match_and_click_return_pos(
+            image, template, "圣遗物分解页面分解按钮"
+        )
+        if pos is None:
+            return False
+        self._decompose_button_pos = pos
+        return True
+
+    def _click_backpack_decompose_button(self, image: np.ndarray) -> bool:
+        """查找并点击背包页面上的分解按钮（进入分解页面）"""
+        template = TemplateManager.get("背包页面分解按钮")
+        if template is None:
+            log.error("未找到模板: 背包页面分解按钮")
+            return False
+        return self._match_and_click(image, template, "背包页面分解按钮")
+
+    def _click_confirm_decompose_button(
+        self, image: np.ndarray
+    ) -> tuple[int, int] | None:
+        """查找并点击确认分解弹窗中的确认按钮，返回屏幕绝对坐标"""
+        template = TemplateManager.get("分解页面确认分解按钮")
+        if template is None:
+            log.error("未找到模板: 分解页面确认分解按钮")
+            return None
+        return self._match_and_click_return_pos(
+            image, template, "分解页面确认分解按钮"
+        )
+
+    def _dismiss_result_overlay(self) -> None:
+        """点击分解按钮位置，关闭分解结果蒙层。
+
+        蒙层并非100%出现，点击分解按钮位置是安全的：
+        - 有蒙层：点击关闭蒙层
+        - 无蒙层：未选中任何圣遗物，点击无效
+        """
+        if self._decompose_button_pos is None:
+            log.warning("分解按钮坐标丢失，无法关闭蒙层")
+            return
+        time.sleep(0.2)
+        MouseController.move_and_click(*self._decompose_button_pos)
+        time.sleep(0.2)
 
     # ========== 快速选择 ==========
 
@@ -524,9 +598,6 @@ class ArtifactDecomposer(QObject):
         return True
 
     # ========== OCR 任务工厂 ==========
-
-    # 快速选择弹窗的 OCR 识别区域 (x, y, w, h)
-    QUICK_SELECT_ROI = (23, 114, 639, 360)
 
     @staticmethod
     def create_quick_select_ocr_task(
@@ -710,8 +781,6 @@ class ArtifactDecomposer(QObject):
 
     # ========== 底层工具 ==========
 
-    #TODO: 快速选择4星以下圣遗物，需要创建 对话框的模板匹配
-
     def _match_template(
         self, image: np.ndarray, template: object, threshold: float
     ) -> bool:
@@ -747,5 +816,5 @@ class ArtifactDecomposer(QObject):
             f"窗口相对=({rel_x}, {rel_y}) 窗口原点={win_origin} "
             f"屏幕绝对=({abs_x}, {abs_y})"
         )
-        MouseController.move_and_click(abs_x, abs_y)
-        return (abs_x, abs_y)
+        MouseController.move_and_click(rel_x, rel_y)
+        return (rel_x, rel_y)

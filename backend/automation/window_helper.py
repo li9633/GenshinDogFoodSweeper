@@ -7,9 +7,11 @@
 
 from __future__ import annotations
 
+import ctypes
+import time
+
 from utils.logger import log
 
-from backend.automation.mouse_controller import MouseController
 from backend.exceptions.automation import GameWindowNotFoundError
 from backend.utils.screen_capture import ScreenshotCapture
 
@@ -17,13 +19,8 @@ from backend.utils.screen_capture import ScreenshotCapture
 class WindowHelper:
     """窗口助手 — 封装窗口查找、聚焦、坐标转换"""
 
-    def __init__(
-        self,
-        capture: ScreenshotCapture | None = None,
-        mouse: MouseController | None = None,
-    ):
+    def __init__(self, capture: ScreenshotCapture | None = None):
         self._capture = capture or ScreenshotCapture()
-        self._mouse = mouse or MouseController()
 
     # ---- 窗口查找 ----
 
@@ -57,6 +54,11 @@ class WindowHelper:
             raise GameWindowNotFoundError(
                 ScreenshotCapture.get_window_not_found_message()
             )
-        ok = self._mouse.focus_window(hwnd)
-        log.info(f"聚焦原神窗口: {'成功' if ok else '失败'}")
-        return ok
+        try:
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+            time.sleep(0.1)
+            log.info("聚焦原神窗口: 成功")
+            return True
+        except Exception as e:
+            log.warning(f"聚焦原神窗口失败: {e}")
+            return False

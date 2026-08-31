@@ -31,7 +31,7 @@ Rectangle {
             }
 
             Repeater {
-                model: ["区域标记", "元素定位", "圣遗物识别", "圣遗物扫描", "智能翻页器", "基础设施"]
+                model: ["区域标记", "元素定位", "圣遗物识别", "圣遗物扫描", "智能翻页器", "输入调试", "基础设施"]
 
                 TabButton {
                     required property int index
@@ -77,6 +77,7 @@ Rectangle {
             ArtifactRecognitionPanel {}
             ArtifactScanPanel {}
             SmartScrollPanel {}
+            InputDebugPanel {}
             InfraDebugPanel {}
         }
 
@@ -92,7 +93,7 @@ Rectangle {
             id: preview
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: tabBar.currentIndex !== 5
+            visible: tabBar.currentIndex < 5
             selectionMode: RegionMarker.selectionMode
 
             onRegionSelected: (x, y, w, h) => {

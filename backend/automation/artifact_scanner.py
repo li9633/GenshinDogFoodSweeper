@@ -190,7 +190,7 @@ class SmartScrollToBottomWorker(QThread):
         self._initial_slider_y = initial_slider_y
         self._window_bottom = window_bottom
         self._stop = False
-        self._win = WindowHelper(self._capture, self._mouse)
+        self._win = WindowHelper(self._capture)
         self._page_scroller = PageScroller(self._mouse, self._capture)
         self._slider_scroller = SliderScroller(
             self._mouse,
@@ -339,7 +339,7 @@ class FullScanWorker(QThread):
         self._results: list[ArtifactInfo] = []
         self._tail_info: ArtifactInfo | None = None
         self._tail_is_material: bool = False
-        self._win = WindowHelper(self._capture, self._mouse)
+        self._win = WindowHelper(self._capture)
         self._slider_scroller = SliderScroller(
             self._mouse,
             self._capture,
