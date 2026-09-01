@@ -9,7 +9,7 @@
 
     APP_VERSION.string()     # "v1.0.0-alpha.1"
     APP_VERSION.clean()      # "v1.0.0"
-    APP_VERSION.is_prerelease  # True
+    APP_VERSION.is_prerelease()  # True
 """
 
 from __future__ import annotations
@@ -37,10 +37,28 @@ class Channel(Enum):
 
 
 # ---- 默认版本号（开发时使用）----
-_VERSION_MAJOR = 1
-_VERSION_MINOR = 0
+_VERSION_MAJOR = 0
+_VERSION_MINOR = 9
 _VERSION_PATCH = 0
-_CHANNEL_NUM_DEFAULT = 5
+
+
+def _detect_latest_channel_num(channel: str) -> int:
+    """从 dist/ 目录检测同渠道已构建的最大迭代号，无产物则返回 0。"""
+    from pathlib import Path
+
+    dist_dir = Path(__file__).resolve().parents[2] / "dist"
+    if not dist_dir.exists():
+        return 0
+    max_num = 0
+    for d in dist_dir.iterdir():
+        if d.is_dir() and d.name.startswith(f"GenshinDogFoodSweeper-{channel}-"):
+            try:
+                n = int(d.name.rsplit("-", 1)[-1])
+                max_num = max(max_num, n)
+            except ValueError:
+                pass
+    return max_num
+
 
 # ---- 构建时注入的渠道配置 ----
 try:
@@ -50,7 +68,7 @@ try:
     _CHANNEL_NUM = BUILD_CHANNEL_NUM
 except ImportError:
     _CHANNEL = Channel.ALPHA
-    _CHANNEL_NUM = _CHANNEL_NUM_DEFAULT
+    _CHANNEL_NUM = _detect_latest_channel_num(_CHANNEL.value)
 
 
 class AppVersion:
@@ -99,7 +117,6 @@ class AppVersion:
     # ---------------------------------------------------------------
 
     @classmethod
-    @property
     def is_prerelease(cls) -> bool:
         """是否为预发布版本（非正式版）"""
         return cls.CHANNEL != Channel.RELEASE

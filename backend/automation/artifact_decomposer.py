@@ -261,10 +261,6 @@ class ArtifactDecomposer(QObject):
         timed_count = 0
         last_progress_log = 0.0  # 上次输出进度日志的时间戳
 
-        # 获取窗口原点用于坐标转换
-        win_origin = self._window.get_origin()
-        ox, oy = win_origin
-
         while True:
             if self._stop_event.is_set():
                 log.info("收到停止信号，退出分解循环")
@@ -371,6 +367,15 @@ class ArtifactDecomposer(QObject):
                         f"| 平均 {avg_time:.2f}s/个"
                     )
 
+                # 检测到锁定圣遗物，处理完当前格子后停止分解流程
+                if slot.locked:
+                    log.info(
+                        f"[{page}-{idx + 1}/{len(det_result.slots)}] 检测到锁定圣遗物，"
+                        f"停止分解流程 (累计保留={total_keep} 分解={total_discard})"
+                    )
+                    reached_limit = True
+                    break
+
             # 已达上限，跳出外层循环
             if reached_limit:
                 break
@@ -381,7 +386,7 @@ class ArtifactDecomposer(QObject):
             # 翻页
             flag_x = config.roi[0] + config.roi[2] + config.slider_x_offset + 5
             flag_y = config.roi[1] + config.roi[3] // 2
-            if not scroller.scroll_to_next_page(ox, oy, flag_x, flag_y):
+            if not scroller.scroll_to_next_page(0, 0, flag_x, flag_y):
                 log.info("已是最后一页")
                 break
 

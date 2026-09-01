@@ -1,7 +1,8 @@
 """构建脚本
 ========
 用法:
-    python build.py                      # 默认 alpha 渠道
+    python build.py                      # 默认 alpha 渠道，自动递增
+    python build.py --clear              # 清理所有 alpha 旧产物，构建新 alpha
     python build.py --channel release    # 正式版
     python build.py --channel beta --num 3  # 公开测试版第 3 次迭代
 """
@@ -17,18 +18,42 @@ SPEC_FILE = ROOT / "GenshinDogFoodSweeper.spec"
 CHANNEL_FILE = ROOT / "backend" / "utils" / "_build_channel.py"
 
 
-def clean(channel: str, num: int):
-    """清理同渠道的旧构建产物（不删除其他渠道的输出）"""
+def clean(channel: str, num: int, clear_all: bool = False):
+    """清理旧构建产物。
+
+    Args:
+        channel: 发布渠道
+        num: 迭代号
+        clear_all: True 时清理同渠道所有旧产物，False 仅清理同渠道同版本号
+    """
     # 清理 build 临时目录
     if BUILD_DIR.exists():
         shutil.rmtree(BUILD_DIR)
-    # 只清理同渠道同版本号的旧产物
-    versioned_dist = ROOT / "dist" / f"GenshinDogFoodSweeper-{channel}-{num}"
-    if versioned_dist.exists():
-        shutil.rmtree(versioned_dist)
-        print(f"已清理旧产物: {versioned_dist.name}")
+
+    dist_dir = ROOT / "dist"
+    if not dist_dir.exists():
+        print("无需清理（dist 目录不存在）")
+        return
+
+    if clear_all:
+        # 清理同渠道所有旧产物
+        prefix = f"GenshinDogFoodSweeper-{channel}-"
+        cleaned = 0
+        for d in dist_dir.iterdir():
+            if d.is_dir() and d.name.startswith(prefix):
+                shutil.rmtree(d)
+                print(f"已清理旧产物: {d.name}")
+                cleaned += 1
+        if cleaned == 0:
+            print("无需清理（无同渠道旧产物）")
     else:
-        print("无需清理（同渠道版本号无旧产物）")
+        # 只清理同渠道同版本号的旧产物
+        versioned_dist = dist_dir / f"GenshinDogFoodSweeper-{channel}-{num}"
+        if versioned_dist.exists():
+            shutil.rmtree(versioned_dist)
+            print(f"已清理旧产物: {versioned_dist.name}")
+        else:
+            print("无需清理（同渠道版本号无旧产物）")
 
 
 def write_channel(channel: str, channel_num: int):
@@ -85,15 +110,36 @@ def parse_args():
     parser.add_argument(
         "--num",
         type=int,
-        default=1,
-        help="渠道内迭代号 (默认: 1)",
+        default=0,
+        help="渠道内迭代号 (默认: 自动递增)",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="清理同渠道所有旧产物后构建新版本",
+    )
+    args = parser.parse_args()
+
+    # 自动递增：检测 dist/ 下已有同渠道产物，取最大号 +1
+    if args.num == 0:
+        dist_dir = ROOT / "dist"
+        max_num = 0
+        if dist_dir.exists():
+            for d in dist_dir.iterdir():
+                if d.is_dir() and d.name.startswith(f"GenshinDogFoodSweeper-{args.channel}-"):
+                    try:
+                        n = int(d.name.rsplit("-", 1)[-1])
+                        max_num = max(max_num, n)
+                    except ValueError:
+                        pass
+        args.num = max_num + 1
+
+    return args
 
 
 if __name__ == "__main__":
     args = parse_args()
-    clean(args.channel, args.num)
+    clean(args.channel, args.num, clear_all=args.clear)
     write_channel(args.channel, args.num)
     build()
     post_build(args.channel, args.num)

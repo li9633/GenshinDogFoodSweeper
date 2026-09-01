@@ -230,6 +230,7 @@ class SlotObject:
     h: int
     rarity: ArtifactRarity = ArtifactRarity.UNKNOWN
     star_count: int = 0
+    locked: bool = False
     row: int = 0
     col: int = 0
 
@@ -266,6 +267,11 @@ class SlotDebugInfo:
     has_center_star: bool = False  # 中心是否有星星（决定奇偶分支）
     star_matches: int = 0  # 匹配星星颜色的采样点数
     star_pass: bool = False  # 星级特征是否通过
+    # 锁定图标检测
+    lock_x: int = 0  # 锁检测采样中心绝对 X
+    lock_y: int = 0  # 锁检测采样中心绝对 Y
+    lock_gray_mean: float = 0.0  # 锁区域灰度均值
+    lock_pass: bool = False  # 锁检测是否通过
 
 
 class DetectResult(NamedTuple):
@@ -331,6 +337,12 @@ class SlotDetectorConfig:
             "部位+主词条": (1339, 214, 160, 174),
         }
     )
+    # 锁定图标检测（格子内定位，位于圣遗物图标左上角）
+    lock_offset_x: int = 18  # 锁图标中心相对格子左边缘的水平偏移
+    lock_offset_y: int = 17  # 锁图标中心相对格子上边缘的垂直偏移
+    lock_sample_w: int = 1  # 锁检测采样宽度（单点）
+    lock_sample_h: int = 1  # 锁检测采样高度（单点）
+    lock_gray_threshold: int = 130  # 锁图标灰度阈值（实测#919191≈145，>此值认为已锁定）
     # 锁定图标锚点定位（用于兼容自定义圣遗物等 flex 布局变化）
     # 搜索区域默认从 TemplateManager 获取（templates.json），仅需覆盖时配置
     # 优先匹配解锁状态，失败再匹配锁定状态

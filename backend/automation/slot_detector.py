@@ -355,15 +355,26 @@ class SlotDetector:
                     color_rarity = ArtifactRarity.UNKNOWN
                     final_rarity = ArtifactRarity.UNKNOWN
 
+                # 格子坐标（窗口相对）
+                sx = offset_x + col_left
+                sy = offset_y + (row_bottom - config.slot_h)
+
+                # 锁定图标检测：锁位于圣遗物图标左上角，单点采样
+                lock_x = sx + config.lock_offset_x
+                lock_y = sy + config.lock_offset_y
+                lock_px = lock_x - offset_x
+                lock_py = lock_y - offset_y
+                lock_gray_mean = float(gray[lock_py, lock_px]) if 0 <= lock_px < gray.shape[1] and 0 <= lock_py < gray.shape[0] else 0.0
+                lock_pass = lock_gray_mean >= config.lock_gray_threshold
+
                 if star_pass and bar_pass:
-                    sx = offset_x + col_left
-                    sy = offset_y + (row_bottom - config.slot_h)
                     cx = sx + config.slot_w // 2
                     cy = sy + config.slot_h // 2
                     slots.append(SlotObject(
                         cx=cx, cy=cy, x=sx, y=sy, w=config.slot_w, h=config.slot_h,
                         rarity=final_rarity,
                         star_count=star_matches,
+                        locked=lock_pass,
                         row=r, col=c,
                     ))
 
@@ -389,6 +400,8 @@ class SlotDetector:
                     has_center_star=has_center_star,
                     star_matches=star_matches,
                     star_pass=star_pass,
+                    lock_x=lock_x, lock_y=lock_y,
+                    lock_gray_mean=lock_gray_mean, lock_pass=lock_pass,
                 ))
 
         bottom_y = offset_y + page_bottom_crop
@@ -504,6 +517,20 @@ class SlotDetector:
                             debug, (sx, info.star_sample_y), 3, (0, 215, 255), -1
                         )
 
+                    # 锁图标检测（蓝色=锁定，黄色=未锁，单像素点）
+                    lock_color = (255, 0, 0) if info.lock_pass else (0, 255, 255)
+                    if 0 <= info.lock_y < debug.shape[0] and 0 <= info.lock_x < debug.shape[1]:
+                        debug[info.lock_y, info.lock_x] = lock_color
+                    cv2.putText(
+                        debug,
+                        f"L{info.lock_gray_mean:.0f}",
+                        (info.lock_x + 8, info.lock_y + 4),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.3,
+                        lock_color,
+                        1,
+                    )
+
                     # 三特征值 + 投票（绿=通过 红=未通过）
                     vote_color = (0, 255, 0) if info.votes >= 1 else (0, 0, 255)
                     cv2.putText(
@@ -559,6 +586,7 @@ class SlotDetector:
                         f"G{info.card_gray:.0f} ({info.card_b},{info.card_g},{info.card_r}) "
                         f"H{info.hue_val:.0f} "
                         f"R{info.rarity}"
+                        f" {'LOCK' if info.lock_pass else 'UNLOCK'}"
                     )
 
         for i, slot in enumerate(slots):
