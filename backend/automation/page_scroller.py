@@ -45,8 +45,6 @@ class PageScroller:
 
     def scroll_to_next_page(
         self,
-        ox: int,
-        oy: int,
         flag_x: int,
         flag_y: int,
         tick_delay_ms: int = 80,
@@ -55,6 +53,7 @@ class PageScroller:
     ) -> bool:
         """截图 → 检测格子 → 计算滚动距离 → 执行滚动。
 
+        坐标均为窗口相对坐标，调用前需先设置 MouseController.set_window_helper。
         返回 True 表示已翻页，False 表示已是最后一页即无需翻页。
 
         fast=True 时一次发送所有滚轮 tick，跳过逐 tick 延迟，
@@ -78,11 +77,11 @@ class PageScroller:
         ticks = max(1, int(scroll_px / self._PX_PER_TICK))
 
         if fast:
-            self._mouse.move_to(ox + flag_x, oy + flag_y)
+            self._mouse.move_to(flag_x, flag_y)
             self._mouse.scroll(-ticks)
         else:
             for _ in range(ticks):
-                self._mouse.move_to(ox + flag_x, oy + flag_y)
+                self._mouse.move_to(flag_x, flag_y)
                 self._mouse.scroll_one_tick()
                 sleep(tick_delay_ms / 1000.0)
 
@@ -95,8 +94,6 @@ class PageScroller:
 
     def scroll_to_bottom(
         self,
-        ox: int,
-        oy: int,
         flag_x: int,
         flag_y: int,
         tick_delay_ms: int = 80,
@@ -116,8 +113,6 @@ class PageScroller:
         pages = 0
         while max_pages == 0 or pages < max_pages:
             if not self.scroll_to_next_page(
-                ox,
-                oy,
                 flag_x,
                 flag_y,
                 tick_delay_ms=tick_delay_ms,

@@ -94,12 +94,10 @@ Rectangle {
 
             GComboBox {
                 implicitWidth: 80
-                model: ["保留", "分解"]
-                currentIndex: DogfoodPresenter.defaultAction === "discard" ? 1 : 0
+                model: DogfoodPresenter.defaultActionLabels
+                currentIndex: DogfoodPresenter.defaultActionIndex
                 enabled: !DogfoodPresenter.running
-                onActivated: function(idx) {
-                    DogfoodPresenter.setDefaultAction(idx === 1 ? "discard" : "keep");
-                }
+                onActivated: DogfoodPresenter.selectDefaultAction(index)
             }
 
             Text {

@@ -74,3 +74,19 @@ class ArtifactUpdateAvailableError(RuntimeError):
     def __init__(self) -> None:
         super().__init__(self._MESSAGE)
         log.warning(self._MESSAGE)
+
+
+class LockIconNotFoundError(RuntimeError):
+    """锁定/解锁图标定位失败异常。
+
+    构造时自动完成 log + GMessageBox 弹窗，调用方只需 raise 即可。
+    """
+
+    _MESSAGE = "无法定位锁定/解锁图标，请确认游戏画面正常显示"
+
+    def __init__(self) -> None:
+        super().__init__(self._MESSAGE)
+        log.warning(self._MESSAGE)
+        from ui.gmessagebox import GMessageBox
+
+        GMessageBox.warning(self._MESSAGE)

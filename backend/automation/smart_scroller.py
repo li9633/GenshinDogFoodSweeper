@@ -109,11 +109,9 @@ class SmartScroller:
         Raises:
             RuntimeError: 校准失败
         """
-        ox, oy = self._win.get_origin()
-        if ox == 0 and oy == 0:
-            raise RuntimeError("校准失败: 未检测到原神窗口")
-
         self._win.focus()
+        MouseController.set_window_helper(self._win)
+
         roi = self._config.roi
         if roi is None:
             raise RuntimeError("校准失败: ROI 未配置")
@@ -129,7 +127,7 @@ class SmartScroller:
 
         # 滚动 1 tick
         rx, ry, rw, rh = roi
-        self._mouse.move_to(ox + rx + rw // 2, oy + ry + rh // 2)
+        self._mouse.move_to(rx + rw // 2, ry + rh // 2)
         self._mouse.scroll_one_tick()
         sleep(0.15)
 
@@ -189,19 +187,16 @@ class SmartScroller:
         if rows <= 0:
             return
 
-        ox, oy = self._win.get_origin()
-        if ox == 0 and oy == 0:
-            return
-
         total_px = rows * self._row_height
         ticks = max(1, int(np.ceil(total_px / self._pixels_per_scroll)))
 
         self._win.focus()
+        MouseController.set_window_helper(self._win)
         roi = self._config.roi
         if roi is None:
             return
         rx, ry, rw, rh = roi
-        self._mouse.move_to(ox + rx + rw // 2, oy + ry + rh // 2)
+        self._mouse.move_to(rx + rw // 2, ry + rh // 2)
 
         log.info(f"SmartScroller: 翻 {rows} 行 → {total_px}px → {ticks} ticks")
 

@@ -115,6 +115,15 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("DogfoodPresenter", DogfoodPresenter, [_wire_dogfood]))
 
+    # ---- LockerPresenter ----
+    from ui.presenters.locker_presenter import LockerPresenter
+
+    def _wire_locker(p: LockerPresenter) -> None:
+        HotkeyListener.instance().stopRequested.connect(p._on_hotkey_stop)
+        HotkeyListener.register_stop_callback(p._locker.stop)
+
+    registry.append(("LockerPresenter", LockerPresenter, [_wire_locker]))
+
     return registry
 
 

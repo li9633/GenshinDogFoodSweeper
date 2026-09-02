@@ -586,7 +586,7 @@ class RulePresenter(QObject):
         matched = engine.match(artifact, selected_rule)
 
         # 所有规则的最终判定
-        final_is_dogfood = engine.evaluate(artifact, self._rules)
+        final_action = engine.evaluate(artifact, self._rules)
 
         # 查询部位图标
         piece_icon = ""
@@ -607,7 +607,7 @@ class RulePresenter(QObject):
             "rule_action": selected_rule.action,
             "matched": matched,
             "detail": {},
-            "final_action": "discard" if final_is_dogfood else "keep",
+            "final_action": final_action,
             "artifact": {
                 "set_name": artifact.set_name or "未知",
                 "piece_icon": piece_icon,

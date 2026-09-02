@@ -315,7 +315,8 @@ class ArtifactDecomposer(QObject):
                     continue
 
                 # 规则评估
-                is_dogfood = engine.evaluate(artifact, rules)
+                action = engine.evaluate(artifact, rules)
+                is_dogfood = action == "discard"
                 t_eval = time.perf_counter()
 
                 # 计时统计
@@ -386,7 +387,7 @@ class ArtifactDecomposer(QObject):
             # 翻页
             flag_x = config.roi[0] + config.roi[2] + config.slider_x_offset + 5
             flag_y = config.roi[1] + config.roi[3] // 2
-            if not scroller.scroll_to_next_page(0, 0, flag_x, flag_y):
+            if not scroller.scroll_to_next_page(flag_x, flag_y):
                 log.info("已是最后一页")
                 break
 

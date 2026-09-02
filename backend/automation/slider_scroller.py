@@ -175,17 +175,17 @@ class SliderScroller:
 
         prev_y = initial_slider_y
         self._win.focus()
-        ox, oy = self._win.get_origin()
-        drag_x = ox + region_x + region_w // 2
+        MouseController.set_window_helper(self._win)
+        drag_x = region_x + region_w // 2
 
         window = self._capture.find_genshin_window()
-        window_bottom = (oy + window.height) if window else (oy + 1000)
+        window_bottom = window.height if window else 1000
         top_y = max(0, region_y - SliderDetector.MAX_SEARCH)
 
         log.info(f"到底验证: 开始, 初始滑块Y={prev_y}, 拖拽列X={drag_x}")
 
         for attempt in range(SliderDetector.VERIFY_MAX):
-            drag_from_y = oy + prev_y + region_h // 2
+            drag_from_y = prev_y + region_h // 2
             drag_to_y = min(
                 drag_from_y + SliderDetector.DRAG_DIST, window_bottom - 10
             )
@@ -251,15 +251,15 @@ class SliderScroller:
 
         prev_y = initial_slider_y
         self._win.focus()
-        ox, oy = self._win.get_origin()
-        drag_x = ox + region_x + region_w // 2
+        MouseController.set_window_helper(self._win)
+        drag_x = region_x + region_w // 2
 
         log.info(f"到顶验证: 开始, 初始滑块Y={prev_y}, 拖拽列X={drag_x}")
 
         for attempt in range(SliderDetector.VERIFY_MAX):
-            drag_from_y = oy + prev_y + region_h // 2
+            drag_from_y = prev_y + region_h // 2
             drag_to_y = max(
-                drag_from_y - SliderDetector.DRAG_DIST, oy + 10
+                drag_from_y - SliderDetector.DRAG_DIST, 10
             )
             self._mouse.drag(
                 drag_x, drag_from_y, drag_x, drag_to_y,
@@ -309,9 +309,9 @@ class SliderScroller:
         # 追加拖拽确保100%到顶
         log.info(f"到顶验证: 追加{SliderDetector.EXTRA_TICKS}次拖拽确保100%到顶")
         for _ in range(SliderDetector.EXTRA_TICKS):
-            drag_from_y = oy + prev_y + region_h // 2
+            drag_from_y = prev_y + region_h // 2
             drag_to_y = max(
-                drag_from_y - SliderDetector.DRAG_DIST // 2, oy + 10
+                drag_from_y - SliderDetector.DRAG_DIST // 2, 10
             )
             self._mouse.drag(
                 drag_x, drag_from_y, drag_x, drag_to_y,

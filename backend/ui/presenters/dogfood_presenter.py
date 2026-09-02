@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.logger import log
 from utils.settings_manager import settings
@@ -26,6 +28,8 @@ class DogfoodPresenter(QObject):
     maxDiscardCountChanged = Signal()
 
     MAX_RULE_SELECTION = 5
+
+    _ACTION_LABELS: ClassVar[list[str]] = ["保留", "分解"]
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -113,6 +117,18 @@ class DogfoodPresenter(QObject):
         self.selectedRuleNamesChanged.emit()
 
     # ========== 默认行为 ==========
+
+    @Property("QVariantList", constant=True)
+    def defaultActionLabels(self) -> list[str]:
+        return list(self._ACTION_LABELS)
+
+    @Property(int, notify=defaultActionChanged)
+    def defaultActionIndex(self) -> int:
+        return 0 if self._default_action == "keep" else 1
+
+    @Slot(int)
+    def selectDefaultAction(self, index: int) -> None:
+        self.setDefaultAction("keep" if index == 0 else "discard")
 
     def _load_default_action(self) -> None:
         self._default_action = settings.get("dogfood.default_action") or "keep"

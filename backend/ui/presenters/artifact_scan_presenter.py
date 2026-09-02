@@ -303,8 +303,8 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         self._batch_worker = BatchClickWorker(
             mouse=self._mouse,
             config=GridClickConfig(
-                origin_x=ox,
-                origin_y=oy,
+                origin_x=0,
+                origin_y=0,
                 margin_x=roi[0],
                 margin_y=roi[1],
                 item_w=cfg.slot_w,
@@ -359,8 +359,6 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
             return
         self._page_scroller.set_config(self._active_config)
         self._page_scroller.scroll_to_next_page(
-            ox,
-            oy,
             flag_x,
             flag_y,
             tick_delay_ms=scroll_delay_ms,
@@ -392,8 +390,6 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         )
         self._page_scroller.set_config(self._active_config)
         pages = self._page_scroller.scroll_to_bottom(
-            ox,
-            oy,
             flag_x,
             flag_y,
             tick_delay_ms=scroll_delay_ms,
@@ -914,13 +910,11 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
             return
 
         window = self._capture.find_genshin_window()
-        window_bottom = (oy + window.height) if window else (oy + 1000)
+        window_bottom = window.height if window else 1000
 
         self._scroll_to_bottom_worker = SmartScrollToBottomWorker(
             mouse=self._mouse,
             capture=self._capture,
-            ox=ox,
-            oy=oy,
             slot_config=self._active_config,
             initial_slider_y=slider_y,
             window_bottom=window_bottom,
@@ -980,15 +974,13 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
                 return
             region_x, _top_y, region_y, region_w, region_h = sr
             log.info(f"追加{SliderDetector.EXTRA_TICKS}次滚动确保100%到底")
-            ox, oy = self._window_origin()
-            if ox != 0 or oy != 0:
-                self._mouse.move_to(
-                    region_x + region_w // 2,
-                    region_y + region_h // 2,
-                )
-                for _ in range(SliderDetector.EXTRA_TICKS):
-                    self._mouse.scroll_one_tick()
-                    sleep(0.03)
+            self._mouse.move_to(
+                region_x + region_w // 2,
+                region_y + region_h // 2,
+            )
+            for _ in range(SliderDetector.EXTRA_TICKS):
+                self._mouse.scroll_one_tick()
+                sleep(0.03)
             log.info("颜色检测: 已确认到底，追加滚动完成")
 
     # ==================================================================

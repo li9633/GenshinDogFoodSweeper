@@ -175,8 +175,6 @@ class SmartScrollToBottomWorker(QThread):
         self,
         mouse: MouseController,
         capture: ScreenshotCapture,
-        ox: int,
-        oy: int,
         slot_config: SlotDetectorConfig,
         initial_slider_y: int,
         window_bottom: int,
@@ -184,13 +182,12 @@ class SmartScrollToBottomWorker(QThread):
         super().__init__()
         self._mouse = mouse
         self._capture = capture
-        self._ox = ox
-        self._oy = oy
         self._slot_config = slot_config
         self._initial_slider_y = initial_slider_y
         self._window_bottom = window_bottom
         self._stop = False
         self._win = WindowHelper(self._capture)
+        MouseController.set_window_helper(self._win)
         self._page_scroller = PageScroller(self._mouse, self._capture)
         self._slider_scroller = SliderScroller(
             self._mouse,
@@ -209,7 +206,7 @@ class SmartScrollToBottomWorker(QThread):
         slider_x, _slider_top, slider_bottom, slider_w, slider_h = sr
 
         window_bottom = self._window_bottom
-        drag_x = self._ox + slider_x + slider_w // 2
+        drag_x = slider_x + slider_w // 2
         mouse_total = (slider_bottom - self._initial_slider_y) * 4
         chunks = 3
         chunk = mouse_total // chunks
@@ -218,7 +215,7 @@ class SmartScrollToBottomWorker(QThread):
         for i in range(chunks):
             if self._stop:
                 return
-            drag_from_y = self._oy + prev_y + slider_h // 2
+            drag_from_y = prev_y + slider_h // 2
             drag_to_y = min(drag_from_y + chunk, window_bottom - 10)
             self._mouse.drag(
                 drag_x,
@@ -256,9 +253,7 @@ class SmartScrollToBottomWorker(QThread):
         if confirmed is not None:
             prev_y = confirmed
 
-        abs_x = self._ox + slider_x + slider_w // 2
-        abs_y = self._oy + slider_bottom + slider_h // 2
-        self._mouse.move_to(abs_x, abs_y)
+        self._mouse.move_to(slider_x + slider_w // 2, slider_bottom + slider_h // 2)
         for _ in range(SliderDetector.EXTRA_TICKS):
             if self._stop:
                 return
@@ -358,9 +353,10 @@ class FullScanWorker(QThread):
 
     def run(self) -> None:
         try:
-            # Step 0: 聚焦游戏窗口
+            # Step 0: 聚焦游戏窗口 + 注入坐标转换
             self.stepChanged.emit("正在聚焦游戏窗口...")
             self._win.focus()
+            MouseController.set_window_helper(self._win)
 
             self.stepChanged.emit("正在初始化 OCR 引擎...")
             from backend.automation.ocr_engine import OcrEngine
@@ -476,7 +472,6 @@ class FullScanWorker(QThread):
             # Step 7-8: 逐页扫描
             self._results = []
             scan_start_time = perf_counter()
-            ox, oy = self._win.get_origin()
 
             effective_count = count
             if self._stop_mode == "fixed_count":
@@ -487,8 +482,8 @@ class FullScanWorker(QThread):
                     effective_count = fixed_count
 
             grid_config = GridClickConfig(
-                origin_x=ox,
-                origin_y=oy,
+                origin_x=0,
+                origin_y=0,
                 margin_x=self._margin_x,
                 margin_y=self._margin_y,
                 item_w=self._item_w,
@@ -727,7 +722,6 @@ class FullScanWorker(QThread):
         slider_x, slider_top, slider_bottom, slider_w, slider_h = sr
 
         self._win.focus()
-        ox, oy = self._win.get_origin()
         result = self._capture.capture()
         if result is None:
             return None
@@ -765,8 +759,8 @@ class FullScanWorker(QThread):
             return slider_y
 
         window = self._capture.find_genshin_window()
-        window_bottom = (oy + window.height) if window else (oy + 1000)
-        drag_x = ox + slider_x + slider_w // 2
+        window_bottom = window.height if window else 1000
+        drag_x = slider_x + slider_w // 2
         mouse_total = slider_total * 4
         chunks = 3
         chunk = mouse_total // chunks
@@ -775,7 +769,7 @@ class FullScanWorker(QThread):
         for _ in range(chunks):
             if self._stop:
                 return None
-            drag_from_y = oy + prev_y + slider_h // 2
+            drag_from_y = prev_y + slider_h // 2
             drag_to_y = min(drag_from_y + chunk, window_bottom - 10)
             self._mouse.drag(
                 drag_x,
@@ -811,9 +805,7 @@ class FullScanWorker(QThread):
         if confirmed is not None:
             prev_y = confirmed
 
-        abs_x = ox + slider_x + slider_w // 2
-        abs_y = oy + slider_bottom + slider_h // 2
-        self._mouse.move_to(abs_x, abs_y)
+        self._mouse.move_to(slider_x + slider_w // 2, slider_bottom + slider_h // 2)
         for _ in range(SliderDetector.EXTRA_TICKS):
             if self._stop:
                 return None
@@ -827,8 +819,7 @@ class FullScanWorker(QThread):
     def _click_and_recognize_artifact(
         self, cx: int, cy: int, ocr
     ) -> ArtifactInfo | None:
-        ox, oy = self._win.get_origin()
-        self._mouse.move_and_click(ox + cx, oy + cy)
+        self._mouse.move_and_click(cx, cy)
         return self._recognize_current_artifact(ocr)
 
     def _recognize_current_artifact(self, ocr) -> ArtifactInfo | None:
@@ -853,10 +844,7 @@ class FullScanWorker(QThread):
     # ========== 翻页 ==========
 
     def _scroll_one_page(self) -> None:
-        ox, oy = self._win.get_origin()
         self._page_scroller.scroll_to_next_page(
-            ox,
-            oy,
             self._scroll_flag_x,
             self._scroll_flag_y,
             self._tick_delay_ms,

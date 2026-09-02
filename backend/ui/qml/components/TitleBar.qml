@@ -132,7 +132,7 @@ Rectangle {
 
         MenuItem {
             text: "还原"
-            enabled: TitleBarPresenter.maximized
+            enabled: TitleBarPresenter.maximized === true
             onTriggered: TitleBarPresenter.toggleMaximize()
         }
         MenuItem {
@@ -149,7 +149,7 @@ Rectangle {
         }
         MenuItem {
             text: "最大化"
-            enabled: !TitleBarPresenter.maximized
+            enabled: TitleBarPresenter.maximized !== true
             onTriggered: TitleBarPresenter.toggleMaximize()
         }
         MenuSeparator {

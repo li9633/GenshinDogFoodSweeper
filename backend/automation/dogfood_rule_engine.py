@@ -91,10 +91,11 @@ class DogfoodRuleEngine:
         log.info(f"  ✓ 规则命中 [{rule.name}] → {rule.action}")
         return True
 
-    def evaluate(self, artifact: ArtifactInfo, rules: list[DogfoodRule]) -> bool:
-        """返回 True=狗粮，按优先级评估，命中即停。
+    def evaluate(self, artifact: ArtifactInfo, rules: list[DogfoodRule]) -> str:
+        """返回操作建议: "keep" 或 "discard"，按优先级评估，命中即停。
 
         所有传入的规则均视为已激活（启用由调用方通过规则选择控制）。
+        调用方自行解读结果：分解场景 "discard"=选中, 锁定场景 "keep"=锁定。
         """
         active = sorted(rules, key=lambda r: r.priority, reverse=True)
         log.debug(
@@ -106,8 +107,7 @@ class DogfoodRuleEngine:
         for i, rule in enumerate(active):
             log.debug(f"[评估] 尝试规则 {i + 1}/{len(active)}: [{rule.name}]")
             if self.match(artifact, rule):
-                result = rule.action == "discard"
                 log.info(f"[评估结果] → {rule.action} (命中规则: {rule.name})")
-                return result
+                return rule.action
         log.info(f"[评估结果] → {self.DEFAULT_ACTION} (未命中任何规则，走默认行为)")
-        return self.DEFAULT_ACTION == "discard"
+        return self.DEFAULT_ACTION
