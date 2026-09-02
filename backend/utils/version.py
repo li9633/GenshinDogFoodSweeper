@@ -35,19 +35,6 @@ class Channel(Enum):
         }
         return _labels[self]
 
-
-# ---- 版本号 ----
-
-# 主版本号
-_VERSION_MAJOR = 0
-
-# 次版本号
-_VERSION_MINOR = 9
-
-# 修订版本号
-_VERSION_PATCH = 1
-
-
 def _detect_latest_channel_num(channel: str) -> int:
     """从 dist/ 目录检测同渠道已构建的最大迭代号，无产物则返回 0。"""
     from pathlib import Path
@@ -83,9 +70,12 @@ class AppVersion:
     修改版本号只需改这里，全局生效。
     """
 
-    MAJOR: int = _VERSION_MAJOR
-    MINOR: int = _VERSION_MINOR
-    PATCH: int = _VERSION_PATCH
+    # 主版本号
+    MAJOR: int = 0
+    # 次版本号
+    MINOR: int = 9
+    # 修订版本号
+    PATCH: int = 3
     CHANNEL: Channel = _CHANNEL
     CHANNEL_NUM: int = _CHANNEL_NUM
 

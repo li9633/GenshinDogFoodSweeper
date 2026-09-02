@@ -29,6 +29,14 @@ QtObject {
     readonly property string chevronDown:    "\uf078"   // fa-chevron-down
     readonly property string chevronRight:   "\uf054"   // fa-chevron-right
 
+    // -- 窗口控制 --
+    readonly property string circleHalfStroke: "\uf042"   // fa-circle-half-stroke（主题切换）
+    readonly property string minus:          "\uf068"   // fa-minus（最小化）
+    readonly property string anglesDown:     "\uf103"   // fa-angles-down（托盘）
+    readonly property string windowMinimize: "\uf2d1"   // fa-window-minimize
+    readonly property string windowMaximize: "\uf2d0"   // fa-window-maximize
+    readonly property string windowRestore:  "\uf2d2"   // fa-window-restore
+
     // -- 设置页 --
     readonly property string palette:        "\uf53f"   // fa-palette
     readonly property string arrowsRotate:   "\uf021"   // fa-arrows-rotate

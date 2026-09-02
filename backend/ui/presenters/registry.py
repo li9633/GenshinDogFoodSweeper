@@ -91,6 +91,11 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("GameDetector", GameDetector, []))
 
+    # ---- TitleBar ----
+    from ui.presenters.title_bar_presenter import TitleBarPresenter
+
+    registry.append(("TitleBarPresenter", TitleBarPresenter, []))
+
     # ---- VersionCheck ----
     from ui.presenters.version_check_presenter import VersionCheckPresenter
 
