@@ -36,10 +36,16 @@ class Channel(Enum):
         return _labels[self]
 
 
-# ---- 默认版本号（开发时使用）----
+# ---- 版本号 ----
+
+# 主版本号
 _VERSION_MAJOR = 0
+
+# 次版本号
 _VERSION_MINOR = 9
-_VERSION_PATCH = 0
+
+# 修订版本号
+_VERSION_PATCH = 1
 
 
 def _detect_latest_channel_num(channel: str) -> int:

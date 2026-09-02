@@ -12,7 +12,6 @@ from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
 from backend.automation.window_helper import WindowHelper
-from backend.utils.screen_capture import ScreenshotCapture
 
 
 class InputDebugPresenter(QObject):
@@ -22,8 +21,7 @@ class InputDebugPresenter(QObject):
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._capture = ScreenshotCapture()
-        self._win = WindowHelper(self._capture)
+        self._win = WindowHelper()
         MouseController.set_window_helper(self._win)
 
         self._win_origin_x = 0
@@ -39,13 +37,18 @@ class InputDebugPresenter(QObject):
         self._refresh_window_info()
 
     def _refresh_window_info(self) -> None:
-        """刷新窗口信息（原点、句柄）"""
-        try:
-            ox, oy = self._win.get_origin()
-            hwnd = self._win.get_hwnd() or 0
-        except Exception:
-            ox, oy = 0, 0
-            hwnd = 0
+        """刷新窗口信息（原点、句柄），窗口不存在时重置为零"""
+        info = self._win.get_window_info()
+        if info is None:
+            if self._win_origin_x != 0 or self._win_origin_y != 0:
+                self._win_origin_x = 0
+                self._win_origin_y = 0
+                self._win_hwnd = 0
+                self.windowInfoChanged.emit()
+            return
+
+        ox, oy = info.left, info.top
+        hwnd = info.hwnd or 0
 
         changed = False
         if ox != self._win_origin_x or oy != self._win_origin_y:
@@ -97,9 +100,9 @@ class InputDebugPresenter(QObject):
         """聚焦原神窗口"""
         try:
             ok = self._win.focus()
-            log.info(f"[InputDebug] 聚焦窗口: {'成功' if ok else '失败'}")
+            log.info(f"聚焦窗口: {'成功' if ok else '失败'}")
         except Exception as e:
-            log.warning(f"[InputDebug] 聚焦窗口异常: {e}")
+            log.warning(f"聚焦窗口异常: {e}")
 
     @Slot()
     def refreshWindowInfo(self) -> None:
@@ -113,7 +116,7 @@ class InputDebugPresenter(QObject):
         """移动鼠标到窗口相对坐标 (x, y)，MouseController 自动转换为屏幕绝对坐标"""
         ok = MouseController.move_to(x, y)
         if not ok:
-            log.warning(f"[InputDebug] 移动失败: ({x}, {y})")
+            log.warning(f"移动失败: ({x}, {y})")
 
     @Slot()
     def click(self) -> None:

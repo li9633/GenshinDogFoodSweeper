@@ -13,7 +13,7 @@ import time
 from utils.logger import log
 
 from backend.exceptions.automation import GameWindowNotFoundError
-from backend.utils.screen_capture import ScreenshotCapture
+from backend.utils.screen_capture import ScreenshotCapture, WindowInfo
 
 
 class WindowHelper:
@@ -24,8 +24,18 @@ class WindowHelper:
 
     # ---- 窗口查找 ----
 
+    def get_window_info(self) -> WindowInfo | None:
+        """获取窗口完整信息，窗口不存在时返回 None（不抛异常）
+
+        适用于轮询 / 调试面板等需要容忍窗口不存在的场景。
+        """
+        return self._capture.find_genshin_window()
+
     def get_origin(self) -> tuple[int, int]:
-        """获取原神窗口左上角屏幕坐标"""
+        """获取原神窗口左上角屏幕坐标，窗口不存在时抛异常
+
+        适用于分解流程等必须窗口存在的场景。
+        """
         window = self._capture.find_genshin_window()
         if window is None:
             raise GameWindowNotFoundError(
