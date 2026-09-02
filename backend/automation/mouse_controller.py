@@ -13,8 +13,6 @@ from ctypes import wintypes
 
 from utils.logger import log
 
-from backend.automation.window_helper import WindowHelper
-
 # Win32 API 常量
 INPUT_MOUSE = 0
 MOUSEEVENTF_MOVE = 0x0001
@@ -61,12 +59,19 @@ class MouseController:
     # 点击间隔常量（秒）
     CLICK_DOWN_UP_DELAY = 0.01  # 按下到释放间隔
 
-    _window_helper: WindowHelper | None = None  # 由外部注入
+    _origin: tuple[int, int] | None = None  # 窗口原点，由外部设置
 
     @classmethod
-    def set_window_helper(cls, helper: WindowHelper) -> None:
-        """注入 WindowHelper，此后所有坐标视为窗口相对坐标"""
-        cls._window_helper = helper
+    def set_origin(cls, origin: tuple[int, int] | None) -> None:
+        """设置窗口原点（屏幕坐标），此后 move_to 的坐标视为窗口相对坐标。
+
+        传入 None 则关闭坐标转换。
+        推荐从 CaptureResult.window_origin 获取，确保与截图一致：
+            MouseController.set_origin(result.window_origin)
+        也可从 WindowHelper 获取：
+            MouseController.set_origin(WindowHelper.get_origin())
+        """
+        cls._origin = origin
 
     @staticmethod
     def is_admin() -> bool:
@@ -95,9 +100,9 @@ class MouseController:
         """
         try:
             rel_x, rel_y = x, y  # 保存原始窗口相对坐标
-            helper = MouseController._window_helper
-            if helper is not None:
-                ox, oy = helper.get_origin()
+            origin = MouseController._origin
+            if origin is not None:
+                ox, oy = origin
                 x += ox
                 y += oy
 
@@ -120,7 +125,7 @@ class MouseController:
             if result == 0:
                 log.warning(f"SendInput 移动失败: ({x}, {y})")
                 return False
-            if helper is not None:
+            if origin is not None:
                 log.debug(
                     f"鼠标移动: 窗口相对({rel_x}, {rel_y}) → 屏幕绝对({x}, {y})"
                 )
@@ -142,9 +147,9 @@ class MouseController:
             pt = wintypes.POINT()
             ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
 
-            helper = MouseController._window_helper
-            if helper is not None:
-                ox, oy = helper.get_origin()
+            origin = MouseController._origin
+            if origin is not None:
+                ox, oy = origin
                 log.debug(f"鼠标点击: 屏幕绝对({pt.x}, {pt.y}) 窗口相对({pt.x - ox}, {pt.y - oy})")
             else:
                 log.debug(f"鼠标点击: 屏幕绝对({pt.x}, {pt.y})")

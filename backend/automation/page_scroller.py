@@ -10,6 +10,7 @@ from backend.automation.slot_detector import (
     SlotDetector,
     SlotDetectorConfig,
 )
+from backend.automation.window_helper import WindowHelper, WindowInfo
 from backend.utils.screen_capture import ScreenshotCapture
 
 
@@ -30,10 +31,12 @@ class PageScroller:
         mouse: MouseController,
         capture: ScreenshotCapture,
         config: SlotDetectorConfig = BAG_SLOT_CONFIG,
+        window: WindowInfo | None = None,
     ) -> None:
         self._mouse = mouse
         self._capture = capture
         self._config = config
+        self._window = window
 
     def set_config(self, config: SlotDetectorConfig) -> None:
         """运行时切换格子检测配置（调试面板切换页面时使用）。"""
@@ -53,13 +56,14 @@ class PageScroller:
     ) -> bool:
         """截图 → 检测格子 → 计算滚动距离 → 执行滚动。
 
-        坐标均为窗口相对坐标，调用前需先设置 MouseController.set_window_helper。
+        坐标均为窗口相对坐标，调用前需先设置 MouseController.set_origin。
         返回 True 表示已翻页，False 表示已是最后一页即无需翻页。
 
         fast=True 时一次发送所有滚轮 tick，跳过逐 tick 延迟，
         适合快速跳转多页场景。
         """
-        result = self._capture.capture()
+        window = self._window or WindowHelper.find_genshin_window()
+        result = self._capture.capture(window=window)
         if result is None:
             return False
 
@@ -135,7 +139,8 @@ class PageScroller:
 
         用于调试面板的预览显示。
         """
-        result = self._capture.capture()
+        window = self._window or WindowHelper.find_genshin_window()
+        result = self._capture.capture(window=window)
         if result is None:
             return None
         det_result = SlotDetector.detect(result.image, config=self._config)

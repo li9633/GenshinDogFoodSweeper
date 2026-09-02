@@ -16,6 +16,7 @@ from utils.logger import log
 from backend.automation.mouse_controller import MouseController
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slot_detector import SlotDetectorConfig
+from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import ScreenshotCapture
 
 
@@ -29,13 +30,11 @@ class SliderScroller:
         self,
         mouse: MouseController,
         capture: ScreenshotCapture,
-        window_helper,
         config: SlotDetectorConfig,
         debug_callback: Callable[..., None] | None = None,
     ):
         self._mouse = mouse
         self._capture = capture
-        self._win = window_helper
         self._config = config
         self._debug_cb = debug_callback or (lambda *a, **kw: None)
 
@@ -76,7 +75,8 @@ class SliderScroller:
             return None
         region_x, top_y, bottom_y, region_w, region_h = sr
 
-        result = self._capture.capture()
+        window = WindowHelper.find_genshin_window()
+        result = self._capture.capture(window=window)
 
         slider_y, best_ratio, best_y, _ = SliderDetector.find_slider(
             result.image, region_x, top_y, bottom_y, region_w, region_h
@@ -119,7 +119,8 @@ class SliderScroller:
             return (None, False)
         region_x, _top_y, region_y, region_w, region_h = sr
 
-        result = self._capture.capture()
+        window = WindowHelper.find_genshin_window()
+        result = self._capture.capture(window=window)
 
         img = result.image
         top_y = max(0, region_y - SliderDetector.MAX_SEARCH)
@@ -174,12 +175,12 @@ class SliderScroller:
         region_x, _top_y, region_y, region_w, region_h = sr
 
         prev_y = initial_slider_y
-        self._win.focus()
-        MouseController.set_window_helper(self._win)
+        WindowHelper.focus()
+        MouseController.set_origin(WindowHelper.get_origin())
         drag_x = region_x + region_w // 2
 
-        window = self._capture.find_genshin_window()
-        window_bottom = window.height if window else 1000
+        win = WindowHelper.find_genshin_window()
+        window_bottom = win.height if win else 1000
         top_y = max(0, region_y - SliderDetector.MAX_SEARCH)
 
         log.info(f"到底验证: 开始, 初始滑块Y={prev_y}, 拖拽列X={drag_x}")
@@ -195,7 +196,7 @@ class SliderScroller:
             )
             sleep(0.15)
 
-            result = self._capture.capture()
+            result = self._capture.capture(window=win)
 
             current_y, best_ratio, best_y, _ = SliderDetector.find_slider(
                 result.image, region_x, top_y, region_y, region_w, region_h,
@@ -250,8 +251,8 @@ class SliderScroller:
         region_x, top_y, bottom_y, region_w, region_h = sr
 
         prev_y = initial_slider_y
-        self._win.focus()
-        MouseController.set_window_helper(self._win)
+        WindowHelper.focus()
+        MouseController.set_origin(WindowHelper.get_origin())
         drag_x = region_x + region_w // 2
 
         log.info(f"到顶验证: 开始, 初始滑块Y={prev_y}, 拖拽列X={drag_x}")
@@ -267,7 +268,8 @@ class SliderScroller:
             )
             sleep(0.15)
 
-            result = self._capture.capture()
+            win = WindowHelper.find_genshin_window()
+            result = self._capture.capture(window=win)
 
             current_y, best_ratio, best_y, _ = SliderDetector.find_slider(
                 result.image, region_x, top_y, bottom_y, region_w, region_h

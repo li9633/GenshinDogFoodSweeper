@@ -15,6 +15,7 @@ from utils.logger import log
 
 from backend.automation.color_sampler import sample_roi_color
 from backend.automation.template_manager import TemplateManager
+from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
 
 from .image_provider import PreviewImageProvider
@@ -217,7 +218,8 @@ class RegionMarkerPresenter(QObject):
 # ========== 纯业务方法（保留原有静态方法兼容性） ==========
 
 def _capture() -> CaptureResult:
-    return ScreenshotCapture().capture()
+    window = WindowHelper.find_genshin_window()
+    return ScreenshotCapture().capture(window=window)
 
 
 def _mark_region(

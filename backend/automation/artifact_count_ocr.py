@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 
+from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import ScreenshotCapture
 
 
@@ -21,7 +22,8 @@ def ocr_artifact_count(capture: ScreenshotCapture, ocr) -> int:
     Returns:
         圣遗物数量，失败返回 0
     """
-    result = capture.capture()
+    window = WindowHelper.find_genshin_window()
+    result = capture.capture(window=window)
     if result is None:
         return 0
     img = result.image

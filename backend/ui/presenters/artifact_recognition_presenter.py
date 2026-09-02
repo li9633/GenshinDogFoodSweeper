@@ -18,6 +18,7 @@ from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 from utils.logger import log
 
 from backend.automation.recognizer import ArtifactRecognizer
+from backend.automation.window_helper import WindowHelper
 from backend.models.slot_models import ALL_SLOT_CONFIGS, SlotDetectorConfig
 from backend.utils.screen_capture import CaptureMethod, CaptureResult, ScreenshotCapture
 
@@ -117,7 +118,8 @@ class ArtifactRecognitionPresenter(QObject):
 
             t_capture = time.perf_counter()
             cap = ScreenshotCapture()
-            self._current_result = cap.capture()
+            window = WindowHelper.find_genshin_window()
+            self._current_result = cap.capture(window=window)
             log.debug(
                 f"[耗时] 截图捕获: {(time.perf_counter() - t_capture) * 1000:.1f}ms "
                 f"(尺寸{self._current_result.width}x{self._current_result.height})"

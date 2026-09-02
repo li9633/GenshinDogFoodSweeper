@@ -103,8 +103,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     def on_window_ready(self) -> None:
         """窗口就绪后初始化（OCR Worker 由 OcrInitializer 统一管理）"""
         self._capture = ScreenshotCapture()
-        self._win_helper = WindowHelper(self._capture)
-        MouseController.set_window_helper(self._win_helper)
+        MouseController.set_origin(WindowHelper.get_origin())
 
         self._available_configs = ALL_SLOT_CONFIGS
         self._active_config = BAG_SLOT_CONFIG
@@ -113,7 +112,6 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         self._slider_scroller = SliderScroller(
             self._mouse,
             self._capture,
-            self._win_helper,
             self._active_config,
             debug_callback=self._emit_slider_debug,
         )
@@ -186,7 +184,6 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
             self._smart_scroller = SmartScroller(
                 self._capture,
                 self._mouse,
-                self._win_helper,
                 slider=self._slider_scroller,
                 config=self._active_config,
             )
@@ -195,9 +192,6 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     # ==================================================================
     # 内部工具
     # ==================================================================
-
-    def _window_origin(self) -> tuple[int, int]:
-        return self._win_helper.get_origin()
 
     # 操作参数（供 QML 展示，暂不开放修改）
 
@@ -292,7 +286,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         """批量点击：参数从当前 SlotDetectorConfig 读取"""
         if self._batch_running:
             return
-        ox, oy = self._window_origin()
+        ox, oy = WindowHelper.get_origin()
         if ox == 0 and oy == 0:
             log.warning("未检测到原神窗口")
             return
@@ -315,7 +309,6 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
                 interval_ms=self._batch_click_interval,
                 auto_focus=True,
             ),
-            win=self._win_helper,
         )
         self._batch_worker.progress.connect(self._on_batch_progress)
         self._batch_worker.finished.connect(self._on_batch_finished)
@@ -352,8 +345,8 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         self, flag_x: int, flag_y: int, scroll_delay_ms: int = 80
     ) -> None:
         """格子翻页：截图 → 检测 → 计算 → 滚动，全部委托 PageScroller。"""
-        self._win_helper.focus()
-        ox, oy = self._window_origin()
+        WindowHelper.focus()
+        ox, oy = WindowHelper.get_origin()
         if ox == 0 and oy == 0:
             log.warning("未检测到原神窗口")
             return
@@ -370,8 +363,8 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         self, flag_x: int, flag_y: int, scroll_delay_ms: int = 80
     ) -> None:
         """自动翻到底：OCR 识别数量 → 计算总页数 → 循环 截图→检测→滚动。"""
-        self._win_helper.focus()
-        ox, oy = self._window_origin()
+        WindowHelper.focus()
+        ox, oy = WindowHelper.get_origin()
         if ox == 0 and oy == 0:
             log.warning("未检测到原神窗口")
             return
@@ -534,7 +527,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     @Slot()
     def recognizeFirstAnchor(self) -> None:
         """识别首锚点：截图 → 格子检测 → 取第一个格子 → 点击 → OCR"""
-        result = self._capture.capture()
+        result = self._capture.capture(window=WindowHelper.find_genshin_window())
         if result is None:
             log.warning("首锚点识别: 截图失败")
             return
@@ -578,7 +571,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     @Slot()
     def recognizeLastAnchor(self) -> None:
         """识别尾锚点：截图 → 格子检测 → 取最后一个格子 → 点击 → OCR → 计算页数"""
-        result = self._capture.capture()
+        result = self._capture.capture(window=WindowHelper.find_genshin_window())
         if result is None:
             log.warning("尾锚点识别: 截图失败")
             return
@@ -620,11 +613,11 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     ) -> None:
         """点击锚点物品 → 延迟等待详情面板 → 截图 → 提交OCR任务"""
         self._connect_anchor_ocr_worker()
-        self._win_helper.focus()
+        WindowHelper.focus()
         self._mouse.move_and_click(cx, cy)
 
         def _capture_and_ocr() -> None:
-            result = self._capture.capture()
+            result = self._capture.capture(window=WindowHelper.find_genshin_window())
             if result is None:
                 log.warning(f"锚点识别({anchor_type}): 截图失败")
                 return
@@ -724,7 +717,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         if self._full_scan_running:
             log.warning("全量扫描已在运行中")
             return
-        ox, oy = self._window_origin()
+        ox, oy = WindowHelper.get_origin()
         if ox == 0 and oy == 0:
             log.warning("未检测到原神窗口")
             return
@@ -895,12 +888,12 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         ):
             return
 
-        ox, oy = self._window_origin()
+        ox, oy = WindowHelper.get_origin()
         if ox == 0 and oy == 0:
             log.warning("未检测到原神窗口")
             return
 
-        result = self._capture.capture()
+        result = self._capture.capture(window=WindowHelper.find_genshin_window())
         if result is None:
             log.warning("截图失败")
             return
@@ -909,7 +902,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         if slider_y is None:
             return
 
-        window = self._capture.find_genshin_window()
+        window = WindowHelper.find_genshin_window()
         window_bottom = window.height if window else 1000
 
         self._scroll_to_bottom_worker = SmartScrollToBottomWorker(
@@ -931,7 +924,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     @Slot(int)
     def _on_smart_scroll_final_slider_y(self, slider_y: int) -> None:
         """智能拖拽完成后，根据格子检测定位尾锚点（最后一页最后一个物品）"""
-        result = self._capture.capture()
+        result = self._capture.capture(window=WindowHelper.find_genshin_window())
         if result is None:
             log.warning("尾锚点定位: 截图失败")
             return
@@ -1020,7 +1013,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     @Slot()
     def captureGrayscalePreview(self) -> None:
         """截图并以灰度图显示在预览窗口中 — 委托 DebugPreview"""
-        result = self._capture.capture()
+        result = self._capture.capture(window=WindowHelper.find_genshin_window())
         if result is None:
             log.warning("灰度截图: 无法捕获原神窗口")
             return
@@ -1043,12 +1036,12 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
             return
         rx, ry, rw, rh = roi
 
-        ox, oy = self._window_origin()
+        ox, oy = WindowHelper.get_origin()
         if ox == 0 and oy == 0:
             log.warning("定位失败: 未检测到原神窗口")
             return
 
-        self._win_helper.focus()
+        WindowHelper.focus()
 
         sc = self._get_smart_scroller()
 
@@ -1070,7 +1063,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         sc.scroll_rows(total_rows)
 
         # 6. 截图 + 格子检测 → 点击
-        result = self._capture.capture()
+        result = self._capture.capture(window=WindowHelper.find_genshin_window())
         if result is None:
             log.warning("定位失败: 无法捕获截图")
             return
@@ -1093,7 +1086,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     @Slot()
     def detectSlots(self) -> None:
         """截图并检测圣遗物格子，使用当前选中配置，生成调试预览图"""
-        result = self._capture.capture()
+        result = self._capture.capture(window=WindowHelper.find_genshin_window())
         if result is None:
             log.warning("格子检测: 无法捕获原神窗口")
             return
@@ -1197,7 +1190,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
     @Slot()
     def smartMeasureRowHeight(self) -> None:
         """在顶部检测行高，生成预览图 — 委托 SlotDetector"""
-        result = self._capture.capture()
+        result = self._capture.capture(window=WindowHelper.find_genshin_window())
         if result is None:
             log.warning("SmartScroll 行高测量: 截图失败")
             return

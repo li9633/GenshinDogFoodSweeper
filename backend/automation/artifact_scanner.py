@@ -60,7 +60,6 @@ def run_grid_click(
     on_progress: Callable[[int, int], None] | None = None,
     stop_check: Callable[[], bool] | None = None,
     pre_check: Callable[[int, int], bool] | None = None,
-    win: WindowHelper | None = None,
 ) -> None:
     """同步网格点击 — QThread 无关的纯逻辑函数。
 
@@ -71,10 +70,9 @@ def run_grid_click(
         on_progress: 进度回调 (idx, total)
         stop_check: 停止检查回调 () -> bool，返回 True 则停止
         pre_check: 点击前检查 (row, col) -> bool，返回 False 则跳过该格子
-        win: 窗口助手，config.auto_focus=True 时用于聚焦窗口
     """
-    if config.auto_focus and win:
-        win.focus()
+    if config.auto_focus:
+        WindowHelper.focus()
 
     total = config.rows * config.cols
 
@@ -128,13 +126,11 @@ class BatchClickWorker(QThread):
         mouse: MouseController,
         config: GridClickConfig,
         on_click: Callable[[int, int, int, int, int, int], bool] | None = None,
-        win: WindowHelper | None = None,
     ):
         super().__init__()
         self._mouse = mouse
         self._config = config
         self._on_click = on_click
-        self._win = win
         self._stop = False
 
     def stop(self) -> None:
@@ -147,7 +143,6 @@ class BatchClickWorker(QThread):
             on_click=self._on_click,
             on_progress=lambda idx, total: self.progress.emit(idx, total),
             stop_check=lambda: self._stop,
-            win=self._win,
         )
         self.finished.emit()
 
@@ -186,13 +181,11 @@ class SmartScrollToBottomWorker(QThread):
         self._initial_slider_y = initial_slider_y
         self._window_bottom = window_bottom
         self._stop = False
-        self._win = WindowHelper(self._capture)
-        MouseController.set_window_helper(self._win)
+        MouseController.set_origin(WindowHelper.get_origin())
         self._page_scroller = PageScroller(self._mouse, self._capture)
         self._slider_scroller = SliderScroller(
             self._mouse,
             self._capture,
-            self._win,
             self._slot_config,
         )
 
@@ -227,7 +220,8 @@ class SmartScrollToBottomWorker(QThread):
             )
             sleep(0.2)
 
-            result = self._capture.capture()
+            window = WindowHelper.find_genshin_window()
+            result = self._capture.capture(window=window)
             if result is None:
                 continue
             current_y, _, _, _ = SliderDetector.find_slider(
@@ -334,11 +328,9 @@ class FullScanWorker(QThread):
         self._results: list[ArtifactInfo] = []
         self._tail_info: ArtifactInfo | None = None
         self._tail_is_material: bool = False
-        self._win = WindowHelper(self._capture)
         self._slider_scroller = SliderScroller(
             self._mouse,
             self._capture,
-            self._win,
             self._slot_config,
         )
         self._page_scroller: PageScroller = PageScroller(self._mouse, self._capture)
@@ -355,8 +347,8 @@ class FullScanWorker(QThread):
         try:
             # Step 0: 聚焦游戏窗口 + 注入坐标转换
             self.stepChanged.emit("正在聚焦游戏窗口...")
-            self._win.focus()
-            MouseController.set_window_helper(self._win)
+            WindowHelper.focus()
+            MouseController.set_origin(WindowHelper.get_origin())
 
             self.stepChanged.emit("正在初始化 OCR 引擎...")
             from backend.automation.ocr_engine import OcrEngine
@@ -430,7 +422,8 @@ class FullScanWorker(QThread):
                     return
 
                 self.stepChanged.emit("正在定位尾锚点...")
-                result = self._capture.capture()
+                window = WindowHelper.find_genshin_window()
+                result = self._capture.capture(window=window)
                 if result is None:
                     self.errorOccurred.emit("截图失败")
                     return
@@ -513,7 +506,7 @@ class FullScanWorker(QThread):
                     row,
                     col,
                 )
-                screenshot = self._capture.capture()
+                screenshot = self._capture.capture(window=window)
                 if screenshot and AnchorLocator.is_empty_slot(cx, cy, screenshot.image):
                     return True
                 info = self._recognize_current_artifact(ocr)
@@ -647,7 +640,7 @@ class FullScanWorker(QThread):
                 # 仅五星模式：每页扫描前检测格子星级，跳过非五星格子
                 stop_mode = settings.get("scan.stop_mode")
                 if stop_mode == "five_star_only":
-                    screenshot = self._capture.capture()
+                    screenshot = self._capture.capture(window=window)
                     if screenshot:
                         det = SlotDetector.detect(
                             screenshot.image, config=self._slot_config
@@ -703,7 +696,7 @@ class FullScanWorker(QThread):
     # ========== 窗口工具 ==========
 
     def _focus_game(self) -> None:
-        self._win.focus()
+        WindowHelper.focus()
 
     # ========== OCR 数量识别 ==========
 
@@ -721,8 +714,9 @@ class FullScanWorker(QThread):
             return None
         slider_x, slider_top, slider_bottom, slider_w, slider_h = sr
 
-        self._win.focus()
-        result = self._capture.capture()
+        WindowHelper.focus()
+        window = WindowHelper.find_genshin_window()
+        result = self._capture.capture(window=window)
         if result is None:
             return None
         slider_y, _, _, _ = SliderDetector.find_slider(
@@ -739,7 +733,7 @@ class FullScanWorker(QThread):
         if slider_y - slider_top > SliderDetector.PROXIMITY:
             log.info("滚动到底: 先回到顶部...")
             self._scroll_to_top()
-            result = self._capture.capture()
+            result = self._capture.capture(window=window)
             if result is None:
                 return None
             slider_y, _, _, _ = SliderDetector.find_slider(
@@ -758,8 +752,8 @@ class FullScanWorker(QThread):
             log.info("滚动到底: 滑块已在底部")
             return slider_y
 
-        window = self._capture.find_genshin_window()
-        window_bottom = window.height if window else 1000
+        win = WindowHelper.find_genshin_window()
+        window_bottom = win.height if win else 1000
         drag_x = slider_x + slider_w // 2
         mouse_total = slider_total * 4
         chunks = 3
@@ -780,7 +774,7 @@ class FullScanWorker(QThread):
                 SliderDetector.DRAG_DELAY,
             )
             sleep(0.2)
-            result = self._capture.capture()
+            result = self._capture.capture(window=window)
             if result is None:
                 continue
             current_y, _, _, _ = SliderDetector.find_slider(
@@ -824,7 +818,8 @@ class FullScanWorker(QThread):
 
     def _recognize_current_artifact(self, ocr) -> ArtifactInfo | None:
         sleep(0.15)  # 等待游戏详情面板刷新
-        result = self._capture.capture()
+        window = WindowHelper.find_genshin_window()
+        result = self._capture.capture(window=window)
         if result is None:
             return None
         try:

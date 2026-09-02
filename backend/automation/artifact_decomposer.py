@@ -28,7 +28,6 @@ class ArtifactDecomposer(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._capture = ScreenshotCapture()
-        self._window = WindowHelper()
         self._quick_select_pos: tuple[int, int] | None = None  # 窗口相对坐标
         self._decompose_button_pos: tuple[int, int] | None = None  # 窗口相对坐标
         self._stop_event = threading.Event()
@@ -61,7 +60,8 @@ class ArtifactDecomposer(QObject):
 
         # 1. 点击快速选择按钮
         time.sleep(0.5)
-        result = self._capture.capture()
+        window = WindowHelper.find_genshin_window()
+        result = self._capture.capture(window=window)
 
         if not self._click_quick_select(result.image):
             log.warning("未找到快速选择按钮，跳过快速选择")
@@ -69,7 +69,7 @@ class ArtifactDecomposer(QObject):
 
         # 2. 截图并 OCR 识别快速选择弹窗内容
         time.sleep(0.5)
-        result2 = self._capture.capture()
+        result2 = self._capture.capture(window=window)
 
         ocr_result = self._ocr_quick_select(result2.image)
         if ocr_result is None:
@@ -116,7 +116,7 @@ class ArtifactDecomposer(QObject):
         log.info("已关闭快速选择弹窗")
 
         time.sleep(0.5)
-        result3 = self._capture.capture()
+        result3 = self._capture.capture(window=window)
 
         if not self._click_decompose_button(result3.image):
             log.error("未找到分解按钮")
@@ -124,7 +124,7 @@ class ArtifactDecomposer(QObject):
 
         # 等待确认弹窗出现
         time.sleep(0.3)
-        result4 = self._capture.capture()
+        result4 = self._capture.capture(window=window)
         confirm_pos = self._click_confirm_decompose_button(result4.image)
         if confirm_pos is None:
             log.error("未找到确认分解按钮，确认弹窗可能未出现")
@@ -147,12 +147,13 @@ class ArtifactDecomposer(QObject):
         """
         log.info("进入分解页面...")
 
-        self._window.focus()
+        WindowHelper.focus()
 
-        # 注入 WindowHelper，此后 MouseController 所有坐标均为窗口相对坐标
-        MouseController.set_window_helper(self._window)
+        # 注入窗口原点，此后 MouseController 所有坐标均为窗口相对坐标
+        MouseController.set_origin(WindowHelper.get_origin())
 
-        result = self._capture.capture()
+        window = WindowHelper.find_genshin_window()
+        result = self._capture.capture(window=window)
 
         if self._is_on_decompose_page(result.image):
             log.info("已在分解页面")
@@ -164,7 +165,7 @@ class ArtifactDecomposer(QObject):
             return False
 
         time.sleep(1.5)
-        result2 = self._capture.capture()
+        result2 = self._capture.capture(window=window)
 
         if not self._is_on_decompose_page(result2.image):
             log.error("点击分解按钮后未能进入分解页面")
@@ -195,7 +196,8 @@ class ArtifactDecomposer(QObject):
             True 分解成功，False 未找到按钮或确认失败
         """
         time.sleep(0.5)
-        result = self._capture.capture()
+        window = WindowHelper.find_genshin_window()
+        result = self._capture.capture(window=window)
 
         if not self._click_decompose_button(result.image):
             log.error("未找到分解按钮")
@@ -204,7 +206,7 @@ class ArtifactDecomposer(QObject):
 
         # 等待确认弹窗出现（0.2~0.4秒）
         time.sleep(0.3)
-        result2 = self._capture.capture()
+        result2 = self._capture.capture(window=window)
 
         confirm_pos = self._click_confirm_decompose_button(result2.image)
         if confirm_pos is None:
@@ -270,7 +272,8 @@ class ArtifactDecomposer(QObject):
             log.info(f"--- 第 {page} 页 ---")
 
             # 截图并检测格子
-            result = self._capture.capture()
+            window = WindowHelper.find_genshin_window()
+            result = self._capture.capture(window=window)
 
             det_result = SlotDetector.detect(result.image, config=config)
             if not det_result.slots:
@@ -301,7 +304,7 @@ class ArtifactDecomposer(QObject):
                 log.debug(f"[{page}-{idx + 1}] 等待弹窗完成, 耗时={t_click - t_start:.2f}s")
 
                 # 截图并 OCR 识别圣遗物详情
-                cap_result = self._capture.capture()
+                cap_result = self._capture.capture(window=window)
 
                 artifact = self._ocr_recognize_artifact(cap_result.image, config)
                 t_ocr = time.perf_counter()

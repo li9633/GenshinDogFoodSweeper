@@ -21,8 +21,7 @@ class InputDebugPresenter(QObject):
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._win = WindowHelper()
-        MouseController.set_window_helper(self._win)
+        MouseController.set_origin(WindowHelper.get_origin())
 
         self._win_origin_x = 0
         self._win_origin_y = 0
@@ -38,7 +37,7 @@ class InputDebugPresenter(QObject):
 
     def _refresh_window_info(self) -> None:
         """刷新窗口信息（原点、句柄），窗口不存在时重置为零"""
-        info = self._win.get_window_info()
+        info = WindowHelper.find_genshin_window()
         if info is None:
             if self._win_origin_x != 0 or self._win_origin_y != 0:
                 self._win_origin_x = 0
@@ -99,7 +98,7 @@ class InputDebugPresenter(QObject):
     def focusWindow(self) -> None:
         """聚焦原神窗口"""
         try:
-            ok = self._win.focus()
+            ok = WindowHelper.focus()
             log.info(f"聚焦窗口: {'成功' if ok else '失败'}")
         except Exception as e:
             log.warning(f"聚焦窗口异常: {e}")

@@ -14,6 +14,7 @@ from utils.logger import log
 
 from backend.automation.template_manager import TemplateManager
 from backend.automation.template_matcher import multi_scale_match
+from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
 
 from .image_provider import PreviewImageProvider
@@ -230,7 +231,8 @@ class ElementDetectionPresenter(QObject):
 
             t0 = time.perf_counter()
             cap = ScreenshotCapture()
-            result = cap.capture()
+            window = WindowHelper.find_genshin_window()
+            result = cap.capture(window=window)
 
             all_passed = True
             detail_parts: list[str] = []

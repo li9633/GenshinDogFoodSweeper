@@ -514,6 +514,7 @@ class RulePresenter(QObject):
 
         try:
             from backend.automation.ocr_worker import OcrWorker
+            from backend.automation.window_helper import WindowHelper
             from backend.utils.screen_capture import ScreenshotCapture
         except Exception as e:
             log.error(f"导入测试依赖失败: {e}")
@@ -527,7 +528,8 @@ class RulePresenter(QObject):
         self.testStatusChanged.emit("正在截图...")
         capture = ScreenshotCapture()
         try:
-            result = capture.capture()
+            window = WindowHelper.find_genshin_window()
+            result = capture.capture(window=window)
         except GameWindowNotFoundError:
             self.testStatusChanged.emit("截图失败")
             return

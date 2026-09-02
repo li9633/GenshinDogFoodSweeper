@@ -3,7 +3,6 @@
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 
 from backend.automation.window_helper import WindowHelper
-from backend.utils.screen_capture import ScreenshotCapture
 
 
 class GameDetector(QObject):
@@ -26,8 +25,6 @@ class GameDetector(QObject):
         self._win_top = 0
         self._win_width = 0
         self._win_height = 0
-        self._capture = ScreenshotCapture()
-        self._win_helper = WindowHelper()
 
         self._timer = QTimer(self)
         self._timer.setInterval(2000)
@@ -36,9 +33,9 @@ class GameDetector(QObject):
         self._check()
 
     def _check(self) -> None:
-        window = self._capture.find_genshin_window()
+        window = WindowHelper.find_genshin_window()
         running = window is not None
-        process_running = ScreenshotCapture.is_genshin_process_running()
+        process_running = WindowHelper.is_genshin_process_running()
 
         changed = False
         if running != self._running:
@@ -101,4 +98,4 @@ class GameDetector(QObject):
     @Slot()
     def focusGame(self) -> None:
         """聚焦原神窗口"""
-        self._win_helper.focus()
+        WindowHelper.focus()

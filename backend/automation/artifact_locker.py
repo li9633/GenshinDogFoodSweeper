@@ -32,7 +32,6 @@ class ArtifactLocker(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._capture = ScreenshotCapture()
-        self._window = WindowHelper()
         self._stop_event = threading.Event()
         self._fatal_error: str | None = None
         self._lock_icon_center: tuple[int, int] | None = None
@@ -85,8 +84,8 @@ class ArtifactLocker(QObject):
         total_skipped = 0
         page = 0
 
-        self._window.focus()
-        MouseController.set_window_helper(self._window)
+        WindowHelper.focus()
+        MouseController.set_origin(WindowHelper.get_origin())
 
         while True:
             if self._stop_event.is_set():
@@ -96,7 +95,8 @@ class ArtifactLocker(QObject):
             page += 1
             log.info(f"--- 第 {page} 页 ---")
 
-            result = self._capture.capture()
+            window = WindowHelper.find_genshin_window()
+            result = self._capture.capture(window=window)
             if result is None:
                 log.warning("截图失败")
                 break
@@ -133,7 +133,7 @@ class ArtifactLocker(QObject):
                 time.sleep(0.35)
 
                 # OCR 识别圣遗物详情
-                cap_result = self._capture.capture()
+                cap_result = self._capture.capture(window=window)
                 if cap_result is None:
                     continue
 

@@ -34,7 +34,7 @@ class SmartScroller:
     """基于 SlotDetector.bottom_y 校准的精准翻页器。
 
     使用示例:
-        scroller = SmartScroller(capture, mouse, win)
+        scroller = SmartScroller(capture, mouse)
         scroller.calibrate()          # 校准 pixels_per_scroll
         scroller.scroll_rows(100)     # 翻 100 行
         scroller.scroll_to_top()      # 回到顶部
@@ -46,7 +46,6 @@ class SmartScroller:
         self,
         capture: ScreenshotCapture,
         mouse: MouseController,
-        win: WindowHelper,
         *,
         slider: SliderScroller | None = None,
         config: SlotDetectorConfig = BAG_SLOT_CONFIG,
@@ -56,14 +55,12 @@ class SmartScroller:
         Args:
             capture: 截图工具
             mouse: 鼠标控制器
-            win: 窗口助手
             slider: 滑块滚动器，用于 ensure_at_top
             config: SlotDetector 配置（用于 calibrate 和计算 row_height）
             row_height: 每行高度，None 则自动从 config 计算
         """
         self._capture = capture
         self._mouse = mouse
-        self._win = win
         self._slider = slider
         self._config = config
         self._row_height = row_height or self._calc_row_height()
@@ -74,7 +71,8 @@ class SmartScroller:
 
     def _calc_row_height(self) -> int:
         """通过 SlotDetector.detect() 自动计算行高"""
-        result = self._capture.capture()
+        window = WindowHelper.find_genshin_window()
+        result = self._capture.capture(window=window)
         if result is None:
             return self._DEFAULT_ROW_HEIGHT
         det = SlotDetector.detect(result.image, config=self._config)
@@ -109,15 +107,16 @@ class SmartScroller:
         Raises:
             RuntimeError: 校准失败
         """
-        self._win.focus()
-        MouseController.set_window_helper(self._win)
+        WindowHelper.focus()
+        MouseController.set_origin(WindowHelper.get_origin())
 
         roi = self._config.roi
         if roi is None:
             raise RuntimeError("校准失败: ROI 未配置")
 
         # 截图1
-        result1 = self._capture.capture()
+        window = WindowHelper.find_genshin_window()
+        result1 = self._capture.capture(window=window)
         if result1 is None:
             raise RuntimeError("校准失败: 截图1失败")
         det1 = SlotDetector.detect(result1.image, config=self._config)
@@ -132,7 +131,7 @@ class SmartScroller:
         sleep(0.15)
 
         # 截图2
-        result2 = self._capture.capture()
+        result2 = self._capture.capture(window=window)
         if result2 is None:
             raise RuntimeError("校准失败: 截图2失败")
         det2 = SlotDetector.detect(result2.image, config=self._config)
@@ -165,7 +164,7 @@ class SmartScroller:
         if self._slider is None:
             log.warning("SmartScroller: 未注入 SliderScroller, 无法到顶")
             return False
-        self._win.focus()
+        WindowHelper.focus()
         result = self._slider.ensure_at_top(force=force)
         if result is not None:
             self._current_row = 0
@@ -190,8 +189,8 @@ class SmartScroller:
         total_px = rows * self._row_height
         ticks = max(1, int(np.ceil(total_px / self._pixels_per_scroll)))
 
-        self._win.focus()
-        MouseController.set_window_helper(self._win)
+        WindowHelper.focus()
+        MouseController.set_origin(WindowHelper.get_origin())
         roi = self._config.roi
         if roi is None:
             return
@@ -215,7 +214,7 @@ class SmartScroller:
         self, timeout_ms: int = 500, stable_frames: int = 3
     ) -> bool:
         """监测画面哈希，连续 N 帧稳定即认为翻页动画结束。"""
-        ox, oy = self._win.get_origin()
+        ox, oy = WindowHelper.get_origin()
         if ox == 0 and oy == 0:
             return False
 
@@ -229,7 +228,8 @@ class SmartScroller:
         last_hash = ""
 
         while perf_counter() < deadline:
-            result = self._capture.capture()
+            window = WindowHelper.find_genshin_window()
+            result = self._capture.capture(window=window)
             if result is None:
                 sleep(0.03)
                 continue

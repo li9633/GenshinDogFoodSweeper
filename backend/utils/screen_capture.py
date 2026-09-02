@@ -1,32 +1,25 @@
 """
 通用截图工具类
 ==============
-支持多种截图后端，可在 PyQt6 GUI 和命令行中复用。
+纯截图模块，不关心"哪个窗口"——窗口查找逻辑已移至 window_helper。
+接受 WindowInfo 作为输入，负责将窗口像素转换为 numpy 数组。
 
 依赖（均为项目已有）：
-  - pywin32   → 窗口查找 + PrintWindow 截图
+  - pywin32   → PrintWindow 截图
   - pyautogui → 区域截图
   - pillow    → 备用截图
   - opencv + numpy → 图像处理
-  - PyQt6     → QPixmap 转换（可选，仅在 GUI 中使用时导入）
+  - PySide6     → QPixmap 转换（可选，仅在 GUI 中使用时导入）
 
 使用示例:
-    from backend.automation.screen_capture import ScreenshotCapture, CaptureMethod
+    from backend.automation.window_helper import WindowHelper
+    from backend.utils.screen_capture import ScreenshotCapture, CaptureMethod
 
     cap = ScreenshotCapture()
-
-    # 查找窗口
-    win = cap.find_genshin_window()
+    win = WindowHelper.find_genshin_window()
     if win:
-        print(f"找到: {win.title} @ {win.rect}")
-
-    # 截图
-    result = cap.capture(method=CaptureMethod.WIN32)
-    result.save("output.png")
-
-    # PyQt6 中使用
-    pixmap = result.to_qpixmap()
-    label.setPixmap(pixmap)
+        result = cap.capture(window=win)
+        result.save("output.png")
 """
 
 from __future__ import annotations
@@ -40,6 +33,8 @@ from pathlib import Path
 
 import numpy as np
 from utils.datetime_helper import DateTimeHelper
+
+from backend.automation.window_helper import WindowInfo
 
 # ===================== 可选依赖检测 =====================
 
@@ -61,32 +56,6 @@ try:
 except ImportError:
     pass
 
-_HAS_WIN32_PROCESS = False
-try:
-    import win32api
-    import win32process
-
-    _HAS_WIN32_PROCESS = True
-except ImportError:
-    pass
-
-
-def _get_process_name(hwnd: int) -> str:
-    """获取窗口所属进程的可执行文件名（如 GenshinImpact.exe）"""
-    if not _HAS_WIN32_PROCESS:
-        return ""
-    try:
-        _, pid = win32process.GetWindowThreadProcessId(hwnd)
-        handle = win32api.OpenProcess(
-            win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ,
-            False, pid,
-        )
-        path = win32process.GetModuleFileNameEx(handle, 0)
-        win32api.CloseHandle(handle)
-        return Path(path).name
-    except Exception:
-        return ""
-
 
 # ===================== 枚举 & 数据类 =====================
 
@@ -101,51 +70,51 @@ class CaptureMethod(Enum):
 
 
 @dataclass
-class WindowInfo:
-    """窗口信息"""
+class CaptureResult:
+    """截图结果 — 自包含对象，携带像素数据、窗口原点、元信息
 
-    hwnd: int
-    title: str
-    class_name: str
-    left: int
-    top: int
-    right: int
-    bottom: int
-    process_name: str = ""
+    使用示例:
+        result = cap.capture(window=win)
+        # 坐标转换（窗口相对 → 屏幕绝对）
+        screen_x, screen_y = result.to_absolute(100, 200)
+        # 窗口原点
+        ox, oy = result.window_origin
+    """
+
+    image: np.ndarray  # RGB 格式
+    method: CaptureMethod
+    elapsed_ms: float
+    window_left: int = 0  # 截图时的窗口屏幕坐标
+    window_top: int = 0
+    timestamp: datetime = field(default_factory=DateTimeHelper.now)
 
     @property
     def width(self) -> int:
-        return self.right - self.left
+        return self.image.shape[1]
 
     @property
     def height(self) -> int:
-        return self.bottom - self.top
-
-    @property
-    def rect(self) -> tuple[int, int, int, int]:
-        return (self.left, self.top, self.right, self.bottom)
-
-    def __repr__(self) -> str:
-        return (
-            f'WindowInfo(hwnd={self.hwnd}, title="{self.title}", '
-            f"class={self.class_name}, {self.width}x{self.height} @ ({self.left},{self.top}))"
-        )
-
-
-@dataclass
-class CaptureResult:
-    """截图结果"""
-
-    image: np.ndarray  # RGB 格式
-    width: int
-    height: int
-    method: CaptureMethod
-    elapsed_ms: float
-    timestamp: datetime = field(default_factory=DateTimeHelper.now)
+        return self.image.shape[0]
 
     @property
     def shape(self) -> tuple[int, int, int]:
         return self.image.shape
+
+    @property
+    def window_origin(self) -> tuple[int, int]:
+        """截图时的窗口原点（屏幕坐标）"""
+        return (self.window_left, self.window_top)
+
+    def to_absolute(self, x: int, y: int) -> tuple[int, int]:
+        """将窗口相对坐标转换为屏幕绝对坐标"""
+        return (self.window_left + x, self.window_top + y)
+
+    def __repr__(self) -> str:
+        return (
+            f"CaptureResult({self.width}x{self.height}, "
+            f"method={self.method.name}, {self.elapsed_ms:.1f}ms, "
+            f"win@({self.window_left},{self.window_top}))"
+        )
 
     def to_qpixmap(self) -> QPixmap:
         """转换为 QPixmap（PyQt6 GUI 中使用）"""
@@ -268,116 +237,10 @@ class CaptureResult:
 
 
 class ScreenshotCapture:
-    """通用截图工具类"""
-
-    GENSHIN_TITLES = ("原神", "Genshin Impact")
-    GENSHIN_CLASS = "UnityWndClass"
-    GENSHIN_PROCESSES = ("GenshinImpact.exe", "YuanShen.exe")
+    """纯截图工具类 — 接受 WindowInfo 作为输入，不自己查找窗口"""
 
     def __init__(self, default_method: CaptureMethod = CaptureMethod.WIN32):
         self.default_method = default_method
-
-    # ---------- 窗口查找 ----------
-
-    @staticmethod
-    def find_genshin_window() -> WindowInfo | None:
-        """
-        查找原神游戏窗口。
-        匹配策略（按优先级）：
-          1. 标题精确等于 "原神" 或 "Genshin Impact"
-          2. 窗口类名为 UnityWndClass（Unity 引擎）
-        """
-        if not _HAS_WIN32:
-            return None
-
-        exact_matches: list[WindowInfo] = []
-        class_matches: list[WindowInfo] = []
-
-        def enum_callback(hwnd, _):
-            if not win32gui.IsWindowVisible(hwnd):
-                return True
-            title = win32gui.GetWindowText(hwnd)
-            class_name = win32gui.GetClassName(hwnd)
-            rect = win32gui.GetWindowRect(hwnd)
-            w, h = rect[2] - rect[0], rect[3] - rect[1]
-            if w < 400 or h < 300:
-                return True
-            proc_name = _get_process_name(hwnd)
-            info = WindowInfo(hwnd, title, class_name, *rect, process_name=proc_name)
-            # 类名匹配优先于标题匹配处理，因为标题可能为空（加载中/切场景）
-            if class_name == ScreenshotCapture.GENSHIN_CLASS:
-                if proc_name and proc_name not in ScreenshotCapture.GENSHIN_PROCESSES:
-                    pass  # 非原神进程的 Unity 窗口，跳过
-                else:
-                    class_matches.append(info)
-            if title in ScreenshotCapture.GENSHIN_TITLES:
-                exact_matches.append(info)
-            return True
-
-        win32gui.EnumWindows(enum_callback, None)
-        return (
-            exact_matches[0]
-            if exact_matches
-            else (class_matches[0] if class_matches else None)
-        )
-
-    @staticmethod
-    def is_genshin_process_running() -> bool:
-        """检测原神游戏进程是否在运行（不关心窗口是否可见）。"""
-        try:
-            import psutil
-        except ImportError:
-            return False
-        for proc in psutil.process_iter(["name"]):
-            try:
-                if proc.info["name"].lower() in (
-                    p.lower() for p in ScreenshotCapture.GENSHIN_PROCESSES
-                ):
-                    return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-        return False
-
-    @staticmethod
-    def get_window_not_found_message() -> str:
-        """根据进程状态返回精准的窗口未找到提示。
-
-        由调用方（window_helper / capture）传入 GameWindowNotFoundError。
-        """
-        from backend.exceptions.automation.exceptions import (
-            WINDOW_NOT_FOUND_MINIMIZED_MSG,
-            WINDOW_NOT_FOUND_PROCESS_MSG,
-        )
-
-        if ScreenshotCapture.is_genshin_process_running():
-            return WINDOW_NOT_FOUND_MINIMIZED_MSG
-        return WINDOW_NOT_FOUND_PROCESS_MSG
-
-    @staticmethod
-    def list_visible_windows(
-        min_width: int = 200, min_height: int = 200
-    ) -> list[WindowInfo]:
-        """列出所有可见窗口"""
-        if not _HAS_WIN32:
-            return []
-
-        windows: list[WindowInfo] = []
-
-        def enum_callback(hwnd, _):
-            if not win32gui.IsWindowVisible(hwnd):
-                return True
-            title = win32gui.GetWindowText(hwnd)
-            if not title:
-                return True
-            rect = win32gui.GetWindowRect(hwnd)
-            w, h = rect[2] - rect[0], rect[3] - rect[1]
-            if w >= min_width and h >= min_height:
-                class_name = win32gui.GetClassName(hwnd)
-                windows.append(WindowInfo(hwnd, title, class_name, *rect))
-            return True
-
-        win32gui.EnumWindows(enum_callback, None)
-        return windows
 
     # ---------- 截图入口 ----------
 
@@ -392,7 +255,7 @@ class ScreenshotCapture:
 
         参数:
             method: 截图方法，默认使用 WIN32
-            window: 目标窗口（WIN32 方法需要）
+            window: 目标窗口（WIN32 方法必须传入）
             region: 截图区域 (left, top, width, height)，用于 pyautogui/pillow
 
         返回:
@@ -403,14 +266,8 @@ class ScreenshotCapture:
 
         if method == CaptureMethod.WIN32:
             if window is None:
-                window = self.find_genshin_window()
-            if window is None:
-                from backend.exceptions.automation import GameWindowNotFoundError
-
-                raise GameWindowNotFoundError(
-                    ScreenshotCapture.get_window_not_found_message()
-                )
-            img = self._capture_win32(window.hwnd)
+                raise ValueError("WIN32 截图方法必须传入 window 参数")
+            img = self._capture_win32(window)
         elif method == CaptureMethod.PYAUTOGUI:
             r = region or (0, 0, 1920, 1080)
             img = self._capture_pyautogui(*r)
@@ -423,9 +280,12 @@ class ScreenshotCapture:
             raise ValueError(f"不支持的截图方法: {method}")
 
         elapsed = (time.perf_counter() - t0) * 1000
-        h, w = img.shape[:2]
         return CaptureResult(
-            image=img, width=w, height=h, method=method, elapsed_ms=elapsed
+            image=img,
+            method=method,
+            elapsed_ms=elapsed,
+            window_left=window.left if window else 0,
+            window_top=window.top if window else 0,
         )
 
     def capture_window(
@@ -441,11 +301,15 @@ class ScreenshotCapture:
     # ---------- 内部实现 ----------
 
     @staticmethod
-    def _capture_win32(hwnd: int) -> np.ndarray:
-        """pywin32 PrintWindow 截图 → RGB"""
-        rect = win32gui.GetWindowRect(hwnd)
-        width = rect[2] - rect[0]
-        height = rect[3] - rect[1]
+    def _capture_win32(window: WindowInfo) -> np.ndarray:
+        """pywin32 PrintWindow 截图 → RGB
+
+        直接使用 WindowInfo 中的尺寸，不再重复调用 GetWindowRect，
+        确保截图尺寸与窗口查找时的尺寸一致。
+        """
+        hwnd = window.hwnd
+        width = window.width
+        height = window.height
 
         hwnd_dc = win32gui.GetWindowDC(hwnd)
         mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
