@@ -97,7 +97,7 @@ Rectangle {
                 model: DogfoodPresenter.defaultActionLabels
                 currentIndex: DogfoodPresenter.defaultActionIndex
                 enabled: !DogfoodPresenter.running
-                onActivated: DogfoodPresenter.selectDefaultAction(index)
+                onActivated: (index) => DogfoodPresenter.selectDefaultAction(index)
             }
 
             Text {

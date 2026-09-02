@@ -211,7 +211,7 @@ class ArtifactLocker(QObject):
                 break
 
             # 翻页（坐标均为窗口相对坐标，MouseController 自动转换）
-            flag_x = config.roi[0] + config.roi[2] + config.slider_x_offset + 5
+            flag_x = config.roi[0] + config.roi[2] // 2
             flag_y = config.roi[1] + config.roi[3] // 2
             if not scroller.scroll_to_next_page(flag_x, flag_y):
                 log.info("已是最后一页")

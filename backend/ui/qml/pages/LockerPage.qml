@@ -92,7 +92,7 @@ Rectangle {
                 model: LockerPresenter.defaultActionLabels
                 currentIndex: LockerPresenter.defaultActionIndex
                 enabled: !LockerPresenter.running
-                onActivated: LockerPresenter.selectDefaultAction(index)
+                onActivated: (index) => LockerPresenter.selectDefaultAction(index)
             }
 
             GCheckBox {
