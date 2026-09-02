@@ -23,7 +23,7 @@ from time import sleep
 
 import numpy as np
 from models.artifact import ArtifactInfo
-from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
+from PySide6.QtCore import Property, QObject, QThread, QTimer, Signal, Slot
 from ui.lifecycle import OnWindowReady
 from utils.logger import log
 
@@ -54,6 +54,43 @@ from backend.utils.screen_capture import ScreenshotCapture
 from backend.utils.settings_manager import settings
 
 from .image_provider import PreviewImageProvider
+
+
+class SlotStabilityCheckWorker(QThread):
+    """后台线程：连续截图检测格子，比对每次的格子数量是否稳定。
+
+    串行执行（非并行），避免 ScreenshotCapture 线程安全问题。
+    结果通过 finished 信号返回，不阻塞 UI。
+    """
+
+    finished = Signal(list)
+    errorOccurred = Signal(str)
+
+    def __init__(
+        self,
+        capture: ScreenshotCapture,
+        config,
+        repeat_count: int,
+    ):
+        super().__init__()
+        self._capture = capture
+        self._config = config
+        self._repeat_count = repeat_count
+
+    def run(self) -> None:
+        counts: list[int] = []
+        for i in range(self._repeat_count):
+            result = self._capture.capture(
+                window=WindowHelper.find_genshin_window()
+            )
+            if result is None:
+                self.errorOccurred.emit(
+                    f"[第 {i + 1}/{self._repeat_count} 次] 截图失败"
+                )
+                return
+            det_result = SlotDetector.detect(result.image, config=self._config)
+            counts.append(len(det_result.slots))
+        self.finished.emit(counts)
 
 
 class ArtifactScanPresenter(QObject, OnWindowReady):
@@ -1108,6 +1145,46 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         key = "slot_debug"
         vkey = PreviewImageProvider.put(key, debug_rgb)
         self.debugPreviewReady.emit(vkey)
+
+    @Slot(int)
+    @Slot(int)
+    def detectSlotsRepeatedly(self, repeat_count: int) -> None:
+        """连续检测格子 repeat_count 次，比对每次的格子数量。
+
+        在后台线程串行执行，不阻塞 UI。
+        ScreenshotCapture 非线程安全，因此不能并行，只能串行。
+        """
+        if repeat_count < 2:
+            log.warning("重复检测次数至少为 2")
+            return
+
+        ox, oy = WindowHelper.get_origin()
+        MouseController.set_origin((ox, oy))
+
+        self._stability_worker = SlotStabilityCheckWorker(
+            self._capture, self._active_config, repeat_count
+        )
+        self._stability_worker.finished.connect(
+            self._on_stability_check_finished
+        )
+        self._stability_worker.errorOccurred.connect(
+            lambda msg: log.warning(msg)
+        )
+        self._stability_worker.start()
+        log.info(f"开始连续 {repeat_count} 次格子检测（后台线程）...")
+
+    def _on_stability_check_finished(self, counts: list) -> None:
+        """SlotStabilityCheckWorker 完成回调。"""
+        unique = set(counts)
+        if len(unique) == 1:
+            log.info(
+                f"连续 {len(counts)} 次检测格子数量一致: {counts[0]} 个"
+            )
+        else:
+            log.warning(
+                f"连续 {len(counts)} 次检测格子数量不一致! "
+                f"结果: {counts}"
+            )
 
     # ==================================================================
     # SmartScroller 调试

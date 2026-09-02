@@ -391,6 +391,29 @@ Rectangle {
                                 color: Theme.textSecondary
                             }
                         }
+
+                        RowLayout {
+                            spacing: 6
+                            GButton {
+                                text: "连续检测"
+                                colorType: "warning"
+                                onClicked: ArtifactScan.detectSlotsRepeatedly(repeatCount.value)
+                            }
+                            GSpinBox {
+                                id: repeatCount
+                                from: 2
+                                to: 100
+                                value: 10
+                                editable: true
+                                Layout.preferredWidth: 80
+                            }
+                            Text {
+                                text: "次，比对格子数量是否一致"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 11
+                                color: Theme.textSecondary
+                            }
+                        }
                     }
 
                     // 尾锚点（滚动到底部后点击定位）
