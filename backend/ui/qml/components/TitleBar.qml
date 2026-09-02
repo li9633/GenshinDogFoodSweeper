@@ -16,13 +16,19 @@ Rectangle {
     // ============================================================
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton
-        onPressed: root.Window.window.startSystemMove()
-        onDoubleClicked: {
-            if (root.Window.window.visibility === Window.Maximized)
-                root.Window.window.showNormal()
-            else
-                root.Window.window.showMaximized()
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onPressed: function(mouse) {
+            if (mouse.button === Qt.LeftButton)
+                root.Window.window.startSystemMove()
+        }
+        onReleased: function(mouse) {
+            // TODO: 右键菜单有 bug，临时禁用
+            // if (mouse.button === Qt.RightButton)
+            //     sysMenu.popup()
+        }
+        onDoubleClicked: function(mouse) {
+            if (mouse.button === Qt.LeftButton)
+                TitleBarPresenter.toggleMaximize()
         }
     }
 
@@ -77,14 +83,9 @@ Rectangle {
 
         // 最大化/还原
         TitleBarButton {
-            icon: root.Window.window.visibility === Window.Maximized ? Icon.windowRestore : Icon.windowMaximize
+            icon: TitleBarPresenter.maximized ? Icon.windowRestore : Icon.windowMaximize
             iconFont: Icon.fontRegular
-            onClicked: {
-                if (root.Window.window.visibility === Window.Maximized)
-                    root.Window.window.showNormal()
-                else
-                    root.Window.window.showMaximized()
-            }
+            onClicked: TitleBarPresenter.toggleMaximize()
         }
 
         // 关闭
@@ -93,6 +94,73 @@ Rectangle {
             iconFont: Icon.fontSolid
             isClose: true
             onClicked: root.Window.window.close()
+        }
+    }
+
+    // ============================================================
+    // 右键系统菜单
+    // ============================================================
+    Menu {
+        id: sysMenu
+
+        background: Rectangle {
+            implicitWidth: 140
+            radius: Theme.radius
+            color: Theme.bgCard
+            border.color: Theme.border
+        }
+
+        delegate: MenuItem {
+            id: menuItem
+            implicitWidth: 140
+            implicitHeight: 30
+
+            contentItem: Text {
+                text: menuItem.text
+                font.family: Theme.fontFamily
+                font.pixelSize: 13
+                color: menuItem.enabled ? Theme.textPrimary : Theme.textMuted
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            background: Rectangle {
+                radius: 4
+                color: menuItem.highlighted ? Theme.accentOverlay6 : "transparent"
+            }
+        }
+
+        MenuItem {
+            text: "还原"
+            enabled: TitleBarPresenter.maximized
+            onTriggered: TitleBarPresenter.toggleMaximize()
+        }
+        MenuItem {
+            text: "移动"
+            onTriggered: root.Window.window.startSystemMove()
+        }
+        MenuItem {
+            text: "大小"
+            onTriggered: root.Window.window.startSystemResize(Qt.BottomEdge | Qt.RightEdge)
+        }
+        MenuItem {
+            text: "最小化"
+            onTriggered: root.Window.window.showMinimized()
+        }
+        MenuItem {
+            text: "最大化"
+            enabled: !TitleBarPresenter.maximized
+            onTriggered: TitleBarPresenter.toggleMaximize()
+        }
+        MenuSeparator {
+            contentItem: Rectangle {
+                implicitHeight: 1
+                color: Theme.border
+            }
+        }
+        MenuItem {
+            text: "关闭\tAlt+F4"
+            onTriggered: root.Window.window.close()
         }
     }
 
