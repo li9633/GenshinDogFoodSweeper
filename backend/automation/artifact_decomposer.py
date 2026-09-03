@@ -6,7 +6,7 @@ import threading
 import time
 
 import numpy as np
-from PySide6.QtCore import QEventLoop, QObject, QTimer
+from PySide6.QtCore import QObject, QThread, Signal
 from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
@@ -32,7 +32,9 @@ class ArtifactDecomposer(QObject):
         self._quick_select_pos: tuple[int, int] | None = None  # 窗口相对坐标
         self._decompose_button_pos: tuple[int, int] | None = None  # 窗口相对坐标
         self._stop_event = threading.Event()
-        self._fatal_error: str | None = None  # 致命错误信息，非空时表示发生不可恢复的错误
+        self._fatal_error: str | None = (
+            None  # 致命错误信息，非空时表示发生不可恢复的错误
+        )
 
     def stop(self) -> None:
         """线程安全：设置停止标志，终止正在运行的分解循环。"""
@@ -46,13 +48,16 @@ class ArtifactDecomposer(QObject):
 
     # ========== 入口 ==========
 
-    def try_quick_select_decompose(self) -> bool:
+    def try_quick_select_decompose(self, ocr) -> bool:
         """
         尝试快速选择4星及以下圣遗物并分解。
 
         前提：调用方已确保当前在分解页面（已调用 enter_decompose_page()）。
 
         流程：点击快速选择 → OCR识别弹窗 → 有4星及以下圣遗物则分解。
+
+        Args:
+            ocr: OcrEngine.create_ocr() 返回的 OCR 实例
 
         Returns:
             True 已执行快速分解，False 无4星及以下圣遗物（需进入主流程）
@@ -68,14 +73,18 @@ class ArtifactDecomposer(QObject):
             log.warning("未找到快速选择按钮，跳过快速选择")
             return False
 
-        # 2. 截图并 OCR 识别快速选择弹窗内容
+        # 2. 截图并 OCR 识别快速选择弹窗内容（直接同步调用）
         time.sleep(0.5)
         result2 = self._capture.capture(window=window)
 
-        ocr_result = self._ocr_quick_select(result2.image)
+        rx, ry, rw, rh = self.QUICK_SELECT_ROI
+        roi = result2.image[ry : ry + rh, rx : rx + rw]
+        ocr_result = ocr.ocr(roi)
+        count = len(ocr_result) if ocr_result is not None and len(ocr_result) > 0 else 0
+        log.debug(f"[快速选择OCR] 识别到 {count} 个文本区域")
+
         if ocr_result is None:
             log.warning("快速选择 OCR 识别失败，跳过快速选择")
-            # 尝试关闭弹窗
             if self._quick_select_pos:
                 MouseController.move_and_click(*self._quick_select_pos)
                 time.sleep(0.3)
@@ -176,7 +185,11 @@ class ArtifactDecomposer(QObject):
         return True
 
     def select_artifacts(
-        self, rules: list, default_action: str, max_per_batch: int = 1000
+        self,
+        rules: list,
+        default_action: str,
+        max_per_batch: int = 1000,
+        ocr=None,
     ) -> tuple[int, int, bool]:
         """选择一批待分解圣遗物。
 
@@ -184,11 +197,12 @@ class ArtifactDecomposer(QObject):
             rules: 启用的规则列表
             default_action: 默认行为
             max_per_batch: 每批最多选择数量，默认 1000，上限 1000
+            ocr: OcrEngine.create_ocr() 返回的 OCR 实例
 
         Returns:
             (keep_count, discard_count, reached_limit)
         """
-        return self._decompose_loop(rules, default_action, max_per_batch)
+        return self._decompose_loop(rules, default_action, max_per_batch, ocr)
 
     def execute_decompose(self) -> bool:
         """点击游戏内的分解按钮并确认弹窗，完成分解。
@@ -224,7 +238,11 @@ class ArtifactDecomposer(QObject):
     # ========== 逐格评估循环 ==========
 
     def _decompose_loop(
-        self, rules: list, default_action: str, max_per_batch: int = 1000
+        self,
+        rules: list,
+        default_action: str,
+        max_per_batch: int = 1000,
+        ocr=None,
     ) -> tuple[int, int, bool]:
         """逐格点击 → OCR识别 → 规则评估 → 反选保留 → 翻页。
 
@@ -240,6 +258,7 @@ class ArtifactDecomposer(QObject):
             rules: 启用的规则列表
             default_action: 默认行为
             max_per_batch: 每批最多选择数量，上限 1000
+            ocr: OcrEngine.create_ocr() 返回的 OCR 实例
 
         Returns:
             (keep_count, discard_count, reached_limit) 保留数、分解数、是否因达到上限而提前退出
@@ -288,19 +307,23 @@ class ArtifactDecomposer(QObject):
             )
 
             def on_slot(slot, idx, total, _page=page, _window=window):
-                nonlocal total_keep, total_discard, reached_limit, \
-                    total_elapsed, timed_count, last_progress_log
+                nonlocal \
+                    total_keep, \
+                    total_discard, \
+                    reached_limit, \
+                    total_elapsed, \
+                    timed_count, \
+                    last_progress_log
 
                 t_start = time.perf_counter()
-                log.debug(
-                    f"[{_page}-{idx}/{total}] "
-                    f"点击格子 ({slot.cx}, {slot.cy})"
-                )
+                log.debug(f"[{_page}-{idx}/{total}] 点击格子 ({slot.cx}, {slot.cy})")
 
-                # 截图并 OCR 识别圣遗物详情
+                # 截图并 OCR 识别圣遗物详情（直接同步调用）
                 cap_result = self._capture.capture(window=_window)
 
-                artifact = self._ocr_recognize_artifact(cap_result.image, config)
+                artifact = ArtifactDecomposer._recognize_artifact(
+                    cap_result.image, config, ocr
+                )
                 if artifact is None:
                     log.warning(f"[{_page}-{idx}] OCR 识别失败")
                     return True
@@ -391,128 +414,34 @@ class ArtifactDecomposer(QObject):
 
         return (total_keep, total_discard, reached_limit)
 
-    # ========== 圣遗物详情 OCR 识别 ==========
+    # ========== 圣遗物详情 OCR 识别（直接同步调用） ==========
 
     @staticmethod
-    def create_decompose_ocr_task(image: np.ndarray, config):
-        """创建分解流程的圣遗物 OCR 识别任务。
+    def _recognize_artifact(image: np.ndarray, config, ocr) -> object | None:
+        """直接同步 OCR 识别圣遗物详情（在工作线程中调用）。
 
-        使用 SALVAGE_SLOT_CONFIG 的 detail_roi_configs 和 lock_anchor_* 参数，
-        在 OcrWorker 线程中执行 ArtifactRecognizer.recognize()。
+        Args:
+            image: 截图
+            config: SALVAGE_SLOT_CONFIG
+            ocr: OcrEngine.create_ocr() 返回的 OCR 实例
 
         Returns:
-            callable(ocr_instance) -> ArtifactInfo | None
+            ArtifactInfo | None
         """
         from backend.automation.recognizer import ArtifactRecognizer
 
-        roi_configs = dict(config.detail_roi_configs)
-        lock_search = config.lock_anchor_search_region
-        lock_to_level = config.lock_anchor_to_level
-        lock_to_sub = config.lock_anchor_to_sub_stats
-
-        def task(ocr):
-            try:
-                artifact = ArtifactRecognizer.recognize(
-                    image,
-                    roi_configs,
-                    ocr,
-                    lock_anchor_search_region=lock_search,
-                    lock_anchor_to_level=lock_to_level,
-                    lock_anchor_to_sub_stats=lock_to_sub,
-                )
-                return artifact
-            except Exception as e:
-                log.debug(f"[分解OCR] 识别异常: {e}")
-                return None
-
-        return task
-
-    @staticmethod
-    def _ensure_ocr_worker_ready() -> None:
-        """确保 OCR Worker 线程正在运行且模型已就绪。
-
-        Raises:
-            OcrModelNotReadyError: 模型未下载（自动完成弹窗 + 日志）
-        """
-        from backend.automation.ocr_model_manager import OcrModelManager
-        from backend.automation.ocr_worker import OcrWorker
-        from backend.exceptions.automation import OcrModelNotReadyError
-
-        worker = OcrWorker.instance()
-        if worker.isRunning():
-            return
-
-        manager = OcrModelManager()
-        if not manager.is_ready():
-            raise OcrModelNotReadyError()
-
-        log.warning("OCR 模型已下载但 Worker 线程未运行，尝试启动...")
         try:
-            worker.start()
-        except RuntimeError:
-            # QThread 只能启动一次，如果线程已结束则销毁单例并重建
-            log.warning("OcrWorker 线程已终止，销毁并重建...")
-            OcrWorker.destroy_instance()
-            worker = OcrWorker.instance()
-            worker.start()
-            log.info("OcrWorker 线程已重建并启动")
-
-    def _ocr_recognize_artifact(self, image: np.ndarray, config) -> object | None:
-        """通过 OcrWorker 同步执行圣遗物详情 OCR 识别。
-
-        使用 QEventLoop 等待异步结果，返回 ArtifactInfo 或 None。
-        """
-        from backend.exceptions.automation import OcrModelNotReadyError
-
-        try:
-            ArtifactDecomposer._ensure_ocr_worker_ready()
-        except OcrModelNotReadyError:
-            self._fatal_error = "OCR 模型未下载"
-            self._stop_event.set()
+            return ArtifactRecognizer.recognize(
+                image,
+                config.detail_roi_configs,
+                ocr,
+                lock_anchor_search_region=config.lock_anchor_search_region,
+                lock_anchor_to_level=config.lock_anchor_to_level,
+                lock_anchor_to_sub_stats=config.lock_anchor_to_sub_stats,
+            )
+        except Exception as e:
+            log.debug(f"[分解OCR] 识别异常: {e}")
             return None
-
-        from backend.automation.ocr_worker import OcrWorker
-
-        result_holder: list = []
-        loop = QEventLoop()
-
-        timeout_timer = QTimer()
-        timeout_timer.setSingleShot(True)
-
-        def on_timeout():
-            if not result_holder:
-                log.error("[分解OCR] 识别超时（30秒），请检查 OCR 模型是否正常")
-            loop.quit()
-
-        timeout_timer.timeout.connect(on_timeout)
-        timeout_timer.start(30000)
-
-        def on_done(result, _cb):
-            result_holder.append(result)
-            timeout_timer.stop()
-            loop.quit()
-
-        def on_error(err, _cb):
-            log.debug(f"[分解OCR] 失败: {err}")
-            timeout_timer.stop()
-            loop.quit()
-
-        worker = OcrWorker.instance()
-        worker.task_done.connect(on_done)
-        worker.task_error.connect(on_error)
-
-        task = ArtifactDecomposer.create_decompose_ocr_task(image, config)
-        worker.submit(task, callback_data="decompose")
-
-        loop.exec()
-
-        try:
-            worker.task_done.disconnect(on_done)
-            worker.task_error.disconnect(on_error)
-        except Exception:
-            log.debug("断开 OCR 信号连接时发生异常")
-
-        return result_holder[0] if result_holder else None
 
     # ========== 模板检测 ==========
 
@@ -569,9 +498,7 @@ class ArtifactDecomposer(QObject):
         if template is None:
             log.error("未找到模板: 分解页面确认分解按钮")
             return None
-        return self._match_and_click_return_pos(
-            image, template, "分解页面确认分解按钮"
-        )
+        return self._match_and_click_return_pos(image, template, "分解页面确认分解按钮")
 
     def _dismiss_result_overlay(self) -> None:
         """点击分解按钮位置，关闭分解结果蒙层。
@@ -600,92 +527,6 @@ class ArtifactDecomposer(QObject):
             return False
         self._quick_select_pos = pos
         return True
-
-    # ========== OCR 任务工厂 ==========
-
-    @staticmethod
-    def create_quick_select_ocr_task(
-        image: np.ndarray,
-    ):
-        """创建快速选择弹窗的 OCR 识别任务。
-
-        返回一个 callable(ocr_instance)，可在 OcrWorker 线程中执行。
-        使用方式:
-            worker = OcrWorker.instance()
-            worker.submit(
-                ArtifactDecomposer.create_quick_select_ocr_task(image),
-                callback_data="quick_select",
-            )
-        """
-        rx, ry, rw, rh = ArtifactDecomposer.QUICK_SELECT_ROI
-        roi = image[ry:ry + rh, rx:rx + rw]
-
-        def task(ocr) -> list:
-            result = ocr.ocr(roi)
-            count = len(result) if result is not None and len(result) > 0 else 0
-            log.debug(f"[快速选择OCR] 识别到 {count} 个文本区域")
-            return result
-
-        return task
-
-    # ========== OCR 执行 ==========
-
-    def _ocr_quick_select(self, image: np.ndarray) -> list | None:
-        """通过 OcrWorker 同步执行 OCR 识别快速选择弹窗内容。
-
-        使用 QEventLoop 等待 OcrWorker 异步结果，
-        不阻塞主线程事件循环，确保跨线程信号可正常投递。
-        """
-        from backend.exceptions.automation import OcrModelNotReadyError
-
-        try:
-            ArtifactDecomposer._ensure_ocr_worker_ready()
-        except OcrModelNotReadyError:
-            return None
-
-        from backend.automation.ocr_worker import OcrWorker
-
-        result_holder: list = []
-        loop = QEventLoop()
-
-        timeout_timer = QTimer()
-        timeout_timer.setSingleShot(True)
-
-        def on_timeout():
-            if not result_holder:
-                log.error("[快速选择OCR] 识别超时（30秒），请检查 OCR 模型是否正常")
-            loop.quit()
-
-        timeout_timer.timeout.connect(on_timeout)
-        timeout_timer.start(30000)
-
-        def on_done(result, _cb):
-            result_holder.append(result)
-            timeout_timer.stop()
-            loop.quit()
-
-        def on_error(err, _cb):
-            log.error(f"[快速选择OCR] 失败: {err}")
-            timeout_timer.stop()
-            loop.quit()
-
-        worker = OcrWorker.instance()
-        worker.task_done.connect(on_done)
-        worker.task_error.connect(on_error)
-
-        task = ArtifactDecomposer.create_quick_select_ocr_task(image)
-        worker.submit(task, callback_data="quick_select")
-
-        # QEventLoop 处理事件循环，不阻塞信号投递
-        loop.exec()
-
-        try:
-            worker.task_done.disconnect(on_done)
-            worker.task_error.disconnect(on_error)
-        except Exception:
-            log.debug("断开快速选择OCR信号连接时发生异常")
-
-        return result_holder[0] if result_holder else None
 
     # ========== 快速选择结果解析 ==========
 
@@ -728,8 +569,16 @@ class ArtifactDecomposer(QObject):
             for text, poly in zip(rec_texts, dt_polys):
                 if not text or not text.strip():
                     continue
-                cx = sum(p[0] for p in poly) / len(poly) if poly is not None and len(poly) > 0 else 0
-                cy = sum(p[1] for p in poly) / len(poly) if poly is not None and len(poly) > 0 else 0
+                cx = (
+                    sum(p[0] for p in poly) / len(poly)
+                    if poly is not None and len(poly) > 0
+                    else 0
+                )
+                cy = (
+                    sum(p[1] for p in poly) / len(poly)
+                    if poly is not None and len(poly) > 0
+                    else 0
+                )
                 lines.append({"text": text.strip(), "cx": cx, "cy": cy})
         elif isinstance(page, list):
             for line_info in page:
@@ -771,12 +620,14 @@ class ArtifactDecomposer(QObject):
                     star = int(star_m.group(1))
                     wx = int(rx + label_line["cx"])
                     wy = int(ry + label_line["cy"])
-                    options.append({
-                        "star": star,
-                        "label": label_line["text"],
-                        "count": count,
-                        "pos": (wx, wy),
-                    })
+                    options.append(
+                        {
+                            "star": star,
+                            "label": label_line["text"],
+                            "count": count,
+                            "pos": (wx, wy),
+                        }
+                    )
                     i += 2
                     continue
             i += 1
@@ -792,9 +643,7 @@ class ArtifactDecomposer(QObject):
         score, _, _, _ = multi_scale_match(image, template)
         return score >= threshold
 
-    def _match_and_click(
-        self, image: np.ndarray, template: object, name: str
-    ) -> bool:
+    def _match_and_click(self, image: np.ndarray, template: object, name: str) -> bool:
         """模板匹配成功后点击，返回是否成功。"""
         return self._match_and_click_return_pos(image, template, name) is not None
 
@@ -822,3 +671,98 @@ class ArtifactDecomposer(QObject):
         )
         MouseController.move_and_click(rel_x, rel_y)
         return (rel_x, rel_y)
+
+
+# ====================================================================
+# 分解 Worker（后台线程）
+# ====================================================================
+
+
+class SelectWorker(QThread):
+    """后台线程：圣遗物分解 — 选择阶段（进入页面 + 快速选择 + 规则评估）"""
+
+    stepChanged = Signal(str)
+    finished = Signal(int, int, bool)
+    errorOccurred = Signal(str)
+
+    def __init__(
+        self,
+        decomposer: ArtifactDecomposer,
+        rules: list,
+        default_action: str,
+        max_discard: int,
+        engines_dir=None,
+        parent: QObject | None = None,
+    ):
+        super().__init__(parent)
+        self._decomposer = decomposer
+        self._rules = rules
+        self._default_action = default_action
+        self._max_discard = max_discard
+        self._engines_dir = engines_dir
+
+    def stop(self) -> None:
+        self._decomposer.stop()
+
+    def run(self) -> None:
+        try:
+            from backend.automation.ocr_engine import OcrEngine
+            from backend.exceptions.automation import OcrModelNotReadyError
+
+            self.stepChanged.emit("正在初始化 OCR 引擎...")
+            ocr = OcrEngine.create_ocr(self._engines_dir)
+
+            self.stepChanged.emit("正在进入分解页面...")
+            if not self._decomposer.enter_decompose_page():
+                self.errorOccurred.emit("进入分解页面失败")
+                return
+
+            self.stepChanged.emit("正在快速选择4星及以下圣遗物...")
+            self._decomposer.try_quick_select_decompose(ocr)
+
+            self.stepChanged.emit("正在选择圣遗物...")
+            keep, discard, reached_limit = self._decomposer.select_artifacts(
+                self._rules, self._default_action, self._max_discard, ocr
+            )
+
+            if self._decomposer._fatal_error:
+                self.errorOccurred.emit(self._decomposer._fatal_error)
+                return
+
+            self.finished.emit(keep, discard, reached_limit)
+
+        except OcrModelNotReadyError:
+            self.errorOccurred.emit(OcrModelNotReadyError._MESSAGE)
+        except Exception as e:
+            import traceback
+
+            self.errorOccurred.emit(f"{e}\n{traceback.format_exc()}")
+
+
+class ExecuteWorker(QThread):
+    """后台线程：圣遗物分解 — 执行阶段（点击确认分解按钮）"""
+
+    stepChanged = Signal(str)
+    finished = Signal(bool)
+    errorOccurred = Signal(str)
+
+    def __init__(
+        self,
+        decomposer: ArtifactDecomposer,
+        parent: QObject | None = None,
+    ):
+        super().__init__(parent)
+        self._decomposer = decomposer
+
+    def stop(self) -> None:
+        self._decomposer.stop()
+
+    def run(self) -> None:
+        try:
+            self.stepChanged.emit("正在执行分解...")
+            success = self._decomposer.execute_decompose()
+            self.finished.emit(success)
+        except Exception as e:
+            import traceback
+
+            self.errorOccurred.emit(f"{e}\n{traceback.format_exc()}")

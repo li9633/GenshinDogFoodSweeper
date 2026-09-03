@@ -13,19 +13,19 @@ Rectangle {
     property var _selectedNames: []
 
     Component.onCompleted: {
-        DogfoodPresenter.reloadRules();
-        _selectedNames = DogfoodPresenter.selectedRuleNames;
+        ArtifactDecompose.reloadRules();
+        _selectedNames = ArtifactDecompose.selectedRuleNames;
     }
 
     Connections {
-        target: DogfoodPresenter
+        target: ArtifactDecompose
         function onSelectedRuleNamesChanged() {
-            _selectedNames = DogfoodPresenter.selectedRuleNames;
+            _selectedNames = ArtifactDecompose.selectedRuleNames;
         }
     }
 
     function _toggleSelect(name) {
-        DogfoodPresenter.toggleRuleSelection(name);
+        ArtifactDecompose.toggleRuleSelection(name);
     }
 
     function _isSelected(name) {
@@ -42,7 +42,7 @@ Rectangle {
 
         // ==== 规则列表 ====
         Text {
-            text: "选择规则（最多 " + DogfoodPresenter.maxRuleSelection + " 条）"
+            text: "选择规则（最多 " + ArtifactDecompose.maxRuleSelection + " 条）"
             font.family: Theme.fontFamily
             font.pixelSize: 14
             color: Theme.textPrimary
@@ -54,7 +54,7 @@ Rectangle {
             Layout.fillHeight: true
             clip: true
             spacing: 6
-            model: DogfoodPresenter.rules
+            model: ArtifactDecompose.rules
 
             delegate: RuleCard {
                 width: ruleList.width
@@ -94,10 +94,10 @@ Rectangle {
 
             GComboBox {
                 implicitWidth: 80
-                model: DogfoodPresenter.defaultActionLabels
-                currentIndex: DogfoodPresenter.defaultActionIndex
-                enabled: !DogfoodPresenter.running
-                onActivated: (index) => DogfoodPresenter.selectDefaultAction(index)
+                model: ArtifactDecompose.defaultActionLabels
+                currentIndex: ArtifactDecompose.defaultActionIndex
+                enabled: !ArtifactDecompose.running
+                onActivated: (index) => ArtifactDecompose.selectDefaultAction(index)
             }
 
             Text {
@@ -111,18 +111,18 @@ Rectangle {
                 id: maxDiscardSpin
                 from: 1
                 to: 1000
-                value: DogfoodPresenter.maxDiscardCount
+                value: ArtifactDecompose.maxDiscardCount
                 editable: true
                 implicitWidth: 80
                 implicitHeight: 32
-                enabled: !DogfoodPresenter.running
-                onValueChanged: DogfoodPresenter.setMaxDiscardCount(value)
+                enabled: !ArtifactDecompose.running
+                onValueChanged: ArtifactDecompose.setMaxDiscardCount(value)
             }
 
             Item { Layout.fillWidth: true }
 
             Text {
-                text: DogfoodPresenter.status || ""
+                text: ArtifactDecompose.status || ""
                 font.family: Theme.fontFamily
                 font.pixelSize: 13
                 color: Theme.textSecondary
@@ -132,27 +132,27 @@ Rectangle {
 
             // 选择前：开始分解按钮
             GButton {
-                visible: !DogfoodPresenter.selectionDone
-                text: DogfoodPresenter.running ? "选择中..." : "开始分解"
+                visible: !ArtifactDecompose.selectionDone
+                text: ArtifactDecompose.running ? "选择中..." : "开始分解"
                 colorType: "primary"
-                enabled: !DogfoodPresenter.running && _selectedNames.length > 0
-                onClicked: DogfoodPresenter.startDecompose()
+                enabled: !ArtifactDecompose.running && _selectedNames.length > 0
+                onClicked: ArtifactDecompose.startDecompose()
             }
 
             // 选择后：确认 / 取消 按钮
             GButton {
-                visible: DogfoodPresenter.selectionDone
+                visible: ArtifactDecompose.selectionDone
                 text: "取消"
                 colorType: "default"
-                onClicked: DogfoodPresenter.cancelDecompose()
+                onClicked: ArtifactDecompose.cancelDecompose()
             }
 
             GButton {
-                visible: DogfoodPresenter.selectionDone
+                visible: ArtifactDecompose.selectionDone
                 text: "确认分解"
                 colorType: "danger"
-                enabled: DogfoodPresenter.pendingDiscard > 0
-                onClicked: DogfoodPresenter.confirmDecompose()
+                enabled: ArtifactDecompose.pendingDiscard > 0
+                onClicked: ArtifactDecompose.confirmDecompose()
             }
         }
     }

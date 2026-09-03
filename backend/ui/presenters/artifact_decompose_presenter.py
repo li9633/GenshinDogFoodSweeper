@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import ClassVar
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.logger import log
 from utils.settings_manager import settings
 
-from backend.automation.artifact_decomposer import ArtifactDecomposer
+from backend.automation.artifact_decomposer import (
+    ArtifactDecomposer,
+    ExecuteWorker,
+    SelectWorker,
+)
 from backend.database.repository.dogfood_rule_repo import DogfoodRuleRepo
 
 
-class DogfoodPresenter(QObject):
-    """狗粮清理页面的 Presenter，调用 ArtifactDecomposer"""
+class ArtifactDecomposePresenter(QObject):
+    """圣遗物分解页面的 Presenter，调用 ArtifactDecomposer"""
 
     statusChanged = Signal()
     runningChanged = Signal()
@@ -36,6 +41,8 @@ class DogfoodPresenter(QObject):
         self._running = False
         self._status = ""
         self._decomposer = ArtifactDecomposer()
+        self._select_worker: SelectWorker | None = None
+        self._execute_worker: ExecuteWorker | None = None
         self._rules: list = []
         self._selected_rule_names: list[str] = []
         self._default_action = "keep"
@@ -203,7 +210,7 @@ class DogfoodPresenter(QObject):
 
     @Slot()
     def startDecompose(self) -> None:
-        """阶段一：进入分解页面并选择第一批圣遗物。"""
+        """阶段一：进入分解页面并选择第一批圣遗物（后台线程执行）。"""
         if self._running:
             log.warning("分解已在运行中")
             return
@@ -212,7 +219,6 @@ class DogfoodPresenter(QObject):
             self._set_status("请至少选择一条规则")
             return
 
-        # 加载规则对象
         db_rules = DogfoodRuleRepo.find_all()
         self._active_rules = [r for r in db_rules if r.name in self._selected_rule_names]
         if not self._active_rules:
@@ -227,58 +233,31 @@ class DogfoodPresenter(QObject):
         self._running = True
         self.runningChanged.emit()
 
-        # 清除上次的停止标志
         self._decomposer.reset_stop()
 
-        try:
-            log.info(
-                f"[Dogfood] 开始分解: 规则={[r.name for r in self._active_rules]} "
-                f"默认行为={self._active_default_action}"
-            )
-
-            # 进入分解页面
-            self._set_status("正在进入分解页面...")
-            if not self._decomposer.enter_decompose_page():
-                self._set_status("进入分解页面失败")
-                self._finish()
-                return
-
-            # 先尝试快速选择4星及以下圣遗物（前置优化）
-            self._set_status("正在快速选择4星及以下圣遗物...")
-            quick_ok = self._decomposer.try_quick_select_decompose()
-            if quick_ok:
-                log.info("快速选择已处理4星及以下圣遗物，继续主流程...")
-            else:
-                log.info("无4星及以下圣遗物或快速选择跳过，继续主流程...")
-
-            # 无论快速选择结果如何，都进入主流程逐格识别+规则分析
-            self._set_status("进入主流程逐格识别...")
-            self._run_selection_batch()
-        except Exception:
-            self._set_status("分解流程异常")
-            self._finish()
-
-    def _run_selection_batch(self) -> None:
-        """运行一批选择，完成后设置 selectionDone 状态。"""
-        self._set_status("正在选择圣遗物...")
-        self._batch_number += 1
         log.info(
-            f"[Dogfood] 开始第 {self._total_keep + self._total_discard + 1} 批选择 "
-            f"(规则={[r.name for r in self._active_rules]}, "
-            f"默认={self._active_default_action})"
+            f"[Dogfood] 开始分解: 规则={[r.name for r in self._active_rules]} "
+            f"默认行为={self._active_default_action}"
         )
-        keep, discard, reached_limit = self._decomposer.select_artifacts(
-            self._active_rules, self._active_default_action,
+
+        self._select_worker = SelectWorker(
+            self._decomposer,
+            self._active_rules,
+            self._active_default_action,
             self._max_discard_count,
+            engines_dir=Path(__file__).resolve().parents[3] / "engines",
         )
+        self._select_worker.stepChanged.connect(self._set_status)
+        self._select_worker.finished.connect(self._on_select_finished)
+        self._select_worker.errorOccurred.connect(self._on_decompose_error)
+        self._select_worker.start()
 
-        # 检查是否发生致命错误（如 OCR 模型未下载）
-        if self._decomposer._fatal_error:
-            self._set_status(self._decomposer._fatal_error)
-            self._finish()
-            return
+    def _on_select_finished(
+        self, keep: int, discard: int, reached_limit: bool
+    ) -> None:
+        """SelectWorker 完成回调。"""
+        self._select_worker = None
 
-        # 检查是否被热键停止
         if self._decomposer._stop_event.is_set():
             self._set_status("用户手动停止")
             self._finish()
@@ -311,9 +290,13 @@ class DogfoodPresenter(QObject):
                 f"已选中 {discard} 件待分解（保留 {keep} 件），请确认"
             )
 
+    def _on_decompose_error(self, error: str) -> None:
+        self._set_status(error)
+        self._finish()
+
     @Slot()
     def confirmDecompose(self) -> None:
-        """阶段二：用户确认后执行分解，然后继续下一批或结束。"""
+        """阶段二：用户确认后执行分解（后台线程），然后继续下一批或结束。"""
         if not self._selection_done:
             return
 
@@ -321,37 +304,61 @@ class DogfoodPresenter(QObject):
         self._selection_done = False
         self.selectionDoneChanged.emit()
 
-        try:
-            if self._pending_discard > 0:
-                self._set_status("正在执行分解...")
-                if not self._decomposer.execute_decompose():
-                    self._set_status("分解按钮点击失败")
+        if self._pending_discard > 0:
+            self._execute_worker = ExecuteWorker(self._decomposer)
+            self._execute_worker.stepChanged.connect(self._set_status)
+            self._execute_worker.finished.connect(self._on_execute_finished)
+            self._execute_worker.errorOccurred.connect(self._on_decompose_error)
+            self._execute_worker.start()
+        else:
+            self._on_execute_finished(True)
+
+    def _on_execute_finished(self, success: bool) -> None:
+        self._execute_worker = None
+
+        if not success:
+            self._set_status("分解按钮点击失败")
+            self._finish()
+            return
+
+        if self._has_more_batches:
+            log.info(
+                f"[Dogfood] 继续下一批 "
+                f"(已完成 {self._total_keep + self._total_discard} 件)"
+            )
+            # 等待分解动画（可被热键中断）
+            import time
+
+            for _ in range(25):
+                if self._decomposer._stop_event.is_set():
+                    self._set_status("用户手动停止")
                     self._finish()
                     return
+                time.sleep(0.1)
 
-            if self._has_more_batches:
-                log.info(
-                    f"[Dogfood] 继续下一批 "
-                    f"(已完成 {self._total_keep + self._total_discard} 件)"
-                )
-                # 等待分解动画（可被热键中断）
-                import time
-                for _ in range(25):
-                    if self._decomposer._stop_event.is_set():
-                        self._set_status("用户手动停止")
-                        self._finish()
-                        return
-                    time.sleep(0.1)
-                self._run_selection_batch()
-            else:
-                final_msg = (
-                    f"完成！保留 {self._total_keep} 件，分解 {self._total_discard} 件"
-                )
-                log.info(f"[Dogfood] {final_msg}")
-                self._set_status(final_msg)
-                self._finish()
-        except Exception:
-            self._set_status("确认分解异常")
+            self._batch_number += 1
+            log.info(
+                f"[Dogfood] 开始第 {self._total_keep + self._total_discard + 1} 批选择 "
+                f"(规则={[r.name for r in self._active_rules]}, "
+                f"默认={self._active_default_action})"
+            )
+            self._select_worker = SelectWorker(
+                self._decomposer,
+                self._active_rules,
+                self._active_default_action,
+                self._max_discard_count,
+                engines_dir=Path(__file__).resolve().parents[3] / "engines",
+            )
+            self._select_worker.stepChanged.connect(self._set_status)
+            self._select_worker.finished.connect(self._on_select_finished)
+            self._select_worker.errorOccurred.connect(self._on_decompose_error)
+            self._select_worker.start()
+        else:
+            final_msg = (
+                f"完成！保留 {self._total_keep} 件，分解 {self._total_discard} 件"
+            )
+            log.info(f"[Dogfood] {final_msg}")
+            self._set_status(final_msg)
             self._finish()
 
     @Slot()
@@ -365,10 +372,15 @@ class DogfoodPresenter(QObject):
 
     @Slot()
     def _on_hotkey_stop(self) -> None:
-        """热键停止回调（Qt 事件循环中执行，用于 UI 清理）。"""
-        if self._running:
-            self._set_status("用户手动停止")
-            self._finish()
+        """热键停止回调（主线程，瞬间响应）。
+
+        只请求 Worker 停止，不主动调用 _finish()。
+        Worker 的 finished 信号会自然触发清理，避免 QThread 被提前销毁。
+        """
+        if self._select_worker is not None:
+            self._select_worker.stop()
+        if self._execute_worker is not None:
+            self._execute_worker.stop()
 
     def _finish(self) -> None:
         """清理状态，结束分解流程。"""
@@ -377,8 +389,9 @@ class DogfoodPresenter(QObject):
             f"batch={self._batch_number} "
             f"total_keep={self._total_keep} total_discard={self._total_discard}"
         )
+        self._select_worker = None
+        self._execute_worker = None
         self._batch_number = 0
-        self._decomposer.reset_stop()
         self._selection_done = False
         self._pending_keep = 0
         self._pending_discard = 0

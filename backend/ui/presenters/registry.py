@@ -122,23 +122,21 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("RulePresenter", RulePresenter, []))
 
-    # ---- DogfoodPresenter ----
-    from ui.presenters.dogfood_presenter import DogfoodPresenter
+    # ---- ArtifactDecompose ----
+    from ui.presenters.artifact_decompose_presenter import ArtifactDecomposePresenter
 
-    def _wire_dogfood(p: DogfoodPresenter) -> None:
+    def _wire_decompose(p: ArtifactDecomposePresenter) -> None:
         HotkeyListener.instance().stopRequested.connect(p._on_hotkey_stop)
-        HotkeyListener.register_stop_callback(p._decomposer.stop)
 
-    registry.append(("DogfoodPresenter", DogfoodPresenter, [_wire_dogfood]))
+    registry.append(("ArtifactDecompose", ArtifactDecomposePresenter, [_wire_decompose]))
 
-    # ---- LockerPresenter ----
-    from ui.presenters.locker_presenter import LockerPresenter
+    # ---- ArtifactLocker ----
+    from ui.presenters.artifact_locker_presenter import ArtifactLockerPresenter
 
-    def _wire_locker(p: LockerPresenter) -> None:
+    def _wire_locker(p: ArtifactLockerPresenter) -> None:
         HotkeyListener.instance().stopRequested.connect(p._on_hotkey_stop)
-        HotkeyListener.register_stop_callback(p._locker.stop)
 
-    registry.append(("LockerPresenter", LockerPresenter, [_wire_locker]))
+    registry.append(("ArtifactLocker", ArtifactLockerPresenter, [_wire_locker]))
 
     return registry
 

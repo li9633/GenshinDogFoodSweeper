@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import ClassVar
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.logger import log
 from utils.settings_manager import settings
 
-from backend.automation.artifact_locker import ArtifactLocker
+from backend.automation.artifact_locker import ArtifactLocker, LockWorker
 from backend.database.repository.dogfood_rule_repo import DogfoodRuleRepo
 
 
-class LockerPresenter(QObject):
+class ArtifactLockerPresenter(QObject):
     """圣遗物锁定页面的 Presenter，调用 ArtifactLocker"""
 
     statusChanged = Signal()
@@ -34,6 +35,7 @@ class LockerPresenter(QObject):
         self._running = False
         self._status = ""
         self._locker = ArtifactLocker()
+        self._lock_worker: LockWorker | None = None
         self._rules: list = []
         self._selected_rule_names: list[str] = []
         self._default_action = "keep"
@@ -242,49 +244,51 @@ class LockerPresenter(QObject):
 
         self._locker.reset_stop()
 
-        try:
-            log.info(
-                f"[Locker] 开始锁定: 规则={[r.name for r in active_rules]} "
-                f"默认行为={self._default_action} 重新解锁={self._re_unlock}"
-            )
+        log.info(
+            f"[Locker] 开始锁定: 规则={[r.name for r in active_rules]} "
+            f"默认行为={self._default_action} 重新解锁={self._re_unlock}"
+        )
 
-            self._set_status("正在扫描并锁定圣遗物...")
-            max_count = self._max_count if self._limit_count_enabled else 0
-            locked, unlocked, skipped = self._locker.lock_artifacts(
-                active_rules, self._default_action, self._re_unlock, max_count
-            )
+        max_count = self._max_count if self._limit_count_enabled else 0
+        engines_dir = Path(__file__).resolve().parents[3] / "engines"
+        self._lock_worker = LockWorker(
+            self._locker, active_rules, self._default_action,
+            self._re_unlock, max_count,
+            engines_dir=engines_dir,
+        )
+        self._lock_worker.stepChanged.connect(self._set_status)
+        self._lock_worker.finished.connect(self._on_lock_finished)
+        self._lock_worker.errorOccurred.connect(self._on_lock_error)
+        self._lock_worker.start()
 
-            if self._locker._fatal_error:
-                self._set_status(self._locker._fatal_error)
-                self._finish()
-                return
+    def _on_lock_finished(self, locked: int, unlocked: int, skipped: int) -> None:
+        self._locked_count = locked
+        self._unlocked_count = unlocked
+        self._skipped_count = skipped
+        self.statsChanged.emit()
 
-            self._locked_count = locked
-            self._unlocked_count = unlocked
-            self._skipped_count = skipped
-            self.statsChanged.emit()
+        msg = f"完成！锁定 {locked} 件，解锁 {unlocked} 件，跳过 {skipped} 件"
+        log.info(f"[Locker] {msg}")
+        self._set_status(msg)
+        self._finish()
 
-            msg = f"完成！锁定 {locked} 件，解锁 {unlocked} 件，跳过 {skipped} 件"
-            log.info(f"[Locker] {msg}")
-            self._set_status(msg)
-            self._finish()
-        except Exception:
-            self._set_status("锁定流程异常")
-            self._finish()
+    def _on_lock_error(self, error: str) -> None:
+        self._set_status(error)
+        self._finish()
 
     @Slot()
     def stopLock(self) -> None:
-        self._locker.stop()
+        if self._lock_worker is not None:
+            self._lock_worker.stop()
         log.info("[Locker] 已请求停止")
 
     @Slot()
     def _on_hotkey_stop(self) -> None:
-        if self._running:
-            self._set_status("用户手动停止")
-            self._finish()
+        if self._running and self._lock_worker is not None:
+            self._lock_worker.stop()
 
     def _finish(self) -> None:
-        self._locker.reset_stop()
+        self._lock_worker = None
         self._running = False
         self.runningChanged.emit()
 

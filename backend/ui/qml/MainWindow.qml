@@ -113,9 +113,9 @@ ApplicationWindow {
         }
     }
 
-    Component { id: dogfoodPage;  DogfoodPage {} }
+    Component { id: dogfoodPage;  ArtifactDecomposePage {} }
     Component { id: scannerPage;  ScannerPage {} }
-    Component { id: lockerPage;   LockerPage {} }
+    Component { id: lockerPage;   ArtifactLockerPage {} }
     Component { id: rulesPage;    RulesPage {} }
     Component { id: settingsPage; SettingsPage {} }
     Component { id: debugPage;    DebugPage {} }

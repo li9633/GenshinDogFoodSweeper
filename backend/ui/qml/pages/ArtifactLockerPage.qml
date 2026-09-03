@@ -12,19 +12,19 @@ Rectangle {
     property var _selectedNames: []
 
     Component.onCompleted: {
-        LockerPresenter.reloadRules();
-        _selectedNames = LockerPresenter.selectedRuleNames;
+        ArtifactLocker.reloadRules();
+        _selectedNames = ArtifactLocker.selectedRuleNames;
     }
 
     Connections {
-        target: LockerPresenter
+        target: ArtifactLocker
         function onSelectedRuleNamesChanged() {
-            _selectedNames = LockerPresenter.selectedRuleNames;
+            _selectedNames = ArtifactLocker.selectedRuleNames;
         }
     }
 
     function _toggleSelect(name) {
-        LockerPresenter.toggleRuleSelection(name);
+        ArtifactLocker.toggleRuleSelection(name);
     }
 
     function _isSelected(name) {
@@ -38,7 +38,7 @@ Rectangle {
 
         // ==== 规则列表 ====
         Text {
-            text: "选择规则（最多 " + LockerPresenter.maxRuleSelection + " 条）"
+            text: "选择规则（最多 " + ArtifactLocker.maxRuleSelection + " 条）"
             font.family: Theme.fontFamily
             font.pixelSize: 14
             color: Theme.textPrimary
@@ -50,7 +50,7 @@ Rectangle {
             Layout.fillHeight: true
             clip: true
             spacing: 6
-            model: LockerPresenter.rules
+            model: ArtifactLocker.rules
 
             delegate: RuleCard {
                 width: ruleList.width
@@ -89,40 +89,40 @@ Rectangle {
 
             GComboBox {
                 implicitWidth: 80
-                model: LockerPresenter.defaultActionLabels
-                currentIndex: LockerPresenter.defaultActionIndex
-                enabled: !LockerPresenter.running
-                onActivated: (index) => LockerPresenter.selectDefaultAction(index)
+                model: ArtifactLocker.defaultActionLabels
+                currentIndex: ArtifactLocker.defaultActionIndex
+                enabled: !ArtifactLocker.running
+                onActivated: (index) => ArtifactLocker.selectDefaultAction(index)
             }
 
             GCheckBox {
                 text: "跳过已锁定的圣遗物"
-                checked: !LockerPresenter.reUnlock
-                enabled: !LockerPresenter.running
-                onCheckedChanged: LockerPresenter.setReUnlock(!checked)
+                checked: !ArtifactLocker.reUnlock
+                enabled: !ArtifactLocker.running
+                onCheckedChanged: ArtifactLocker.setReUnlock(!checked)
             }
 
             GCheckBox {
                 text: "限制处理数量"
-                checked: LockerPresenter.limitCountEnabled
-                enabled: !LockerPresenter.running
-                onCheckedChanged: LockerPresenter.setLimitCountEnabled(checked)
+                checked: ArtifactLocker.limitCountEnabled
+                enabled: !ArtifactLocker.running
+                onCheckedChanged: ArtifactLocker.setLimitCountEnabled(checked)
             }
 
             GSpinBox {
                 from: 1
                 to: 9999
-                value: LockerPresenter.maxCount
+                value: ArtifactLocker.maxCount
                 editable: true
                 implicitWidth: 70
                 implicitHeight: 32
-                enabled: LockerPresenter.limitCountEnabled && !LockerPresenter.running
-                visible: LockerPresenter.limitCountEnabled
-                onValueChanged: LockerPresenter.setMaxCount(value)
+                enabled: ArtifactLocker.limitCountEnabled && !ArtifactLocker.running
+                visible: ArtifactLocker.limitCountEnabled
+                onValueChanged: ArtifactLocker.setMaxCount(value)
             }
 
             Text {
-                visible: LockerPresenter.limitCountEnabled
+                visible: ArtifactLocker.limitCountEnabled
                 text: "个"
                 font.family: Theme.fontFamily
                 font.pixelSize: 13
@@ -133,18 +133,18 @@ Rectangle {
 
             // 统计信息
             ColumnLayout {
-                visible: LockerPresenter.lockedCount > 0 || LockerPresenter.unlockedCount > 0
+                visible: ArtifactLocker.lockedCount > 0 || ArtifactLocker.unlockedCount > 0
                 spacing: 2
 
                 Text {
-                    text: "锁定: " + LockerPresenter.lockedCount + " | 解锁: " + LockerPresenter.unlockedCount + " | 跳过: " + LockerPresenter.skippedCount
+                    text: "锁定: " + ArtifactLocker.lockedCount + " | 解锁: " + ArtifactLocker.unlockedCount + " | 跳过: " + ArtifactLocker.skippedCount
                     font.family: Theme.fontFamily
                     font.pixelSize: 12
                     color: Theme.textSecondary
                 }
 
                 Text {
-                    text: LockerPresenter.status || ""
+                    text: ArtifactLocker.status || ""
                     font.family: Theme.fontFamily
                     font.pixelSize: 13
                     color: Theme.textSecondary
@@ -153,26 +153,26 @@ Rectangle {
             }
 
             Text {
-                text: LockerPresenter.status || ""
+                text: ArtifactLocker.status || ""
                 font.family: Theme.fontFamily
                 font.pixelSize: 13
                 color: Theme.textSecondary
-                visible: text !== "" && (LockerPresenter.lockedCount === 0 && LockerPresenter.unlockedCount === 0)
+                visible: text !== "" && (ArtifactLocker.lockedCount === 0 && ArtifactLocker.unlockedCount === 0)
                 Layout.rightMargin: 8
             }
 
             GButton {
-                text: LockerPresenter.running ? "锁定中..." : "开始锁定"
+                text: ArtifactLocker.running ? "锁定中..." : "开始锁定"
                 colorType: "primary"
-                enabled: !LockerPresenter.running && _selectedNames.length > 0
-                onClicked: LockerPresenter.startLock()
+                enabled: !ArtifactLocker.running && _selectedNames.length > 0
+                onClicked: ArtifactLocker.startLock()
             }
 
             GButton {
-                visible: LockerPresenter.running
+                visible: ArtifactLocker.running
                 text: "停止"
                 colorType: "danger"
-                onClicked: LockerPresenter.stopLock()
+                onClicked: ArtifactLocker.stopLock()
             }
         }
     }

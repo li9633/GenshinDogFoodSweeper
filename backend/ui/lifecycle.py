@@ -59,7 +59,7 @@ class OnWindowReady(metaclass=_QABCMeta):
         cls._instances = unique
 
         names = [type(i).__name__ for i in unique]
-        log.info(f"窗口就绪，触发 {len(unique)} 个 OnWindowReady 回调: {names}")
+        log.debug(f"窗口就绪，触发 {len(unique)} 个 OnWindowReady 回调: {names}")
         for instance in unique:
             try:
                 instance.on_window_ready()

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """自动锁定/解锁圣遗物模块
 
 流程与分解流程基本一致：
@@ -11,11 +9,13 @@ from __future__ import annotations
 4. 无格子时停止
 """
 
+from __future__ import annotations
+
 import threading
 import time
 
 import numpy as np
-from PySide6.QtCore import QEventLoop, QObject, QTimer
+from PySide6.QtCore import QObject, QThread, Signal
 from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
@@ -49,8 +49,12 @@ class ArtifactLocker(QObject):
     # ========== 入口 ==========
 
     def lock_artifacts(
-        self, rules: list, default_action: str, re_unlock: bool = False,
+        self,
+        rules: list,
+        default_action: str,
+        re_unlock: bool = False,
         max_count: int = 0,
+        ocr=None,
     ) -> tuple[int, int, int]:
         """执行锁定/解锁流程。
 
@@ -59,16 +63,22 @@ class ArtifactLocker(QObject):
             default_action: 默认行为 ("keep" 或 "discard")
             re_unlock: 是否将已锁定的圣遗物重新解锁
             max_count: 最大处理数量，0 表示处理到停止
+            ocr: OcrEngine.create_ocr() 返回的 OCR 实例
 
         Returns:
             (locked_count, unlocked_count, skipped_count)
         """
-        return self._lock_loop(rules, default_action, re_unlock, max_count)
+        return self._lock_loop(rules, default_action, re_unlock, max_count, ocr)
 
     # ========== 主循环 ==========
 
     def _lock_loop(
-        self, rules: list, default_action: str, re_unlock: bool, max_count: int,
+        self,
+        rules: list,
+        default_action: str,
+        re_unlock: bool,
+        max_count: int,
+        ocr=None,
     ) -> tuple[int, int, int]:
         """逐格点击 → OCR识别 → 规则评估 → 锁定/解锁 → 翻页。"""
         from backend.automation.dogfood_rule_engine import DogfoodRuleEngine
@@ -121,109 +131,78 @@ class ArtifactLocker(QObject):
                 nonlocal total_locked, total_unlocked, total_skipped
 
                 t_start = time.perf_counter()
-                log.debug(
-                    f"[{_page}-{idx}/{total}] "
-                    f"点击格子 ({slot.cx}, {slot.cy})"
-                )
+                log.debug(f"[{_page}-{idx}/{total}] 点击格子 ({slot.cx}, {slot.cy})")
 
-                # OCR 识别圣遗物详情
+                # 截图并 OCR 识别圣遗物详情（直接同步调用）
                 cap_result = self._capture.capture(window=_window)
-                if cap_result is None:
-                    return True
 
-                artifact = self._ocr_recognize_artifact(cap_result.image, config)
-                if artifact is None:
-                    log.warning(f"[{_page}-{idx}] OCR 识别失败")
-                    return True
-
-                # 跳过强化材料
-                if artifact.is_material:
-                    total_skipped += 1
-                    log.debug(
-                        f"[{_page}-{idx}] 跳过强化材料: {artifact.material_name}"
-                    )
-                    return True
-
-                # 规则评估：返回 "keep" 或 "discard"
-                action = engine.evaluate(artifact, rules)
-                should_lock = action == "keep"
-                is_locked = artifact.is_locked
-
-                t_eval = time.perf_counter()
-                item_time = t_eval - t_start
-
-                artifact_desc = (
-                    f"套装={artifact.set_name or '?'} "
-                    f"部位={artifact.piece_type or '?'} "
-                    f"星级={artifact.rarity or '?'}"
+                artifact = ArtifactLocker._recognize_artifact(
+                    cap_result.image, config, ocr
                 )
+                if artifact is None:
+                    log.warning(f"[{_page}-{idx}] OCR 识别失败，跳过")
+                    total_skipped += 1
+                    return True
 
-                # 缓存锁定图标坐标（窗口位置不变，首次匹配后复用）
-                if self._lock_icon_center is None:
-                    self._lock_icon_center = self._find_lock_icon_center(
-                        cap_result.image
+                # 规则评估
+                action = engine.evaluate(artifact, rules)
+                item_time = time.perf_counter() - t_start
+
+                if action == "keep":
+                    # 需要锁定
+                    self._toggle_lock(cap_result.image)
+                    total_locked += 1
+                    log.info(
+                        f"[{_page}-{idx}/{total}] → 锁定 "
+                        f"(套装={artifact.set_name or '?'} "
+                        f"部位={artifact.piece_type or '?'} "
+                        f"星级={artifact.rarity or '?'}) "
+                        f"| 耗时={item_time:.2f}s"
                     )
-                    if self._lock_icon_center is None:
-                        raise LockIconNotFoundError()
-
-                if is_locked:
-                    if should_lock:
-                        total_skipped += 1
-                        log.info(
-                            f"[{_page}-{idx}] → 跳过(已锁定) {artifact_desc} "
-                            f"| 耗时={item_time:.2f}s"
-                        )
-                    elif re_unlock:
-                        self._click_lock_icon()
+                elif action == "discard":
+                    # 需要解锁（仅 re_unlock 模式才执行）
+                    if re_unlock:
+                        self._toggle_lock(cap_result.image)
                         total_unlocked += 1
                         log.info(
-                            f"[{_page}-{idx}] → 解锁 {artifact_desc} "
+                            f"[{_page}-{idx}/{total}] → 解锁 "
+                            f"(套装={artifact.set_name or '?'} "
+                            f"部位={artifact.piece_type or '?'} "
+                            f"星级={artifact.rarity or '?'}) "
                             f"| 耗时={item_time:.2f}s"
                         )
                     else:
                         total_skipped += 1
-                        log.info(
-                            f"[{_page}-{idx}] → 跳过(已锁定且不重新解锁) "
-                            f"{artifact_desc} | 耗时={item_time:.2f}s"
+                        log.debug(
+                            f"[{_page}-{idx}/{total}] → 跳过(已是锁定状态) "
+                            f"| 耗时={item_time:.2f}s"
                         )
                 else:
-                    if should_lock:
-                        self._click_lock_icon()
-                        total_locked += 1
-                        log.info(
-                            f"[{_page}-{idx}] → 锁定 {artifact_desc} "
-                            f"| 耗时={item_time:.2f}s"
-                        )
-                    else:
-                        total_skipped += 1
-                        log.info(
-                            f"[{_page}-{idx}] → 跳过(已解锁) {artifact_desc} "
-                            f"| 耗时={item_time:.2f}s"
-                        )
-                return True
+                    total_skipped += 1
+                    log.debug(
+                        f"[{_page}-{idx}/{total}] → 跳过(默认保留) "
+                        f"| 耗时={item_time:.2f}s"
+                    )
 
-            def stop_check():
-                if self._stop_event.is_set():
-                    return True
-                total_processed = total_locked + total_unlocked + total_skipped
-                if max_count > 0 and total_processed >= max_count:
-                    log.info(f"已达到处理上限 {max_count} 件，停止")
-                    return True
-                return False
+                # 检查是否达到最大处理数量
+                if (
+                    max_count > 0
+                    and (total_locked + total_unlocked + total_skipped) >= max_count
+                ):
+                    log.info(f"已达到最大处理数量 {max_count}，停止")
+                    return False
+
+                return True
 
             iterator.reset()
             iterator.iter_slots(
                 det_result,
                 on_slot=on_slot,
-                stop_check=stop_check,
+                stop_check=lambda: self._stop_event.is_set(),
                 pre_check=pre_check,
             )
 
             if self._stop_event.is_set():
-                break
-
-            total_processed = total_locked + total_unlocked + total_skipped
-            if max_count > 0 and total_processed >= max_count:
                 break
 
             # 翻页：截图+检测 → 翻页
@@ -236,149 +215,130 @@ class ArtifactLocker(QObject):
 
         return (total_locked, total_unlocked, total_skipped)
 
-    # ========== 锁定图标点击 ==========
-
-    def _click_lock_icon(self) -> None:
-        """点击锁定图标（使用缓存坐标）。"""
-        cx, cy = self._lock_icon_center  # type: ignore[misc]
-        MouseController.move_and_click(cx, cy)
-        time.sleep(0.25)
+    # ========== 圣遗物详情 OCR 识别（直接同步调用） ==========
 
     @staticmethod
-    def _find_lock_icon_center(
-        image: np.ndarray,
-    ) -> tuple[int, int] | None:
-        """通过模板匹配找到锁定图标中心坐标。
+    def _recognize_artifact(image: np.ndarray, config, ocr) -> object | None:
+        """直接同步 OCR 识别圣遗物详情（在工作线程中调用）。
 
-        优先匹配「解锁」状态（大部分圣遗物都是解锁的），
-        失败后再匹配「锁定」状态。
+        Args:
+            image: 截图
+            config: BAG_SLOT_CONFIG
+            ocr: OcrEngine.create_ocr() 返回的 OCR 实例
 
         Returns:
-            (cx, cy) 锁定图标中心坐标（图像坐标），未找到返回 None
+            ArtifactInfo | None
         """
-        for key in ("圣遗物状态已解锁", "圣遗物状态已锁定"):
-            template = TemplateManager.get(key)
-            if template is None:
-                continue
-            region = template.region
-            if region is None:
-                continue
-            rx, ry, rw, rh = region
-            if (
-                rx < 0 or ry < 0
-                or rx + rw > image.shape[1]
-                or ry + rh > image.shape[0]
-            ):
-                continue
-            score, (cx, cy), _scale, (_tw, _th) = multi_scale_match(
-                image, template, search_region=region
-            )
-            if score >= 0.8:
-                return (cx, cy)
-        return None
-
-    # ========== OCR 识别 ==========
-
-    @staticmethod
-    def _create_ocr_task(image: np.ndarray, config):
-        """创建圣遗物 OCR 识别任务。"""
         from backend.automation.recognizer import ArtifactRecognizer
 
-        roi_configs = dict(config.detail_roi_configs)
-        lock_search = config.lock_anchor_search_region
-        lock_to_level = config.lock_anchor_to_level
-        lock_to_sub = config.lock_anchor_to_sub_stats
-
-        def task(ocr):
-            try:
-                artifact = ArtifactRecognizer.recognize(
-                    image,
-                    roi_configs,
-                    ocr,
-                    lock_anchor_search_region=lock_search,
-                    lock_anchor_to_level=lock_to_level,
-                    lock_anchor_to_sub_stats=lock_to_sub,
-                )
-                return artifact
-            except Exception as e:
-                log.debug(f"[锁定OCR] 识别异常: {e}")
-                return None
-
-        return task
-
-    @staticmethod
-    def _ensure_ocr_worker_ready() -> None:
-        from backend.automation.ocr_model_manager import OcrModelManager
-        from backend.automation.ocr_worker import OcrWorker
-        from backend.exceptions.automation import OcrModelNotReadyError
-
-        worker = OcrWorker.instance()
-        if worker.isRunning():
-            return
-
-        manager = OcrModelManager()
-        if not manager.is_ready():
-            raise OcrModelNotReadyError()
-
-        log.warning("OCR 模型已下载但 Worker 线程未运行，尝试启动...")
         try:
-            worker.start()
-        except RuntimeError:
-            log.warning("OcrWorker 线程已终止，销毁并重建...")
-            OcrWorker.destroy_instance()
-            worker = OcrWorker.instance()
-            worker.start()
-            log.info("OcrWorker 线程已重建并启动")
-
-    def _ocr_recognize_artifact(self, image: np.ndarray, config) -> object | None:
-        from backend.exceptions.automation import OcrModelNotReadyError
-
-        try:
-            ArtifactLocker._ensure_ocr_worker_ready()
-        except OcrModelNotReadyError:
-            self._fatal_error = "OCR 模型未下载"
-            self._stop_event.set()
+            return ArtifactRecognizer.recognize(
+                image,
+                config.detail_roi_configs,
+                ocr,
+                lock_anchor_search_region=config.lock_anchor_search_region,
+                lock_anchor_to_level=config.lock_anchor_to_level,
+                lock_anchor_to_sub_stats=config.lock_anchor_to_sub_stats,
+            )
+        except Exception as e:
+            log.debug(f"[锁定OCR] 识别异常: {e}")
             return None
 
-        from backend.automation.ocr_worker import OcrWorker
+    # ========== 锁定/解锁操作 ==========
 
-        result_holder: list = []
-        loop = QEventLoop()
+    def _toggle_lock(self, image: np.ndarray) -> None:
+        """点击锁定图标切换锁定/解锁状态。
 
-        timeout_timer = QTimer()
-        timeout_timer.setSingleShot(True)
+        通过模板匹配找到锁定图标位置并点击。
+        首次匹配成功后缓存坐标，后续直接复用。
+        """
+        if self._lock_icon_center is not None:
+            MouseController.move_and_click(*self._lock_icon_center)
+            time.sleep(0.3)
+            return
 
-        def on_timeout():
-            if not result_holder:
-                log.error("[锁定OCR] 识别超时（30秒），请检查 OCR 模型是否正常")
-            loop.quit()
+        template = TemplateManager.get("锁定图标")
+        if template is None:
+            log.error("未找到模板: 锁定图标")
+            raise LockIconNotFoundError("锁定图标模板未加载")
 
-        timeout_timer.timeout.connect(on_timeout)
-        timeout_timer.start(30000)
+        score, (rel_x, rel_y), scale, (_w, _h) = multi_scale_match(image, template)
+        if score < 0.80:
+            log.warning(f"锁定图标匹配失败: 得分={score:.3f}")
+            raise LockIconNotFoundError(f"锁定图标匹配得分过低: {score:.3f}")
 
-        def on_done(result, _cb):
-            result_holder.append(result)
-            timeout_timer.stop()
-            loop.quit()
+        abs_x, abs_y = WindowHelper.to_absolute(rel_x, rel_y)
+        win_origin = WindowHelper.get_origin()
+        log.info(
+            f"锁定图标匹配成功: 得分={score:.3f} 缩放={scale:.2f} "
+            f"窗口相对=({rel_x}, {rel_y}) 窗口原点={win_origin} "
+            f"屏幕绝对=({abs_x}, {abs_y})"
+        )
 
-        def on_error(err, _cb):
-            log.debug(f"[锁定OCR] 失败: {err}")
-            timeout_timer.stop()
-            loop.quit()
+        self._lock_icon_center = (rel_x, rel_y)
+        MouseController.move_and_click(rel_x, rel_y)
+        time.sleep(0.3)
 
-        worker = OcrWorker.instance()
-        worker.task_done.connect(on_done)
-        worker.task_error.connect(on_error)
 
-        task = ArtifactLocker._create_ocr_task(image, config)
-        worker.submit(task, callback_data="locker")
+# ====================================================================
+# 锁定 Worker（后台线程）
+# ====================================================================
 
-        loop.exec()
 
+class LockWorker(QThread):
+    """后台线程：圣遗物锁定/解锁"""
+
+    stepChanged = Signal(str)
+    finished = Signal(int, int, int)
+    errorOccurred = Signal(str)
+
+    def __init__(
+        self,
+        locker: ArtifactLocker,
+        rules: list,
+        default_action: str,
+        re_unlock: bool,
+        max_count: int,
+        engines_dir=None,
+        parent: QObject | None = None,
+    ):
+        super().__init__(parent)
+        self._locker = locker
+        self._rules = rules
+        self._default_action = default_action
+        self._re_unlock = re_unlock
+        self._max_count = max_count
+        self._engines_dir = engines_dir
+
+    def stop(self) -> None:
+        self._locker.stop()
+
+    def run(self) -> None:
         try:
-            worker.task_done.disconnect(on_done)
-            worker.task_error.disconnect(on_error)
-        except Exception:
-            log.debug("断开 OCR 信号连接时发生异常")
+            from backend.automation.ocr_engine import OcrEngine
+            from backend.exceptions.automation import OcrModelNotReadyError
 
-        return result_holder[0] if result_holder else None
+            self.stepChanged.emit("正在初始化 OCR 引擎...")
+            ocr = OcrEngine.create_ocr(self._engines_dir)
+
+            self.stepChanged.emit("正在锁定/解锁圣遗物...")
+            locked, unlocked, skipped = self._locker.lock_artifacts(
+                self._rules,
+                self._default_action,
+                self._re_unlock,
+                self._max_count,
+                ocr,
+            )
+
+            if self._locker._fatal_error:
+                self.errorOccurred.emit(self._locker._fatal_error)
+                return
+
+            self.finished.emit(locked, unlocked, skipped)
+
+        except OcrModelNotReadyError:
+            self.errorOccurred.emit(OcrModelNotReadyError._MESSAGE)
+        except Exception as e:
+            import traceback
+
+            self.errorOccurred.emit(f"{e}\n{traceback.format_exc()}")
