@@ -37,7 +37,7 @@ ApplicationWindow {
         id: shadowLayer
         anchors.fill: parent
         anchors.margins: root.shadowMargin
-        radius: 20
+        radius: Theme.windowRadius
         color: Theme.bgPrimary
 
         layer.enabled: true
@@ -55,7 +55,7 @@ ApplicationWindow {
         id: windowContent
         anchors.fill: parent
         anchors.margins: root.shadowMargin
-        radius: 20
+        radius: Theme.windowRadius
         color: "transparent"
         clip: true
 

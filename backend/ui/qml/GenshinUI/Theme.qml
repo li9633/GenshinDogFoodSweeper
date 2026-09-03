@@ -75,4 +75,7 @@ QtObject {
     readonly property int fontSize: 15
     readonly property int radius: 6
     readonly property int spacing: 8
+
+    // -- 窗口圆角 --
+    readonly property int windowRadius: 6
 }

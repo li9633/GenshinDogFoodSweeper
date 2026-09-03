@@ -9,7 +9,7 @@ Rectangle {
     id: root
     Layout.fillWidth: true
     Layout.preferredHeight: 36
-    radius: 20
+    radius: Theme.windowRadius
     color: Theme.bgSidebar
 
     // 覆盖底部圆角，保持底部直边与下方内容无缝衔接
@@ -17,7 +17,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: 20
+        height: Theme.windowRadius
         color: Theme.bgSidebar
     }
 

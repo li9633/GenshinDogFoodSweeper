@@ -33,7 +33,7 @@ Rectangle {
     // 布局（始终可见）
     // ============================================================
     implicitHeight: 32
-    radius: 20
+    radius: Theme.windowRadius
     color: barBgColor
     clip: true
 
@@ -42,7 +42,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: 20
+        height: Theme.windowRadius
         color: barBgColor
     }
 
