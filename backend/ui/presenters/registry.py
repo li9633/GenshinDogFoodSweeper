@@ -63,10 +63,11 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     # ---- StatusBar ----
     from ui.presenters.status_bar_presenter import StatusBarPresenter
-    from utils.log_bridge import set_status_callback
+    from utils.log_bridge import set_presenter, set_status_callback
 
     def _wire_status(p: StatusBarPresenter) -> None:
         set_status_callback(p.show)
+        set_presenter(p)
 
     registry.append(("StatusBarPresenter", StatusBarPresenter, [_wire_status]))
 

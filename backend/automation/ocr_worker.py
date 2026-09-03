@@ -69,11 +69,17 @@ class OcrWorker(QThread):
         此处直接创建 OCR 实例。
         """
         try:
+            from utils.log_bridge import end_task, start_task
+
             from backend.automation.ocr_engine import OcrEngine
             from backend.exceptions.automation import OcrModelNotReadyError
 
-            log.info("OCR 引擎预热中（3-5 秒）…")
-            self._ocr = OcrEngine.create_ocr(self._engines_dir)
+            start_task("ocr_init", "INFO", "OCR 引擎预热中 …")
+            try:
+                self._ocr = OcrEngine.create_ocr(self._engines_dir)
+            finally:
+                end_task("ocr_init")
+
             log.info("OCR 引擎就绪")
             self.ready.emit()
 
@@ -97,7 +103,6 @@ class OcrWorker(QThread):
                     self.task_error.emit(tb, callback_data)
 
         except OcrModelNotReadyError:
-            # 异常已在 __init__ 中完成 log.error + GMessageBox 弹窗
             self.task_error.emit(
                 "OCR 模型未下载，请前往「设置」页面点击「下载模型」", None
             )
