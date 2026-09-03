@@ -19,6 +19,7 @@ from enum import Enum
 
 class Channel(Enum):
     """发布渠道"""
+
     DEV = "dev"
     ALPHA = "alpha"
     BETA = "beta"
@@ -34,6 +35,7 @@ class Channel(Enum):
             Channel.RELEASE: "正式版",
         }
         return _labels[self]
+
 
 def _detect_latest_channel_num(channel: str) -> int:
     """从 dist/ 目录检测同渠道已构建的最大迭代号，无产物则返回 0。"""
@@ -65,17 +67,14 @@ except ImportError:
 
 
 class AppVersion:
-    """应用版本 — 语义化版本 + 发布渠道
-
-    修改版本号只需改这里，全局生效。
-    """
+    """应用版本 — 语义化版本 + 发布渠道"""
 
     # 主版本号
     MAJOR: int = 0
     # 次版本号
     MINOR: int = 9
     # 修订版本号
-    PATCH: int = 25
+    PATCH: int = 26
     CHANNEL: Channel = _CHANNEL
     CHANNEL_NUM: int = _CHANNEL_NUM
 

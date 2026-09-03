@@ -20,8 +20,6 @@ from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
 from backend.automation.slot_iterator import SlotIterator
-from backend.automation.template_manager import TemplateManager
-from backend.automation.template_matcher import multi_scale_match
 from backend.automation.window_helper import WindowHelper
 from backend.exceptions.automation.exceptions import LockIconNotFoundError
 from backend.utils.screen_capture import ScreenshotCapture
@@ -150,7 +148,7 @@ class ArtifactLocker(QObject):
 
                 if action == "keep":
                     # 需要锁定
-                    self._toggle_lock(cap_result.image)
+                    self._toggle_lock(cap_result.image, config.lock_anchor_search_region)
                     total_locked += 1
                     log.info(
                         f"[{_page}-{idx}/{total}] → 锁定 "
@@ -162,7 +160,7 @@ class ArtifactLocker(QObject):
                 elif action == "discard":
                     # 需要解锁（仅 re_unlock 模式才执行）
                     if re_unlock:
-                        self._toggle_lock(cap_result.image)
+                        self._toggle_lock(cap_result.image, config.lock_anchor_search_region)
                         total_unlocked += 1
                         log.info(
                             f"[{_page}-{idx}/{total}] → 解锁 "
@@ -246,7 +244,11 @@ class ArtifactLocker(QObject):
 
     # ========== 锁定/解锁操作 ==========
 
-    def _toggle_lock(self, image: np.ndarray) -> None:
+    def _toggle_lock(
+        self,
+        image: np.ndarray,
+        search_region: tuple[int, int, int, int] | None = None,
+    ) -> None:
         """点击锁定图标切换锁定/解锁状态。
 
         通过模板匹配找到锁定图标位置并点击。
@@ -257,20 +259,18 @@ class ArtifactLocker(QObject):
             time.sleep(0.3)
             return
 
-        template = TemplateManager.get("锁定图标")
-        if template is None:
-            log.error("未找到模板: 锁定图标")
-            raise LockIconNotFoundError("锁定图标模板未加载")
+        from backend.automation.recognizer import ArtifactRecognizer
 
-        score, (rel_x, rel_y), scale, (_w, _h) = multi_scale_match(image, template)
-        if score < 0.80:
-            log.warning(f"锁定图标匹配失败: 得分={score:.3f}")
-            raise LockIconNotFoundError(f"锁定图标匹配得分过低: {score:.3f}")
+        lock_pos = ArtifactRecognizer.find_lock_icon_position(image, search_region)
+        if lock_pos is None:
+            log.error("未找到锁定图标位置")
+            raise LockIconNotFoundError()
 
+        rel_x, rel_y = lock_pos
         abs_x, abs_y = WindowHelper.to_absolute(rel_x, rel_y)
         win_origin = WindowHelper.get_origin()
         log.info(
-            f"锁定图标匹配成功: 得分={score:.3f} 缩放={scale:.2f} "
+            f"锁定图标匹配成功: "
             f"窗口相对=({rel_x}, {rel_y}) 窗口原点={win_origin} "
             f"屏幕绝对=({abs_x}, {abs_y})"
         )
@@ -338,7 +338,11 @@ class LockWorker(QThread):
 
         except OcrModelNotReadyError:
             self.errorOccurred.emit(OcrModelNotReadyError._MESSAGE)
-        except Exception as e:
+        except LockIconNotFoundError:
+            pass
+        except Exception:
             import traceback
 
-            self.errorOccurred.emit(f"{e}\n{traceback.format_exc()}")
+            tb = traceback.format_exc()
+            log.error(f"锁定流程发生未知错误:\n{tb}")
+            self.errorOccurred.emit("发生未知错误，请查看日志")
