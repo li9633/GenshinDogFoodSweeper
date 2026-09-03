@@ -56,7 +56,12 @@ class SettingsPresenter(QObject):
     # -- 关于 --
     _APP_TITLE: ClassVar[str] = "原神狗粮清扫器"
     _APP_SUBTITLE: ClassVar[str] = "原神圣遗物自动化管理工具"
-    _APP_VERSION: ClassVar[str] = AppVersion.display()
+    _APP_VERSION: ClassVar[str] = (
+        AppVersion.clean()
+        if AppVersion.CHANNEL == Channel.RELEASE
+        else AppVersion.string()
+    )
+    _APP_VERSION_FULL: ClassVar[str] = AppVersion.debug_string()
     _APP_DESCRIPTION: ClassVar[str] = (
         "基于 OCR 视觉识别的原神圣遗物自动管理工具。"
         "通过截图识别圣遗物属性，根据自定义规则自动筛选和标记狗粮，"
@@ -85,10 +90,19 @@ class SettingsPresenter(QObject):
     def appVersion(self) -> str:
         return self._APP_VERSION
 
+    @Property(str, constant=True)
+    def appVersionFull(self) -> str:
+        return self._APP_VERSION_FULL
+
     @Property(bool, constant=True)
     def isDevVersion(self) -> bool:
         """是否为开发/内部版本（需要显示水印）"""
         return AppVersion.CHANNEL in (Channel.DEV, Channel.ALPHA)
+
+    @Property(bool, constant=True)
+    def isReleaseVersion(self) -> bool:
+        """是否为正式版"""
+        return AppVersion.CHANNEL == Channel.RELEASE
 
     @Property(str, constant=True)
     def appDescription(self) -> str:

@@ -33,8 +33,18 @@ Rectangle {
     // 布局（始终可见）
     // ============================================================
     implicitHeight: 32
+    radius: 20
     color: barBgColor
     clip: true
+
+    // 覆盖顶部圆角，保持顶部直边与上方内容无缝衔接
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 20
+        color: barBgColor
+    }
 
     RowLayout {
         anchors.fill: parent

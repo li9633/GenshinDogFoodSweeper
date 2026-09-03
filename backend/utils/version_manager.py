@@ -45,17 +45,30 @@ class AppVersion:
         """
         base = f"v{cls.MAJOR}.{cls.MINOR}.{cls.PATCH}"
         if cls.CHANNEL == Channel.DEV:
-            base += "-dev"
-        elif cls.CHANNEL != Channel.RELEASE:
+            return f"{base}-dev"
+        if cls.CHANNEL != Channel.RELEASE:
             base += f"-{cls.CHANNEL.value}.{cls.CHANNEL_NUM}"
-        if cls.COMMIT_HASH:
-            base += f"-{cls.COMMIT_HASH}"
+            if cls.COMMIT_HASH:
+                base += f"-{cls.COMMIT_HASH}"
         return base
 
     @classmethod
     def clean(cls) -> str:
         """纯数字版本，如 'v1.0.0'"""
         return f"v{cls.MAJOR}.{cls.MINOR}.{cls.PATCH}"
+
+    @classmethod
+    def debug_string(cls) -> str:
+        """调试用版本字符串，所有渠道均包含 hash（如有）。
+
+        正式版: v0.9.27-1a2b3c4
+        预发布: v0.9.27-alpha.1-1a2b3c4
+        开发:   v0.9.27-dev
+        """
+        base = cls.string()
+        if cls.COMMIT_HASH and cls.CHANNEL == Channel.RELEASE:
+            base += f"-{cls.COMMIT_HASH}"
+        return base
 
     @classmethod
     def semver(cls) -> str:

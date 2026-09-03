@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import GenshinUI
 import "components"
 import "pages"
@@ -16,109 +17,171 @@ ApplicationWindow {
     height: 800
     minimumWidth: 900
     minimumHeight: 600
-    color: Theme.bgPrimary
+    color: "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint
     title: "原神狗粮清扫器"
+
+    // ---- 阴影边距（内容区域距离窗口边缘的距离）----
+    readonly property int shadowMargin: 10
 
     // ============================================================
     // 主布局：侧边栏 + 内容区 + 状态栏
     // ============================================================
     Component.onCompleted: {
-        Theme.isDark = SettingsPresenter.currentTheme === "dark"
-        root.visible = true
+        Theme.isDark = SettingsPresenter.currentTheme === "dark";
+        root.visible = true;
     }
 
-    ColumnLayout {
+    // ---- 阴影容器（无 clip，阴影可自由扩散）----
+    Rectangle {
+        id: shadowLayer
         anchors.fill: parent
-        spacing: 0
+        anchors.margins: root.shadowMargin
+        radius: 20
+        color: Theme.bgPrimary
 
-        // -- 自绘标题栏 --
-        TitleBar {
-            Layout.fillWidth: true
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowBlur: 0.5
+            shadowColor: "#40000000"
+            shadowHorizontalOffset: 0
+            shadowVerticalOffset: 2
         }
+    }
 
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+    // ---- 内容容器（clip: true 裁剪子项，透明背景让阴影层透出）----
+    Rectangle {
+        id: windowContent
+        anchors.fill: parent
+        anchors.margins: root.shadowMargin
+        radius: 20
+        color: "transparent"
+        clip: true
+
+        ColumnLayout {
+            anchors.fill: parent
             spacing: 0
 
-            // -- 左侧导航栏 --
-            Sidebar {
-                id: sidebar
-                Layout.preferredWidth: 160
-                Layout.fillHeight: true
-                currentKey: "dogfood"
-
-                onPageSelected: function(key) {
-                    if (sidebar.currentKey === key) return;
-                    sidebar.currentKey = key
-                    stackView.replace(null, getPageComponent(key), StackView.Immediate)
-                }
+            // -- 自绘标题栏 --
+            TitleBar {
+                Layout.fillWidth: true
             }
 
-            // -- 分割线 --
-            Rectangle {
-                Layout.preferredWidth: 1
-                Layout.fillHeight: true
-                color: Theme.border
-            }
-
-            // -- 右侧内容区 --
-            ColumnLayout {
+            RowLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 spacing: 0
 
-                // 顶部工具栏
-                Toolbar {
-                    Layout.fillWidth: true
-                    pageTitle: stackView.currentItem ? stackView.currentItem.pageTitle || "" : ""
+                // -- 左侧导航栏 --
+                Sidebar {
+                    id: sidebar
+                    Layout.preferredWidth: 160
+                    Layout.fillHeight: true
+                    currentKey: "dogfood"
+
+                    onPageSelected: function (key) {
+                        if (sidebar.currentKey === key)
+                            return;
+                        sidebar.currentKey = key;
+                        stackView.replace(null, getPageComponent(key), StackView.Immediate);
+                    }
                 }
 
-                // 分割线
+                // -- 分割线 --
                 Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 1
+                    Layout.preferredWidth: 1
+                    Layout.fillHeight: true
                     color: Theme.border
                 }
 
-                // 页面容器
-                StackView {
-                    id: stackView
+                // -- 右侧内容区 --
+                ColumnLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    initialItem: dogfoodPage
+                    spacing: 0
+
+                    // 顶部工具栏
+                    Toolbar {
+                        Layout.fillWidth: true
+                        pageTitle: stackView.currentItem ? stackView.currentItem.pageTitle || "" : ""
+                    }
+
+                    // 分割线
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 1
+                        color: Theme.border
+                    }
+
+                    // 页面容器
+                    StackView {
+                        id: stackView
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        initialItem: dogfoodPage
+                    }
                 }
+            }
+
+            // -- 底部状态栏 --
+            StatusBar {
+                Layout.fillWidth: true
             }
         }
 
-        // -- 底部状态栏 --
-        StatusBar {
-            Layout.fillWidth: true
+        // ============================================================
+        // 开发版水印（仅 DEV/ALPHA 渠道显示，不拦截鼠标）
+        // 可通过 watermarkText / subText 等属性定制显示内容
+        // ============================================================
+        DevWatermark {
+            visible: SettingsPresenter.isDevVersion
+            subText: SettingsPresenter.appVersion
         }
     }
-
-    // ============================================================
-    // 页面组件工厂
-    // ============================================================
     function getPageComponent(key) {
         switch (key) {
-            case "dogfood":  return dogfoodPage
-            case "scanner":  return scannerPage
-            case "locker":   return lockerPage
-            case "rules":    return rulesPage
-            case "settings": return settingsPage
-            case "debug":    return debugPage
-            default:         return dogfoodPage
+        case "dogfood":
+            return dogfoodPage;
+        case "scanner":
+            return scannerPage;
+        case "locker":
+            return lockerPage;
+        case "rules":
+            return rulesPage;
+        case "settings":
+            return settingsPage;
+        case "debug":
+            return debugPage;
+        default:
+            return dogfoodPage;
         }
     }
 
-    Component { id: dogfoodPage;  ArtifactDecomposePage {} }
-    Component { id: scannerPage;  ScannerPage {} }
-    Component { id: lockerPage;   ArtifactLockerPage {} }
-    Component { id: rulesPage;    RulesPage {} }
-    Component { id: settingsPage; SettingsPage {} }
-    Component { id: debugPage;    DebugPage {} }
+    Component {
+        id: dogfoodPage
+        ArtifactDecomposePage {}
+    }
+    Component {
+        id: scannerPage
+        ScannerPage {}
+    }
+    Component {
+        id: lockerPage
+        ArtifactLockerPage {}
+    }
+    Component {
+        id: rulesPage
+        RulesPage {}
+    }
+    Component {
+        id: settingsPage
+        SettingsPage {}
+    }
+    Component {
+        id: debugPage
+        DebugPage {}
+    }
 
     // ============================================================
     // 主题同步：SettingsPresenter.themeChanged → Theme.isDark
@@ -126,7 +189,7 @@ ApplicationWindow {
     Connections {
         target: SettingsPresenter
         function onThemeChanged(theme) {
-            Theme.isDark = theme === "dark"
+            Theme.isDark = theme === "dark";
         }
     }
 
@@ -136,50 +199,45 @@ ApplicationWindow {
     Connections {
         target: VersionCheck
         function onNavigateToSyncTab() {
-            sidebar.currentKey = "settings"
-            stackView.replace(null, settingsPage, StackView.Immediate)
+            sidebar.currentKey = "settings";
+            stackView.replace(null, settingsPage, StackView.Immediate);
             if (stackView.currentItem) {
-                stackView.currentItem.currentTab = 1
+                stackView.currentItem.currentTab = 1;
             }
+        }
+    }
+
+    // ============================================================
+    // 页面组件工厂
+    // ============================================================
+    Connections {
+        target: GMessageBoxBridge
+        function onShowMessage(msgType, msgText, bringToFront) {
+            pythonMsgBox.msgType = msgType;
+            pythonMsgBox.title = "";
+            pythonMsgBox.msgText = msgText;
+            pythonMsgBox.bringToFront = bringToFront;
+            pythonMsgBox.buttonModel = [];
+            pythonMsgBox.open();
+        }
+        function onShowDialog(msgType, title, msgText, bringToFront, buttonsJson) {
+            pythonMsgBox.msgType = msgType;
+            pythonMsgBox.title = title;
+            pythonMsgBox.msgText = msgText;
+            pythonMsgBox.bringToFront = bringToFront;
+            pythonMsgBox.buttonModel = JSON.parse(buttonsJson);
+            pythonMsgBox.open();
+        }
+    }
+
+    GMessageBox {
+        id: pythonMsgBox
+        onButtonClicked: function (role) {
+            GMessageBoxBridge.handleButtonClicked(role);
         }
     }
 
     // ============================================================
     // Python 信号桥接弹窗（GMessageBox.error / warning / info / success）
     // ============================================================
-    Connections {
-        target: GMessageBoxBridge
-        function onShowMessage(msgType, msgText, bringToFront) {
-                pythonMsgBox.msgType = msgType
-                pythonMsgBox.title = ""
-                pythonMsgBox.msgText = msgText
-                pythonMsgBox.bringToFront = bringToFront
-                pythonMsgBox.buttonModel = []
-                pythonMsgBox.open()
-            }
-            function onShowDialog(msgType, title, msgText, bringToFront, buttonsJson) {
-                pythonMsgBox.msgType = msgType
-                pythonMsgBox.title = title
-                pythonMsgBox.msgText = msgText
-                pythonMsgBox.bringToFront = bringToFront
-                pythonMsgBox.buttonModel = JSON.parse(buttonsJson)
-                pythonMsgBox.open()
-            }
-    }
-
-    GMessageBox {
-        id: pythonMsgBox
-        onButtonClicked: function(role) {
-            GMessageBoxBridge.handleButtonClicked(role)
-        }
-    }
-
-    // ============================================================
-    // 开发版水印（仅 DEV/ALPHA 渠道显示，不拦截鼠标）
-    // 可通过 watermarkText / subText 等属性定制显示内容
-    // ============================================================
-    DevWatermark {
-        visible: SettingsPresenter.isDevVersion
-        subText: SettingsPresenter.appVersion
-    }
 }

@@ -27,7 +27,7 @@ class TitleBarPresenter(QObject):
         if EnvManager.is_debug():
             self._title = f"{base}（调试模式）"
         else:
-            self._title = f"{base} v{AppVersion.display()}"
+            self._title = f"{base} {AppVersion.clean()}"
         self.titleChanged.emit()
 
     @Slot()

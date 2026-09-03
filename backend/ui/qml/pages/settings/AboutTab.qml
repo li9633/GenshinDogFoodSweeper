@@ -59,19 +59,44 @@ ColumnLayout {
                 }
 
                 Rectangle {
+                    id: versionBadge
                     Layout.alignment: Qt.AlignHCenter
                     Layout.preferredWidth: 60
                     Layout.preferredHeight: 22
                     radius: 11
                     color: Theme.accentOverlay6
 
+                    property bool showFull: false
+
                     Text {
                         anchors.centerIn: parent
-                        text: SettingsPresenter.appVersion
+                        text: versionBadge.showFull
+                            ? SettingsPresenter.appVersionFull
+                            : SettingsPresenter.appVersion
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
                         font.bold: true
                         color: Theme.accent
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: SettingsPresenter.isReleaseVersion
+                            ? Qt.PointingHandCursor
+                            : Qt.ArrowCursor
+                        onClicked: {
+                            if (SettingsPresenter.isReleaseVersion) {
+                                versionBadge.showFull = !versionBadge.showFull
+                            }
+                        }
+                    }
+
+                    Behavior on Layout.preferredWidth {
+                        NumberAnimation { duration: 200 }
+                    }
+
+                    onShowFullChanged: {
+                        Layout.preferredWidth = showFull ? 160 : 60
                     }
                 }
 
