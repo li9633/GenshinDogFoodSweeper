@@ -813,8 +813,8 @@ class ArtifactDecomposer(QObject):
             )
             return None
 
-        abs_x, abs_y = self._window.to_absolute(rel_x, rel_y)
-        win_origin = self._window.get_origin()
+        abs_x, abs_y = WindowHelper.to_absolute(rel_x, rel_y)
+        win_origin = WindowHelper.get_origin()
         log.info(
             f"[{name}] 匹配成功: 得分={score:.3f} 缩放={scale:.2f} "
             f"窗口相对=({rel_x}, {rel_y}) 窗口原点={win_origin} "

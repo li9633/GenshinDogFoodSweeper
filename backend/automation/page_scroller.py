@@ -50,7 +50,7 @@ class PageScroller:
     def scroll_to_next_page(
         self,
         det_result: DetectResult,
-        tick_delay_ms: int = 80,
+        tick_delay_ms: int = 30,
         page_settle_ms: int = 200,
         fast: bool = False,
     ) -> bool:
@@ -95,7 +95,7 @@ class PageScroller:
 
     def scroll_to_bottom(
         self,
-        tick_delay_ms: int = 80,
+        tick_delay_ms: int = 30,
         page_settle_ms: int = 200,
         max_pages: int = 0,
         total_pages: int = 0,

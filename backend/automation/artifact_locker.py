@@ -222,6 +222,10 @@ class ArtifactLocker(QObject):
             if self._stop_event.is_set():
                 break
 
+            total_processed = total_locked + total_unlocked + total_skipped
+            if max_count > 0 and total_processed >= max_count:
+                break
+
             # 翻页：截图+检测 → 翻页
             window = WindowHelper.find_genshin_window()
             result = self._capture.capture(window=window)
