@@ -603,7 +603,7 @@ class SlotDetector:
 
         if page_bottom is not None:
             cv2.line(
-                debug, (0, page_bottom), (debug.shape[1], page_bottom), (0, 0, 255), 2
+                debug, (0, page_bottom), (debug.shape[1], page_bottom), (255, 100, 255), 2
             )
         elif slots:
             last_bottom = max(s.y + s.h for s in slots)

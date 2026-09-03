@@ -148,11 +148,22 @@ Rectangle {
     }
 
     Connections {
-        target: ArtifactScan
+        target: ArtifactScanDebug
 
         function onDebugPreviewReady(key) {
-            let label = key.startsWith("smart_scroll") ? "行高测量" : "灰度检测调试预览"
+            let label = "调试预览"
+            if (key.startsWith("slot_debug")) label = "格子检测"
+            else if (key.startsWith("slider_debug")) label = "滑块检测"
+            else if (key.startsWith("grayscale")) label = "灰度截图"
             preview.displayImage(key, label)
+        }
+    }
+
+    Connections {
+        target: SmartScrollDebug
+
+        function onDebugPreviewReady(key) {
+            preview.displayImage(key, "SmartScroll 行高测量")
         }
     }
 }

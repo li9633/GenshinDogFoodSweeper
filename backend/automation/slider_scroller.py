@@ -157,6 +157,92 @@ class SliderScroller:
         return (slider_y, False)
 
     # ==================================================================
+    # 3 段拖拽到底
+    # ==================================================================
+
+    def scroll_to_bottom(self, initial_slider_y: int) -> int | None:
+        """3 段拖拽到底 + 闯关验证 + 滚轮微调。
+
+        纯逻辑方法，无 Qt 依赖，可在任意线程调用。
+
+        Args:
+            initial_slider_y: 滑块当前 Y 坐标
+
+        Returns:
+            最终 slider_y 或 None
+        """
+        sr = self._config.slider_region()
+        if sr is None:
+            log.warning("滚动到底: 无效的滑轨区域配置")
+            return None
+        slider_x, _slider_top, slider_bottom, slider_w, slider_h = sr
+
+        slider_total = slider_bottom - initial_slider_y
+        if slider_total <= 0:
+            log.info("滚动到底: 滑块已在底部")
+            return initial_slider_y
+
+        WindowHelper.focus()
+        MouseController.set_origin(WindowHelper.get_origin())
+        win = WindowHelper.find_genshin_window()
+        window_bottom = win.height if win else 1000
+        drag_x = slider_x + slider_w // 2
+        mouse_total = slider_total * 4
+        chunks = 3
+        chunk = mouse_total // chunks
+        prev_y = initial_slider_y
+
+        for i in range(chunks):
+            drag_from_y = prev_y + slider_h // 2
+            drag_to_y = min(drag_from_y + chunk, window_bottom - 10)
+            self._mouse.drag(
+                drag_x, drag_from_y, drag_x, drag_to_y,
+                SliderDetector.DRAG_STEPS, SliderDetector.DRAG_DELAY,
+            )
+            sleep(0.2)
+
+            result = self._capture.capture(window=win)
+            if result is None:
+                continue
+            current_y, best_ratio, best_y, _ = SliderDetector.find_slider(
+                result.image,
+                slider_x,
+                max(0, slider_bottom - SliderDetector.MAX_SEARCH),
+                slider_bottom,
+                slider_w,
+                slider_h,
+            )
+            self._emit_debug(
+                result.image, slider_x,
+                max(0, slider_bottom - SliderDetector.MAX_SEARCH),
+                slider_bottom, slider_w, slider_h, current_y,
+                f"到底-{i + 1}", best_ratio, best_y,
+            )
+            if current_y is None:
+                continue
+            if slider_bottom - current_y <= 5:
+                prev_y = current_y
+                break
+            if abs(current_y - prev_y) <= 5:
+                prev_y = current_y
+                break
+            prev_y = current_y
+
+        confirmed = self.verify_bottom(prev_y)
+        if confirmed is not None:
+            prev_y = confirmed
+
+        self._mouse.move_to(
+            slider_x + slider_w // 2, slider_bottom + slider_h // 2
+        )
+        for _ in range(SliderDetector.EXTRA_TICKS):
+            self._mouse.scroll_one_tick()
+            sleep(0.03)
+
+        log.info(f"滚动到底: 完成, slider_y={prev_y}")
+        return prev_y
+
+    # ==================================================================
     # 闯关验证：到底
     # ==================================================================
 

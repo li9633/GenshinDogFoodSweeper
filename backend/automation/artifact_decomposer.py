@@ -10,6 +10,7 @@ from PySide6.QtCore import QEventLoop, QObject, QTimer
 from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
+from backend.automation.slot_iterator import SlotIterator
 from backend.automation.template_manager import TemplateManager
 from backend.automation.template_matcher import multi_scale_match
 from backend.automation.window_helper import WindowHelper
@@ -252,6 +253,7 @@ class ArtifactDecomposer(QObject):
         MAX_DISCARD_PER_BATCH = min(max_per_batch, 1000)
         scroller = PageScroller(MouseController(), self._capture, config)
         engine = DogfoodRuleEngine(default_action=default_action)
+        iterator = SlotIterator(MouseController())
 
         total_keep = 0
         total_discard = 0
@@ -285,72 +287,56 @@ class ArtifactDecomposer(QObject):
                 f" | 累计: 保留 {total_keep} 件, 分解 {total_discard} 件"
             )
 
-            # 遍历每个格子
-            for idx, slot in enumerate(det_result.slots):
-                if self._stop_event.is_set():
-                    log.info("收到停止信号，退出格子循环")
-                    break
+            def on_slot(slot, idx, total, _page=page, _window=window):
+                nonlocal total_keep, total_discard, reached_limit, \
+                    total_elapsed, timed_count, last_progress_log
 
                 t_start = time.perf_counter()
                 log.debug(
-                    f"[{page}-{idx + 1}/{len(det_result.slots)}] "
+                    f"[{_page}-{idx}/{total}] "
                     f"点击格子 ({slot.cx}, {slot.cy})"
                 )
 
-                # 点击选中格子
-                MouseController.move_and_click(slot.cx, slot.cy)
-                time.sleep(0.35)
-                t_click = time.perf_counter()
-                log.debug(f"[{page}-{idx + 1}] 等待弹窗完成, 耗时={t_click - t_start:.2f}s")
-
                 # 截图并 OCR 识别圣遗物详情
-                cap_result = self._capture.capture(window=window)
+                cap_result = self._capture.capture(window=_window)
 
                 artifact = self._ocr_recognize_artifact(cap_result.image, config)
-                t_ocr = time.perf_counter()
                 if artifact is None:
-                    log.warning(
-                        f"[{page}-{idx + 1}] OCR 识别失败, "
-                        f"耗时={t_ocr - t_click:.2f}s"
-                    )
-                    if self._stop_event.is_set():
-                        break
-                    continue
+                    log.warning(f"[{_page}-{idx}] OCR 识别失败")
+                    return True
 
                 # 规则评估
                 action = engine.evaluate(artifact, rules)
                 is_dogfood = action == "discard"
-                t_eval = time.perf_counter()
 
                 # 计时统计
-                item_time = t_eval - t_start
+                item_time = time.perf_counter() - t_start
                 total_elapsed += item_time
                 timed_count += 1
                 avg_time = total_elapsed / timed_count
 
                 # 估算剩余时间
-                remaining_slots_this_page = len(det_result.slots) - idx - 1
+                remaining_slots_this_page = total - idx
                 remaining_est = avg_time * remaining_slots_this_page
 
                 if is_dogfood:
                     total_discard += 1
                     log.info(
-                        f"[{page}-{idx + 1}/{len(det_result.slots)}] → 分解 "
+                        f"[{_page}-{idx}/{total}] → 分解 "
                         f"(套装={artifact.set_name or '?'} "
                         f"部位={artifact.piece_type or '?'} "
                         f"星级={artifact.rarity or '?'}) "
                         f"| 耗时={item_time:.2f}s 平均={avg_time:.2f}s "
                         f"本页剩余≈{remaining_est:.0f}s"
                     )
-                    # 保持选中状态，不反选
                     if total_discard >= MAX_DISCARD_PER_BATCH:
                         log.info(f"已达到单批上限 {MAX_DISCARD_PER_BATCH} 件，暂停选择")
                         reached_limit = True
-                        break
+                        return False
                 else:
                     total_keep += 1
                     log.info(
-                        f"[{page}-{idx + 1}/{len(det_result.slots)}] → 保留 "
+                        f"[{_page}-{idx}/{total}] → 保留 "
                         f"(套装={artifact.set_name or '?'} "
                         f"部位={artifact.piece_type or '?'} "
                         f"星级={artifact.rarity or '?'}) "
@@ -371,26 +357,35 @@ class ArtifactDecomposer(QObject):
                         f"| 平均 {avg_time:.2f}s/个"
                     )
 
-                # 检测到锁定圣遗物，处理完当前格子后停止分解流程
+                # 检测到锁定圣遗物，停止分解流程
                 if slot.locked:
                     log.info(
-                        f"[{page}-{idx + 1}/{len(det_result.slots)}] 检测到锁定圣遗物，"
+                        f"[{_page}-{idx}/{total}] 检测到锁定圣遗物，"
                         f"停止分解流程 (累计保留={total_keep} 分解={total_discard})"
                     )
                     reached_limit = True
-                    break
+                    return False
 
-            # 已达上限，跳出外层循环
+                return True
+
+            iterator.reset()
+            iterator.iter_slots(
+                det_result,
+                on_slot=on_slot,
+                stop_check=lambda: self._stop_event.is_set(),
+            )
+
             if reached_limit:
                 break
 
             if self._stop_event.is_set():
                 break
 
-            # 翻页
-            flag_x = config.roi[0] + config.roi[2] // 2
-            flag_y = config.roi[1] + config.roi[3] // 2
-            if not scroller.scroll_to_next_page(flag_x, flag_y):
+            # 翻页：截图+检测 → 翻页
+            window = WindowHelper.find_genshin_window()
+            result = self._capture.capture(window=window)
+            det_result = SlotDetector.detect(result.image, config=config)
+            if not scroller.scroll_to_next_page(det_result):
                 log.info("已是最后一页")
                 break
 

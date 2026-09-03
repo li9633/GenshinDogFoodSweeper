@@ -11,6 +11,7 @@ from backend.automation.slot_detector import (
     SlotDetectorConfig,
 )
 from backend.automation.window_helper import WindowHelper, WindowInfo
+from backend.models.slot_models import DetectResult
 from backend.utils.screen_capture import ScreenshotCapture
 
 
@@ -48,26 +49,20 @@ class PageScroller:
 
     def scroll_to_next_page(
         self,
-        flag_x: int,
-        flag_y: int,
+        det_result: DetectResult,
         tick_delay_ms: int = 80,
         page_settle_ms: int = 200,
         fast: bool = False,
     ) -> bool:
-        """截图 → 检测格子 → 计算滚动距离 → 执行滚动。
+        """根据格子检测结果计算滚动距离 → 执行滚动。
 
-        坐标均为窗口相对坐标，调用前需先设置 MouseController.set_origin。
+        调用前需外部完成截图和格子检测，传入 DetectResult。
+        鼠标位置取自第一个检测格子的中心。
         返回 True 表示已翻页，False 表示已是最后一页即无需翻页。
 
         fast=True 时一次发送所有滚轮 tick，跳过逐 tick 延迟，
         适合快速跳转多页场景。
         """
-        window = self._window or WindowHelper.find_genshin_window()
-        result = self._capture.capture(window=window)
-        if result is None:
-            return False
-
-        det_result = SlotDetector.detect(result.image, config=self._config)
         if not det_result.slots:
             return False
 
@@ -79,6 +74,8 @@ class PageScroller:
             return False
 
         ticks = max(1, int(scroll_px / self._PX_PER_TICK))
+        flag_x = det_result.slots[0].cx
+        flag_y = det_result.slots[0].cy
 
         if fast:
             self._mouse.move_to(flag_x, flag_y)
@@ -98,14 +95,12 @@ class PageScroller:
 
     def scroll_to_bottom(
         self,
-        flag_x: int,
-        flag_y: int,
         tick_delay_ms: int = 80,
         page_settle_ms: int = 200,
         max_pages: int = 0,
         total_pages: int = 0,
     ) -> int:
-        """循环调用 scroll_to_next_page 直到到底。
+        """循环截图+检测+翻页直到到底。
 
         max_pages=0 表示无限制，由 scroll_to_next_page 返回 False 自然停止。
         安全上限应由调用方根据 OCR 计算的总页数传入。
@@ -116,9 +111,13 @@ class PageScroller:
         """
         pages = 0
         while max_pages == 0 or pages < max_pages:
+            window = self._window or WindowHelper.find_genshin_window()
+            result = self._capture.capture(window=window)
+            if result is None:
+                break
+            det_result = SlotDetector.detect(result.image, config=self._config)
             if not self.scroll_to_next_page(
-                flag_x,
-                flag_y,
+                det_result,
                 tick_delay_ms=tick_delay_ms,
                 page_settle_ms=page_settle_ms,
             ):

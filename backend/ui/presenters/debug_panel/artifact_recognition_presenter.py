@@ -22,7 +22,7 @@ from backend.automation.window_helper import WindowHelper
 from backend.models.slot_models import ALL_SLOT_CONFIGS, SlotDetectorConfig
 from backend.utils.screen_capture import CaptureMethod, CaptureResult, ScreenshotCapture
 
-from .image_provider import PreviewImageProvider
+from ..image_provider import PreviewImageProvider
 
 
 class ArtifactRecognitionPresenter(QObject):

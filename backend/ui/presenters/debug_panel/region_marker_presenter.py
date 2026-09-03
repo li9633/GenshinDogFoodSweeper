@@ -18,7 +18,7 @@ from backend.automation.template_manager import TemplateManager
 from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
 
-from .image_provider import PreviewImageProvider
+from ..image_provider import PreviewImageProvider
 
 
 class RegionMarkerPresenter(QObject):

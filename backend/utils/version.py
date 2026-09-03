@@ -75,7 +75,7 @@ class AppVersion:
     # 次版本号
     MINOR: int = 9
     # 修订版本号
-    PATCH: int = 7
+    PATCH: int = 12
     CHANNEL: Channel = _CHANNEL
     CHANNEL_NUM: int = _CHANNEL_NUM
 

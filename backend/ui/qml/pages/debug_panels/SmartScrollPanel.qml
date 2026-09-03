@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import GenshinUI
 
 // qmllint disable unqualified
-// ArtifactScan 是 Python 通过 setContextProperty 注入的上下文属性
+// SmartScrollDebug 是 Python 通过 setContextProperty 注入的上下文属性
 
 Rectangle {
     id: root
@@ -38,7 +38,7 @@ Rectangle {
 
                     GButton {
                         text: "滚动到顶"
-                        onClicked: ArtifactScan.smartScrollToTop()
+                        onClicked: SmartScrollDebug.smartScrollToTop()
                     }
                 }
             }
@@ -55,22 +55,22 @@ Rectangle {
                         spacing: Theme.spacing
                         GButton {
                             text: "测量行高"
-                            onClicked: ArtifactScan.smartMeasureRowHeight()
+                            onClicked: SmartScrollDebug.smartMeasureRowHeight()
                         }
                         GButton {
                             text: "校准"
-                            onClicked: ArtifactScan.smartCalibrate()
+                            onClicked: SmartScrollDebug.smartCalibrate()
                         }
                     }
                     Text {
-                        text: "px/tick: " + ArtifactScan.smartPixelsPerScroll.toFixed(2)
+                        text: "px/tick: " + SmartScrollDebug.smartPixelsPerScroll.toFixed(2)
                         font.family: Theme.fontFamily
                         color: Theme.textPrimary
                     }
                     Text {
-                        text: ArtifactScan.smartCalibrated ? (Icon.circleCheck + " 已校准") : (Icon.circleXmark + " 未校准 (请先测量行高 → 校准)")
+                        text: SmartScrollDebug.smartCalibrated ? (Icon.circleCheck + " 已校准") : (Icon.circleXmark + " 未校准 (请先测量行高 → 校准)")
                         font.family: Icon.fontSolid
-                        color: ArtifactScan.smartCalibrated ? Theme.accent : Theme.textSecondary
+                        color: SmartScrollDebug.smartCalibrated ? Theme.accent : Theme.textSecondary
                     }
                 }
             }
@@ -97,12 +97,12 @@ Rectangle {
                         }
                         GButton {
                             text: "翻行"
-                            onClicked: ArtifactScan.smartScrollRows(scrollRowsInput.value)
+                            onClicked: SmartScrollDebug.smartScrollRows(scrollRowsInput.value)
                         }
                     }
 
                     Text {
-                        text: "当前行: " + ArtifactScan.smartCurrentRow
+                        text: "当前行: " + SmartScrollDebug.smartCurrentRow
                         font.family: Theme.fontFamily
                         color: Theme.textPrimary
                     }
@@ -118,7 +118,7 @@ Rectangle {
                     spacing: Theme.spacing
                     GButton {
                         text: "重置"
-                        onClicked: ArtifactScan.smartReset()
+                        onClicked: SmartScrollDebug.smartReset()
                     }
                 }
             }

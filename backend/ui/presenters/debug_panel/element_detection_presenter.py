@@ -17,7 +17,7 @@ from backend.automation.template_matcher import multi_scale_match
 from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
 
-from .image_provider import PreviewImageProvider
+from ..image_provider import PreviewImageProvider
 
 
 @dataclass

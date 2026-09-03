@@ -43,17 +43,19 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
     registry.append(("SettingsPresenter", SettingsPresenter, [_wire_settings]))
 
     # ---- RegionMarker ----
-    from ui.presenters.region_marker_presenter import RegionMarkerPresenter
+    from ui.presenters.debug_panel.region_marker_presenter import RegionMarkerPresenter
 
     registry.append(("RegionMarker", RegionMarkerPresenter, []))
 
     # ---- ElementDetection ----
-    from ui.presenters.element_detection_presenter import ElementDetectionPresenter
+    from ui.presenters.debug_panel.element_detection_presenter import (
+        ElementDetectionPresenter,
+    )
 
     registry.append(("ElementDetection", ElementDetectionPresenter, []))
 
     # ---- ArtifactRecognition ----
-    from ui.presenters.artifact_recognition_presenter import (
+    from ui.presenters.debug_panel.artifact_recognition_presenter import (
         ArtifactRecognitionPresenter,
     )
 
@@ -69,12 +71,12 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
     registry.append(("StatusBarPresenter", StatusBarPresenter, [_wire_status]))
 
     # ---- InputDebug ----
-    from ui.presenters.input_debug_presenter import InputDebugPresenter
+    from ui.presenters.debug_panel.input_debug_presenter import InputDebugPresenter
 
     registry.append(("InputDebug", InputDebugPresenter, []))
 
     # ---- InfraDebug ----
-    from ui.presenters.infra_debug_presenter import InfraDebugPresenter
+    from ui.presenters.debug_panel.infra_debug_presenter import InfraDebugPresenter
 
     registry.append(("InfraDebug", InfraDebugPresenter, []))
 
@@ -85,6 +87,20 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
         HotkeyListener.instance().stopRequested.connect(p.stopAllOperations)
 
     registry.append(("ArtifactScan", ArtifactScanPresenter, [_wire_scan]))
+
+    # ---- ArtifactScanDebug ----
+    from ui.presenters.debug_panel.artifact_scan_debug_presenter import (
+        ArtifactScanDebugPresenter,
+    )
+
+    registry.append(("ArtifactScanDebug", ArtifactScanDebugPresenter, []))
+
+    # ---- SmartScrollDebug ----
+    from ui.presenters.debug_panel.smart_scroll_debug_presenter import (
+        SmartScrollDebugPresenter,
+    )
+
+    registry.append(("SmartScrollDebug", SmartScrollDebugPresenter, []))
 
     # ---- GameDetector ----
     from ui.presenters.game_detector import GameDetector

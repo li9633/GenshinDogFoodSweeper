@@ -21,7 +21,6 @@ class InputDebugPresenter(QObject):
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        MouseController.set_origin(WindowHelper.get_origin())
 
         self._win_origin_x = 0
         self._win_origin_y = 0

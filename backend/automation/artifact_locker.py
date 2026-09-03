@@ -19,6 +19,7 @@ from PySide6.QtCore import QEventLoop, QObject, QTimer
 from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
+from backend.automation.slot_iterator import SlotIterator
 from backend.automation.template_manager import TemplateManager
 from backend.automation.template_matcher import multi_scale_match
 from backend.automation.window_helper import WindowHelper
@@ -86,6 +87,7 @@ class ArtifactLocker(QObject):
 
         WindowHelper.focus()
         MouseController.set_origin(WindowHelper.get_origin())
+        iterator = SlotIterator(MouseController())
 
         while True:
             if self._stop_event.is_set():
@@ -112,43 +114,35 @@ class ArtifactLocker(QObject):
                 f"跳过 {total_skipped} 件"
             )
 
-            for idx, slot in enumerate(det_result.slots):
-                if self._stop_event.is_set():
-                    break
+            # re_unlock=False 时跳过已锁定格子（SlotDetector 预检测，无需点击+OCR）
+            pre_check = (lambda s: not s.locked) if not re_unlock else None
 
-                # 达到处理上限时停止
-                total_processed = total_locked + total_unlocked + total_skipped
-                if max_count > 0 and total_processed >= max_count:
-                    log.info(f"已达到处理上限 {max_count} 件，停止")
-                    break
+            def on_slot(slot, idx, total, _page=page, _window=window):
+                nonlocal total_locked, total_unlocked, total_skipped
 
                 t_start = time.perf_counter()
                 log.debug(
-                    f"[{page}-{idx + 1}/{len(det_result.slots)}] "
+                    f"[{_page}-{idx}/{total}] "
                     f"点击格子 ({slot.cx}, {slot.cy})"
                 )
 
-                # 点击打开详情弹窗
-                MouseController.move_and_click(slot.cx, slot.cy)
-                time.sleep(0.35)
-
                 # OCR 识别圣遗物详情
-                cap_result = self._capture.capture(window=window)
+                cap_result = self._capture.capture(window=_window)
                 if cap_result is None:
-                    continue
+                    return True
 
                 artifact = self._ocr_recognize_artifact(cap_result.image, config)
                 if artifact is None:
-                    log.warning(f"[{page}-{idx + 1}] OCR 识别失败")
-                    continue
+                    log.warning(f"[{_page}-{idx}] OCR 识别失败")
+                    return True
 
                 # 跳过强化材料
                 if artifact.is_material:
                     total_skipped += 1
                     log.debug(
-                        f"[{page}-{idx + 1}] 跳过强化材料: {artifact.material_name}"
+                        f"[{_page}-{idx}] 跳过强化材料: {artifact.material_name}"
                     )
-                    continue
+                    return True
 
                 # 规则评估：返回 "keep" 或 "discard"
                 action = engine.evaluate(artifact, rules)
@@ -176,20 +170,20 @@ class ArtifactLocker(QObject):
                     if should_lock:
                         total_skipped += 1
                         log.info(
-                            f"[{page}-{idx + 1}] → 跳过(已锁定) {artifact_desc} "
+                            f"[{_page}-{idx}] → 跳过(已锁定) {artifact_desc} "
                             f"| 耗时={item_time:.2f}s"
                         )
                     elif re_unlock:
                         self._click_lock_icon()
                         total_unlocked += 1
                         log.info(
-                            f"[{page}-{idx + 1}] → 解锁 {artifact_desc} "
+                            f"[{_page}-{idx}] → 解锁 {artifact_desc} "
                             f"| 耗时={item_time:.2f}s"
                         )
                     else:
                         total_skipped += 1
                         log.info(
-                            f"[{page}-{idx + 1}] → 跳过(已锁定且不重新解锁) "
+                            f"[{_page}-{idx}] → 跳过(已锁定且不重新解锁) "
                             f"{artifact_desc} | 耗时={item_time:.2f}s"
                         )
                 else:
@@ -197,23 +191,42 @@ class ArtifactLocker(QObject):
                         self._click_lock_icon()
                         total_locked += 1
                         log.info(
-                            f"[{page}-{idx + 1}] → 锁定 {artifact_desc} "
+                            f"[{_page}-{idx}] → 锁定 {artifact_desc} "
                             f"| 耗时={item_time:.2f}s"
                         )
                     else:
                         total_skipped += 1
                         log.info(
-                            f"[{page}-{idx + 1}] → 跳过(已解锁) {artifact_desc} "
+                            f"[{_page}-{idx}] → 跳过(已解锁) {artifact_desc} "
                             f"| 耗时={item_time:.2f}s"
                         )
+                return True
+
+            def stop_check():
+                if self._stop_event.is_set():
+                    return True
+                total_processed = total_locked + total_unlocked + total_skipped
+                if max_count > 0 and total_processed >= max_count:
+                    log.info(f"已达到处理上限 {max_count} 件，停止")
+                    return True
+                return False
+
+            iterator.reset()
+            iterator.iter_slots(
+                det_result,
+                on_slot=on_slot,
+                stop_check=stop_check,
+                pre_check=pre_check,
+            )
 
             if self._stop_event.is_set():
                 break
 
-            # 翻页（坐标均为窗口相对坐标，MouseController 自动转换）
-            flag_x = config.roi[0] + config.roi[2] // 2
-            flag_y = config.roi[1] + config.roi[3] // 2
-            if not scroller.scroll_to_next_page(flag_x, flag_y):
+            # 翻页：截图+检测 → 翻页
+            window = WindowHelper.find_genshin_window()
+            result = self._capture.capture(window=window)
+            det_result = SlotDetector.detect(result.image, config=config)
+            if not scroller.scroll_to_next_page(det_result):
                 log.info("已是最后一页")
                 break
 
