@@ -44,8 +44,8 @@ def _find_icon() -> str | None:
 
 
 def main():
-    # 日志初始化（必须在任何日志调用之前）
-    setup_logging()
+    # 日志初始化
+    file_sink_id, stderr_sink_id = setup_logging()
 
     # 高 DPI 适配
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -56,7 +56,7 @@ def main():
     app.setApplicationName("GenshinDogFoodSweeper")
     app.setQuitOnLastWindowClosed(False)
 
-    # 设置应用图标（任务栏 + 窗口标题栏）
+    # 设置应用图标
     from PySide6.QtGui import QIcon
     icon_path = _find_icon()
     if icon_path:
@@ -68,37 +68,52 @@ def main():
     else:
         _base_dir = Path(__file__).parent
 
-    # 加载 FontAwesome 字体（必须在 QML 引擎之前，避免图标闪烁）
+    # 加载 FontAwesome 字体
     from PySide6.QtGui import QFontDatabase
     fonts_dir = _base_dir / "ui" / "qml" / "GenshinUI" / "fonts"
-    log.debug(f"Fonts dir: {fonts_dir}, exists: {fonts_dir.exists()}")
     for font_file in fonts_dir.glob("*.otf"):
         font_id = QFontDatabase.addApplicationFont(str(font_file))
         if font_id < 0:
             log.warning(f"字体加载失败: {font_file.name}")
-        else:
-            log.debug(f"字体已加载: {font_file.name} → {QFontDatabase.applicationFontFamilies(font_id)}")
 
     # 初始化数据库
     create_tables()
 
-    # 注册 DB + 状态栏 sink
+    # 初始化日志等级
+    from database.repository.settings_repo import SettingsRepo
+    from utils.version import Channel
+    from utils.version_manager import AppVersion
+
+    if SettingsRepo.get("log.db_level") is None:
+        _default_level = "DEBUG" if AppVersion.CHANNEL == Channel.DEV else "INFO"
+        SettingsRepo.set("log.db_level", _default_level)
+
     from loguru import logger
     from utils.log_bridge import create_db_sink
+    from utils.settings_manager import settings
 
-    logger.add(
+    # 重新加载设置缓存，确保读到刚写入的默认值
+    settings.reload()
+    db_level = settings.get("log.db_level")
+
+    sink_id = logger.add(
         create_db_sink(),
-        level="INFO",
+        level=db_level,
         format="{message}",
     )
+
+    from utils.log_bridge import register_sink, update_global_level
+    register_sink(file_sink_id)
+    if stderr_sink_id is not None:
+        register_sink(stderr_sink_id)
+    register_sink(sink_id)
+    update_global_level(db_level)
 
     # -- QML 引擎 --
     engine = QQmlApplicationEngine()
     engine.addImageProvider("preview", PreviewImageProvider())
     log.debug("PreviewImageProvider 注册成功")
 
-    # 将 Python 后端对象暴露给 QML（统一通过注册表）
-    # 必须持有返回值，否则 presenters 会被 GC 回收
     _presenters = register_all(engine)
 
     # -- 退出清理 --
@@ -112,7 +127,7 @@ def main():
 
     app.aboutToQuit.connect(_cleanup)
 
-    # 全局文本渲染：必须在 load 之前设置，让所有 Text 组件使用 Windows ClearType
+    # 全局文本渲染 用 Windows ClearType
     QQuickWindow.setTextRenderType(QQuickWindow.NativeTextRendering)
 
     qml_dir = _base_dir / "ui" / "qml"
@@ -136,7 +151,7 @@ def main():
         traceback.print_exc()
         log.error(f"TrayManager 初始化失败: {exc}")
 
-    # -- OCR 初始化器：自动注册到 OnWindowReady，窗口就绪时检查模型并启动 Worker --
+    # -- OCR 初始化器 --
     from ui.gmessagebox import GMessageBox
 
     GMessageBox.init(engine)
@@ -144,14 +159,14 @@ def main():
 
     _ocr_initializer = OcrInitializer()
 
-    # -- 窗口就绪回调：触发所有 OnWindowReady 接口 --
+    # -- 窗口就绪回调 --
     from ui.lifecycle import OnWindowReady
 
     OnWindowReady.trigger_all()
 
     app.exec()
 
-    # 强制同步销毁 QML 引擎，确保 QML 解绑时 Python 对象仍存活
+    # 强制同步销毁 QML 引擎
     import shiboken6
 
     shiboken6.delete(engine)

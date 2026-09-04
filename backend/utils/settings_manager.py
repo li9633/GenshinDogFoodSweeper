@@ -48,6 +48,9 @@ class SettingsManager:
         "hotkey": {
             "stop": "<ctrl>+<shift>+x",
         },
+        "log": {
+            "db_level": "",
+        },
     }
 
     def __init__(self) -> None:

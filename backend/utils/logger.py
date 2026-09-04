@@ -34,8 +34,9 @@ def setup_logging(
 
     # 控制台输出（彩色）
     # 注意：PyInstaller console=False 模式下 sys.stderr 为 None
+    stderr_sink_id: int | None = None
     if sys.stderr is not None:
-        logger.add(
+        stderr_sink_id = logger.add(
             sys.stderr,
             level=level,
             format=(
@@ -48,7 +49,7 @@ def setup_logging(
         )
 
     # 文件输出（所有级别）
-    logger.add(
+    file_sink_id = logger.add(
         log_dir / "app_{time:YYYY-MM-DD}.log",
         level="DEBUG",
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
@@ -70,7 +71,7 @@ def setup_logging(
     # 拦截标准 logging → loguru
     _intercept_standard_logging()
 
-    return logger
+    return file_sink_id, stderr_sink_id
 
 
 def _intercept_standard_logging():

@@ -18,6 +18,7 @@ QtObject {
     readonly property string rocket:         "\uf135"   // fa-rocket
     readonly property string list:           "\uf0ca"   // fa-list
     readonly property string gear:           "\uf013"   // fa-gear
+    readonly property string sliders:        "\uf1de"   // fa-sliders
     readonly property string wrench:         "\uf0ad"   // fa-wrench
 
     // -- 状态 --

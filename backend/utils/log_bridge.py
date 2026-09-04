@@ -59,6 +59,24 @@ def end_task(key: str) -> None:
         _presenter.end_task(key)  # type: ignore[attr-defined]
 
 
+_sink_ids: list[int] = []
+
+
+def register_sink(sink_id: int) -> None:
+    """注册 sink ID，供运行时切换全局日志等级使用"""
+    _sink_ids.append(sink_id)
+
+
+def update_global_level(level: str) -> None:
+    """运行时动态切换所有已注册 sink 的日志等级（文件 + DB）"""
+    from loguru import logger
+    level_no = logger.level(level).no
+    for handler_id in _sink_ids:
+        handler = logger._core.handlers.get(handler_id)
+        if handler is not None:
+            handler._levelno = level_no
+
+
 def create_db_sink():
     """创建 loguru sink — 同时写入 DB + 状态栏"""
 

@@ -50,6 +50,9 @@ class SettingsPresenter(QObject):
     hotkeyCaptureStarted = Signal()
     hotkeyCaptureFinished = Signal()
 
+    # -- 日志等级 --
+    logLevelChanged = Signal()
+
     # -- 状态栏 --
     statusMessage = Signal(str, int, str)
 
@@ -179,6 +182,38 @@ class SettingsPresenter(QObject):
     def _on_hotkey_captured(self, _hotkey: str) -> None:
         self.hotkeyChanged.emit()
         self.hotkeyCaptureFinished.emit()
+
+    # ========== 日志等级 ==========
+
+    _LOG_LEVELS: ClassVar[list[str]] = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    _LOG_LEVEL_LABELS: ClassVar[list[str]] = [
+        "调试 (DEBUG)",
+        "信息 (INFO)",
+        "警告 (WARNING)",
+        "错误 (ERROR)",
+        "严重 (CRITICAL)",
+    ]
+
+    @Property("QStringList", notify=logLevelChanged)
+    def logLevelLabels(self) -> list[str]:
+        return self._LOG_LEVEL_LABELS
+
+    @Property(int, notify=logLevelChanged)
+    def logLevelIndex(self) -> int:
+        level = settings.get("log.db_level")
+        try:
+            return self._LOG_LEVELS.index(level)
+        except ValueError:
+            return 1
+
+    @Slot(int)
+    def setLogLevelByIndex(self, index: int) -> None:
+        if 0 <= index < len(self._LOG_LEVELS):
+            new_level = self._LOG_LEVELS[index]
+            settings.set("log.db_level", new_level)
+            from utils.log_bridge import update_global_level
+            update_global_level(new_level)
+            self.logLevelChanged.emit()
 
     # ========== 圣遗物更新检查 ==========
 
