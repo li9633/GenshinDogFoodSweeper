@@ -73,16 +73,15 @@ class PageScroller:
         if scroll_px <= 0:
             return False
 
-        ticks = max(1, int(scroll_px / self._PX_PER_TICK))
+        ticks = max(1, round(scroll_px / self._PX_PER_TICK))
         flag_x = det_result.slots[0].cx
         flag_y = det_result.slots[0].cy
 
+        self._mouse.move_to(flag_x, flag_y)
         if fast:
-            self._mouse.move_to(flag_x, flag_y)
             self._mouse.scroll(-ticks)
         else:
             for _ in range(ticks):
-                self._mouse.move_to(flag_x, flag_y)
                 self._mouse.scroll_one_tick()
                 sleep(tick_delay_ms / 1000.0)
 

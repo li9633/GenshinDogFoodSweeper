@@ -92,11 +92,14 @@ class MouseController:
         )
 
     @staticmethod
-    def move_to(x: int, y: int) -> bool:
+    def move_to(x: int, y: int, *, silent: bool = False) -> bool:
         """
         移动鼠标到坐标 (x, y)。
         若已注入 WindowHelper，则 x, y 视为窗口相对坐标并自动转换。
         使用 SendInput 绝对坐标，即时完成，无 sleep。
+
+        Args:
+            silent: 静默模式，不输出 DEBUG 日志（用于拖拽等高频操作）
         """
         try:
             rel_x, rel_y = x, y  # 保存原始窗口相对坐标
@@ -125,12 +128,13 @@ class MouseController:
             if result == 0:
                 log.warning(f"SendInput 移动失败: ({x}, {y})")
                 return False
-            if origin is not None:
-                log.debug(
-                    f"鼠标移动: 窗口相对({rel_x}, {rel_y}) → 屏幕绝对({x}, {y})"
-                )
-            else:
-                log.debug(f"鼠标移动: 屏幕绝对({pt_before.x}, {pt_before.y}) → ({x}, {y})")
+            if not silent:
+                if origin is not None:
+                    log.debug(
+                        f"鼠标移动: 窗口相对({rel_x}, {rel_y}) → 屏幕绝对({x}, {y})"
+                    )
+                else:
+                    log.debug(f"鼠标移动: 屏幕绝对({pt_before.x}, {pt_before.y}) → ({x}, {y})")
             return True
         except Exception as e:
             log.error(f"鼠标移动异常: {e}")
@@ -251,7 +255,7 @@ class MouseController:
             for i in range(1, steps + 1):
                 x = from_x + (to_x - from_x) * i // steps
                 y = from_y + (to_y - from_y) * i // steps
-                MouseController.move_to(x, y)
+                MouseController.move_to(x, y, silent=True)
                 time.sleep(step_delay_ms / 1000.0)
 
             time.sleep(0.02)

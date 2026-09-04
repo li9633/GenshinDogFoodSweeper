@@ -4,7 +4,7 @@
 独立的调试面板 Presenter，聚焦于单个小模块的调试：
 - 格子定位
 - 格子翻页
-- 批量点击（基于 SlotIterator）
+- 批量点击
 - 首尾锚点定位
 - 格子检测预览
 
@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from pathlib import Path
 from time import sleep
@@ -44,6 +45,7 @@ from backend.automation.slot_iterator import SlotIterator
 from backend.automation.smart_scroller import SmartScroller
 from backend.automation.window_helper import WindowHelper
 from backend.exceptions.automation import GameWindowNotFoundError
+from backend.models.slot_models import DetectResult
 from backend.utils.screen_capture import ScreenshotCapture
 
 from ..image_provider import PreviewImageProvider
@@ -797,7 +799,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
     @Slot(int)
     def detectSlotsRepeatedly(self, repeat_count: int) -> None:
         def _task() -> object:
-            all_counts: list[int] = []
+            t0 = time.perf_counter()
+            all_results: list[DetectResult] = []
             for i in range(repeat_count):
                 window = WindowHelper.find_genshin_window()
                 result = self._capture.capture(window=window)
@@ -806,25 +809,52 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
                 det_result = SlotDetector.detect(
                     result.image, config=self._active_config
                 )
-                count = len(det_result.slots)
-                all_counts.append(count)
+                all_results.append(det_result)
                 log.info(
-                    f"[调试面板] 连续检测 [{i + 1}/{repeat_count}]: {count} 个格子"
+                    f"[调试面板] 连续检测 [{i + 1}/{repeat_count}]: {len(det_result.slots)} 个格子"
                 )
-            return {"counts": all_counts, "repeat_count": repeat_count}
+
+            # 逐格比较：同一时间游戏画面不变，每次检测结果应完全一致
+            base = all_results[0]
+            diffs: list[str] = []
+            for i in range(1, len(all_results)):
+                cur = all_results[i]
+                if len(cur.slots) != len(base.slots):
+                    diffs.append(
+                        f"第{i + 1}次数量不同: {len(base.slots)} → {len(cur.slots)}"
+                    )
+                    continue
+                for s_base, s_cur in zip(base.slots, cur.slots):
+                    sig = (s_base.row, s_base.col)
+                    for attr in ("cx", "cy", "rarity", "star_count", "locked"):
+                        v_base = getattr(s_base, attr)
+                        v_cur = getattr(s_cur, attr)
+                        if v_base != v_cur:
+                            diffs.append(
+                                f"第{i + 1}次 [{sig[0]},{sig[1]}] "
+                                f"{attr}: {v_base} → {v_cur}"
+                            )
+
+            elapsed = (time.perf_counter() - t0) * 1000
+            return {"diffs": diffs, "repeat_count": repeat_count,
+                    "slot_count": len(base.slots), "elapsed_ms": elapsed}
 
         def _on_done(result: object) -> None:
-            all_counts = result["counts"]
+            diffs = result["diffs"]
             repeat_count = result["repeat_count"]
-            if len(set(all_counts)) == 1:
+            slot_count = result["slot_count"]
+            elapsed_ms = result["elapsed_ms"]
+            if not diffs:
                 log.info(
                     f"[调试面板] 连续检测: 稳定 ✓ — "
-                    f"{repeat_count}次均为{all_counts[0]}个格子"
+                    f"{repeat_count}次均为{slot_count}个格子，"
+                    f"所有属性完全一致 ({elapsed_ms:.0f}ms)"
                 )
             else:
                 log.warning(
                     f"[调试面板] 连续检测: 不稳定 ✗ — "
-                    f"出现{len(set(all_counts))}种不同数量: {all_counts}"
+                    f"{len(diffs)}处差异 ({elapsed_ms:.0f}ms):\n"
+                    + "\n".join(f"  • {d}" for d in diffs)
                 )
 
         self._run_in_background(_task).done.connect(_on_done)

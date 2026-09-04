@@ -19,9 +19,11 @@ from PySide6.QtCore import QObject, QThread, Signal
 from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
+from backend.automation.slider_scroller import SliderScroller
 from backend.automation.slot_iterator import SlotIterator
 from backend.automation.window_helper import WindowHelper
 from backend.exceptions.automation.exceptions import LockIconNotFoundError
+from backend.models.slot_models import BAG_SLOT_CONFIG
 from backend.utils.screen_capture import ScreenshotCapture
 
 
@@ -31,6 +33,10 @@ class ArtifactLocker(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._capture = ScreenshotCapture()
+        self._mouse = MouseController()
+        self._slider_scroller = SliderScroller(
+            self._mouse, self._capture, BAG_SLOT_CONFIG
+        )
         self._stop_event = threading.Event()
         self._fatal_error: str | None = None
         self._lock_icon_center: tuple[int, int] | None = None
@@ -85,7 +91,7 @@ class ArtifactLocker(QObject):
         from backend.models.slot_models import BAG_SLOT_CONFIG
 
         config = BAG_SLOT_CONFIG
-        scroller = PageScroller(MouseController(), self._capture, config)
+        scroller = PageScroller(self._mouse, self._capture, config)
         engine = DogfoodRuleEngine(default_action=default_action)
 
         total_locked = 0
@@ -95,7 +101,12 @@ class ArtifactLocker(QObject):
 
         WindowHelper.focus()
         MouseController.set_origin(WindowHelper.get_origin())
-        iterator = SlotIterator(MouseController())
+
+        self._scroll_to_top()
+        if self._stop_event.is_set():
+            return (0, 0, 0)
+
+        iterator = SlotIterator(self._mouse)
 
         while True:
             if self._stop_event.is_set():
@@ -123,7 +134,7 @@ class ArtifactLocker(QObject):
             )
 
             # re_unlock=False 时跳过已锁定格子（SlotDetector 预检测，无需点击+OCR）
-            pre_check = (lambda s: not s.locked) if not re_unlock else None
+            pre_check = (lambda s: not s.locked) if not re_unlock else None 
 
             def on_slot(slot, idx, total, _page=page, _window=window):
                 nonlocal total_locked, total_unlocked, total_skipped
@@ -188,6 +199,7 @@ class ArtifactLocker(QObject):
                     and (total_locked + total_unlocked + total_skipped) >= max_count
                 ):
                     log.info(f"已达到最大处理数量 {max_count}，停止")
+                    self._stop_event.set()
                     return False
 
                 return True
@@ -242,6 +254,11 @@ class ArtifactLocker(QObject):
             log.debug(f"[锁定OCR] 识别异常: {e}")
             return None
 
+    # ========== 滑块操作 ==========
+
+    def _scroll_to_top(self) -> None:
+        self._slider_scroller.ensure_at_top()
+
     # ========== 锁定/解锁操作 ==========
 
     def _toggle_lock(
@@ -251,7 +268,7 @@ class ArtifactLocker(QObject):
     ) -> None:
         """点击锁定图标切换锁定/解锁状态。
 
-        通过模板匹配找到锁定图标位置并点击。
+        通过多尺度模板匹配找到锁定图标中心并点击。
         首次匹配成功后缓存坐标，后续直接复用。
         """
         if self._lock_icon_center is not None:
@@ -259,24 +276,34 @@ class ArtifactLocker(QObject):
             time.sleep(0.3)
             return
 
-        from backend.automation.recognizer import ArtifactRecognizer
+        from backend.automation.template_manager import TemplateManager
+        from backend.automation.template_matcher import multi_scale_match
 
-        lock_pos = ArtifactRecognizer.find_lock_icon_position(image, search_region)
-        if lock_pos is None:
+        # 优先匹配解锁（大部分圣遗物），失败再匹配锁定
+        for key in ("圣遗物状态已解锁", "圣遗物状态已锁定"):
+            template = TemplateManager.get(key)
+            if template is None:
+                continue
+            score, (cx, cy), _scale, (_w, _h) = multi_scale_match(
+                image, template, search_region=search_region
+            )
+            if score >= 0.8:
+                center_x, center_y = cx, cy
+                break
+        else:
             log.error("未找到锁定图标位置")
             raise LockIconNotFoundError()
 
-        rel_x, rel_y = lock_pos
-        abs_x, abs_y = WindowHelper.to_absolute(rel_x, rel_y)
+        abs_x, abs_y = WindowHelper.to_absolute(center_x, center_y)
         win_origin = WindowHelper.get_origin()
         log.info(
             f"锁定图标匹配成功: "
-            f"窗口相对=({rel_x}, {rel_y}) 窗口原点={win_origin} "
+            f"窗口相对中心=({center_x}, {center_y}) 窗口原点={win_origin} "
             f"屏幕绝对=({abs_x}, {abs_y})"
         )
 
-        self._lock_icon_center = (rel_x, rel_y)
-        MouseController.move_and_click(rel_x, rel_y)
+        self._lock_icon_center = (center_x, center_y)
+        MouseController.move_and_click(center_x, center_y)
         time.sleep(0.3)
 
 

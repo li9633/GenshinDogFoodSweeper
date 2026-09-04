@@ -14,7 +14,7 @@ from utils.logger import log
 
 # 需要显示在状态栏的日志级别 → 显示时长（毫秒，0=永久）
 _STATUS_BAR_DURATION: dict[str, int] = {
-    "INFO": 3000,
+    "INFO": 2000,
     "SUCCESS": 3000,
     "WARNING": 5000,
     "ERROR": 0,
@@ -47,14 +47,14 @@ def start_task(key: str, level: str, message: str) -> None:
     任务消息会保持显示直到调用 end_task()，
     期间其他日志短暂突破后会自动回退。
     """
-    log.info(f"[任务开始] {message}")
+    log.info(f"{message}")
     if _presenter:
         _presenter.start_task(key, level, message)  # type: ignore[attr-defined]
 
 
 def end_task(key: str) -> None:
     """结束任务，取消钉住。同时写入文件日志和数据库。线程安全。"""
-    log.info(f"[任务完成] {key}")
+    log.debug(f"[任务完成] {key}")
     if _presenter:
         _presenter.end_task(key)  # type: ignore[attr-defined]
 
