@@ -89,16 +89,24 @@ def main():
         SettingsRepo.set("log.db_level", _default_level)
 
     from loguru import logger
-    from utils.log_bridge import create_db_sink
+    from utils.log_bridge import create_db_sink, create_status_bar_sink
     from utils.settings_manager import settings
 
-    # 重新加载设置缓存，确保读到刚写入的默认值
+    # 重新加载设置缓存
     settings.reload()
     db_level = settings.get("log.db_level")
 
+    # 注册 DB sink
     sink_id = logger.add(
         create_db_sink(),
         level=db_level,
+        format="{message}",
+    )
+
+    # 状态栏专用 sink
+    logger.add(
+        create_status_bar_sink(),
+        level="INFO",
         format="{message}",
     )
 

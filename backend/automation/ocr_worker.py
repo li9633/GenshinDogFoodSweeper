@@ -69,18 +69,13 @@ class OcrWorker(QThread):
         此处直接创建 OCR 实例。
         """
         try:
-            from utils.log_bridge import end_task, start_task
+            from utils.log_bridge import TaskContext
 
             from backend.automation.ocr_engine import OcrEngine
             from backend.exceptions.automation import OcrModelNotReadyError
 
-            start_task("ocr_init", "INFO", "OCR 引擎预热中 …")
-            try:
+            with TaskContext("ocr_init", "OCR 引擎预热中 …", success_message="OCR 引擎就绪"):
                 self._ocr = OcrEngine.create_ocr(self._engines_dir)
-            finally:
-                end_task("ocr_init")
-
-            log.info("OCR 引擎就绪")
             self.ready.emit()
 
             # ---- 任务处理循环 ----

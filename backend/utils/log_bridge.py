@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Self
 
 from database.repository.log_repo import LogRepo
 from utils.logger import log
@@ -40,23 +41,64 @@ def set_presenter(presenter: object) -> None:
     _presenter = presenter
 
 
-def start_task(key: str, level: str, message: str) -> None:
+def start_task(key: str, message: str) -> None:
     """钉住一条任务消息到状态栏，同时写入文件日志和数据库。
 
     线程安全，可在任意线程调用。
-    任务消息会保持显示直到调用 end_task()，
-    期间其他日志短暂突破后会自动回退。
+    状态栏直接显示，不受全局日志等级影响。
     """
     log.info(f"{message}")
     if _presenter:
-        _presenter.start_task(key, level, message)  # type: ignore[attr-defined]
+        _presenter.start_task(key, message)  # type: ignore[attr-defined]
 
 
-def end_task(key: str) -> None:
-    """结束任务，取消钉住。同时写入文件日志和数据库。线程安全。"""
-    log.debug(f"[任务完成] {key}")
+def end_task(key: str, *, success: bool | None = None, message: str = "") -> None:
+    """结束任务，取消钉住。同时写入文件日志和数据库。线程安全。
+
+    Args:
+        key: 任务标识（与 start_task 对应）
+        success: None=无提示, True=成功提示, False=失败提示
+        message: 自定义提示文本（为空则使用默认值）
+    """
+    log.info(f"[任务完成] {key}")
     if _presenter:
-        _presenter.end_task(key)  # type: ignore[attr-defined]
+        _presenter.end_task(key, success=success, message=message)  # type: ignore[attr-defined]
+
+
+class TaskContext:
+    """任务上下文管理器 — 保证 start_task/end_task 配对调用。
+
+    异常时自动捕获 str(exc) 作为失败原因，无需手动处理。
+
+    用法::
+
+        with TaskContext("ocr_init", "OCR 引擎预热中 …", success_message="OCR 引擎就绪"):
+            self._ocr = OcrEngine.create_ocr(self._engines_dir)
+        # 成功 → 状态栏显示 SUCCESS "OCR 引擎就绪"
+        # 异常 → 状态栏显示 ERROR 异常消息
+    """
+
+    def __init__(self, key: str, message: str, *, success_message: str = "") -> None:
+        self._key = key
+        self._message = message
+        self._success_message = success_message
+
+    def __enter__(self) -> Self:
+        start_task(self._key, self._message)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> bool:
+        if exc_type is None:
+            end_task(self._key, success=True, message=self._success_message)
+        else:
+            reason = str(exc_val) if exc_val else "未知错误"
+            end_task(self._key, success=False, message=reason)
+        return False
 
 
 _sink_ids: list[int] = []
@@ -78,21 +120,32 @@ def update_global_level(level: str) -> None:
 
 
 def create_db_sink():
-    """创建 loguru sink — 同时写入 DB + 状态栏"""
+    """创建 loguru sink — 仅持久化到 DB，受全局日志等级控制"""
 
     def sink(message):
         record = message.record
         level = record["level"].name
         msg = record["message"]
         module = record["name"]
-
-        # 1. 持久化到 DB
         try:
             LogRepo.insert(level, msg, module)
         except Exception:  # noqa: S110
             pass
 
-        # 2. 回调状态栏（sink 在 log.info() 调用线程同步执行）
+    return sink
+
+
+def create_status_bar_sink():
+    """创建 loguru sink — 仅桥接到状态栏。
+
+    始终以 DEBUG 级别运行，不受全局日志等级影响。
+    状态栏不持久化，仅临时显示。
+    """
+
+    def sink(message):
+        record = message.record
+        level = record["level"].name
+        msg = record["message"]
         dur = _STATUS_BAR_DURATION.get(level)
         if dur is not None and _callback:
             _callback(level, msg, dur)

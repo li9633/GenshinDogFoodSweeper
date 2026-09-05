@@ -24,7 +24,7 @@ class StatusBarPresenter(QObject):
 
     # 内部调度信号（跨线程安全）
     _signal = Signal(str, str, int)
-    _task_signal = Signal(str, str, str, str)  # action, key, level, message
+    _task_signal = Signal(str, str, str, object, str)  # action, key, message, success, end_msg
 
     # QML 属性通知信号
     messageChanged = Signal()
@@ -76,16 +76,22 @@ class StatusBarPresenter(QObject):
         """
         self._signal.emit(level, message, duration)
 
-    def start_task(self, key: str, level: str, message: str) -> None:
+    def start_task(self, key: str, message: str) -> None:
         """钉住一条任务消息。即使期间有其他日志，任务完成后也会回退显示。
 
-        线程安全，可在任意线程调用。
+        线程安全，可在任意线程调用。消息始终以 INFO 级别显示。
         """
-        self._task_signal.emit("start", key, level, message)
+        self._task_signal.emit("start", key, message, None, "")
 
-    def end_task(self, key: str) -> None:
-        """结束任务，取消钉住。线程安全。"""
-        self._task_signal.emit("end", key, "", "")
+    def end_task(self, key: str, *, success: bool | None = None, message: str = "") -> None:
+        """结束任务，取消钉住。线程安全。
+
+        Args:
+            key: 任务标识
+            success: None=无提示, True=成功提示, False=失败提示
+            message: 自定义提示文本（为空则使用默认值）
+        """
+        self._task_signal.emit("end", key, message, success, "" if success is None else message)
 
     @Slot()
     def dismiss(self) -> None:
@@ -108,12 +114,17 @@ class StatusBarPresenter(QObject):
 
         self._refresh()
 
-    def _do_task(self, action: str, key: str, level: str, message: str) -> None:
+    def _do_task(self, action: str, key: str, message: str, success: bool | None, end_msg: str) -> None:
         """处理任务钉住/取消（主线程）。"""
         if action == "start":
-            self._task_stack[key] = (level.upper(), message)
+            self._task_stack[key] = ("INFO", message)
         elif action == "end":
             self._task_stack.pop(key, None)
+            if success is not None:
+                level = "SUCCESS" if success else "ERROR"
+                msg = end_msg or ("已完成" if success else "失败")
+                self._timed_pending = (level, msg, 3000)
+
         self._refresh()
 
     def _on_timer_timeout(self) -> None:
