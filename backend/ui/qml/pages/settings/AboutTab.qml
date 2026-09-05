@@ -61,7 +61,7 @@ ColumnLayout {
                 Rectangle {
                     id: versionBadge
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: 60
+                    Layout.preferredWidth: versionText.implicitWidth + 16
                     Layout.preferredHeight: 22
                     radius: 11
                     color: Theme.accentOverlay6
@@ -69,11 +69,12 @@ ColumnLayout {
                     property bool showFull: false
 
                     Text {
+                        id: versionText
                         anchors.centerIn: parent
                         text: versionBadge.showFull
                             ? SettingsPresenter.appVersionFull
                             : SettingsPresenter.appVersion
-                        font.family: Theme.fontFamily
+                        font.family: "Consolas"
                         font.pixelSize: 11
                         font.bold: true
                         color: Theme.accent
@@ -93,10 +94,6 @@ ColumnLayout {
 
                     Behavior on Layout.preferredWidth {
                         NumberAnimation { duration: 200 }
-                    }
-
-                    onShowFullChanged: {
-                        Layout.preferredWidth = showFull ? 160 : 60
                     }
                 }
 

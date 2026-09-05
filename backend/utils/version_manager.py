@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from utils.version import (
+from .version import (
     _MAJOR,
     _MINOR,
     _PATCH,
@@ -81,6 +81,23 @@ class AppVersion:
         if cls.CHANNEL == Channel.RELEASE:
             return cls.string()
         return f"{cls.string()}（{cls.CHANNEL.label}）"
+
+    @classmethod
+    def dist_dir_name(cls, project_name: str, channel: str, channel_num: int,
+                      commit_hash: str = "", extra: str = "") -> str:
+        """构建产物目录名，如 'GenshinDogFoodSweeper-v0.9.31-alpha.1-1a2b3c4'"""
+        parts = [f"{project_name}-{cls.clean()}"]
+        parts.append(f"{channel}.{channel_num}")
+        if commit_hash:
+            parts.append(commit_hash)
+        if extra:
+            parts.append(extra)
+        return "-".join(parts)
+
+    @classmethod
+    def dist_prefix(cls, project_name: str, channel: str) -> str:
+        """同渠道同版本前缀，用于匹配旧产物。如 'GenshinDogFoodSweeper-v0.9.31-alpha.'"""
+        return f"{project_name}-{cls.clean()}-{channel}."
 
     # ---------------------------------------------------------------
     # 版本判断

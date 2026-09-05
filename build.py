@@ -20,7 +20,9 @@ BUILD_DIR = ROOT / "build"
 SPEC_FILE = ROOT / "GenshinDogFoodSweeper.spec"
 CHANNEL_FILE = ROOT / "backend" / "utils" / "_build_channel.py"
 
-# 项目名（唯一硬编码，其余信息从 BuildInfo 字段派生）
+from backend.utils.version import _MAJOR, _MINOR, _PATCH
+from backend.utils.version_manager import AppVersion
+
 _PROJECT = "GenshinDogFoodSweeper"
 
 
@@ -48,31 +50,25 @@ class BuildInfo:
 
     channel: str = "alpha"
     channel_num: int = 1
-    major: int = 0
-    minor: int = 9
-    patch: int = 27
+    major: int = _MAJOR
+    minor: int = _MINOR
+    patch: int = _PATCH
     commit_hash: str = ""  # Git 短哈希，构建时自动获取
     extra: str = ""  # 预留扩展字段，如 "portable"、"debug"
 
     def dist_dir_name(self) -> str:
-        """产物目录名，如 'GenshinDogFoodSweeper-v0.9.27-alpha.1-1a2b3c4'
-
-        由所有字段自动拼接，扩展字段时只需修改此方法。
-        """
-        parts = [f"{_PROJECT}-v{self.major}.{self.minor}.{self.patch}"]
-        if self.channel != "release":
-            parts.append(f"{self.channel}.{self.channel_num}")
-        else:
-            parts.append(f"{self.channel}.{self.channel_num}")
-        if self.commit_hash:
-            parts.append(self.commit_hash)
-        if self.extra:
-            parts.append(self.extra)
-        return "-".join(parts)
+        """产物目录名，如 'GenshinDogFoodSweeper-v0.9.31-alpha.1-1a2b3c4'"""
+        return AppVersion.dist_dir_name(
+            _PROJECT,
+            self.channel,
+            self.channel_num,
+            self.commit_hash,
+            self.extra,
+        )
 
     def dist_prefix(self) -> str:
-        """同渠道同版本前缀，用于匹配旧产物。如 'GenshinDogFoodSweeper-v0.9.27-alpha.'"""
-        return f"{_PROJECT}-v{self.major}.{self.minor}.{self.patch}-{self.channel}."
+        """同渠道同版本前缀，用于匹配旧产物。如 'GenshinDogFoodSweeper-v0.9.31-alpha.'"""
+        return AppVersion.dist_prefix(_PROJECT, self.channel)
 
 
 def clean(info: BuildInfo, clear_all: bool = False):
@@ -108,13 +104,16 @@ def write_channel(channel: str, channel_num: int, commit_hash: str = ""):
     """写入构建渠道配置，供 version.py 在运行时读取"""
     CHANNEL_FILE.parent.mkdir(parents=True, exist_ok=True)
     CHANNEL_FILE.write_text(
-        f'# 构建时自动生成，请勿手动编辑\n'
+        f"# 构建时自动生成，请勿手动编辑\n"
         f'BUILD_CHANNEL = "{channel}"\n'
-        f'BUILD_CHANNEL_NUM = {channel_num}\n'
+        f"BUILD_CHANNEL_NUM = {channel_num}\n"
         f'BUILD_COMMIT_HASH = "{commit_hash}"\n',
         encoding="utf-8",
     )
-    print(f"渠道配置: {channel}.{channel_num}" + (f" ({commit_hash})" if commit_hash else ""))
+    print(
+        f"渠道配置: {channel}.{channel_num}"
+        + (f" ({commit_hash})" if commit_hash else "")
+    )
 
 
 def build():
@@ -155,7 +154,7 @@ def _auto_increment_num(info: BuildInfo) -> int:
         for d in dist_dir.iterdir():
             if d.is_dir() and d.name.startswith(prefix):
                 try:
-                    n = int(d.name[len(prefix):].split("-")[0])
+                    n = int(d.name[len(prefix) :].split("-")[0])
                     max_num = max(max_num, n)
                 except ValueError:
                     pass
@@ -195,9 +194,7 @@ if __name__ == "__main__":
 
     info = BuildInfo(
         channel=args.channel,
-        channel_num=args.num or _auto_increment_num(
-            BuildInfo(channel=args.channel)
-        ),
+        channel_num=args.num or _auto_increment_num(BuildInfo(channel=args.channel)),
         commit_hash=_get_git_hash(),
         extra=args.extra,
     )

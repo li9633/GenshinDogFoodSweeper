@@ -11,7 +11,7 @@ from enum import Enum
 
 _MAJOR = 0
 _MINOR = 9
-_PATCH = 32
+_PATCH = 33
 
 
 class Channel(Enum):
@@ -36,7 +36,7 @@ class Channel(Enum):
 
 # ---- 构建时注入的渠道配置 ----
 try:
-    from utils._build_channel import (  # type: ignore[import-untyped]
+    from ._build_channel import (  # type: ignore[import-untyped]
         BUILD_CHANNEL,
         BUILD_CHANNEL_NUM,
         BUILD_COMMIT_HASH,
@@ -52,6 +52,6 @@ except ImportError:
 
 
 # ---- 重新导出（向后兼容）----
-from utils.version_manager import AppVersion
+from .version_manager import AppVersion
 
 APP_VERSION = AppVersion
