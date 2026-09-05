@@ -22,7 +22,7 @@ ApplicationWindow {
     title: "原神狗粮清扫器"
 
     // ---- 阴影边距（内容区域距离窗口边缘的距离）----
-    readonly property int shadowMargin: 10
+    readonly property int shadowMargin: 4
 
     // ============================================================
     // 主布局：侧边栏 + 内容区 + 状态栏
