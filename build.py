@@ -71,33 +71,42 @@ class BuildInfo:
         return AppVersion.dist_prefix(_PROJECT, self.channel)
 
 
-def clean(info: BuildInfo, clear_all: bool = False):
-    """清理旧构建产物。"""
-    if BUILD_DIR.exists():
-        shutil.rmtree(BUILD_DIR)
-
+def clean_channel(channel: str) -> int:
+    """删除 dist/ 下指定渠道的所有版本产物，返回最大迭代号 + 1"""
     dist_dir = ROOT / "dist"
     if not dist_dir.exists():
         print("无需清理（dist 目录不存在）")
-        return
+        return 1
 
-    if clear_all:
-        prefix = info.dist_prefix()
-        cleaned = 0
-        for d in dist_dir.iterdir():
-            if d.is_dir() and d.name.startswith(prefix):
-                shutil.rmtree(d)
-                print(f"已清理旧产物: {d.name}")
-                cleaned += 1
-        if cleaned == 0:
-            print("无需清理（无同渠道旧产物）")
-    else:
-        versioned_dist = dist_dir / info.dist_dir_name()
-        if versioned_dist.exists():
-            shutil.rmtree(versioned_dist)
-            print(f"已清理旧产物: {versioned_dist.name}")
-        else:
-            print("无需清理（同渠道版本号无旧产物）")
+    marker = f"-{channel}."
+    max_num = 0
+    to_delete: list[Path] = []
+
+    for d in dist_dir.iterdir():
+        if not d.is_dir() or not d.name.startswith(_PROJECT):
+            continue
+        if marker not in d.name:
+            continue
+
+        to_delete.append(d)
+        idx = d.name.find(marker) + len(marker)
+        end = d.name.find("-", idx)
+        if end == -1:
+            end = len(d.name)
+        try:
+            n = int(d.name[idx:end])
+            max_num = max(max_num, n)
+        except ValueError:
+            pass
+
+    for d in to_delete:
+        shutil.rmtree(d)
+        print(f"已清理旧产物: {d.name}")
+
+    if not to_delete:
+        print("无需清理（无该渠道旧产物）")
+
+    return max_num + 1
 
 
 def write_channel(channel: str, channel_num: int, commit_hash: str = ""):
@@ -192,14 +201,18 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
+    if args.clear:
+        channel_num = clean_channel(args.channel)
+        print(f"{args.channel} 渠道本次构建为第 {channel_num} 次")
+    else:
+        channel_num = args.num or _auto_increment_num(BuildInfo(channel=args.channel))
     info = BuildInfo(
         channel=args.channel,
-        channel_num=args.num or _auto_increment_num(BuildInfo(channel=args.channel)),
+        channel_num=channel_num,
         commit_hash=_get_git_hash(),
         extra=args.extra,
     )
 
-    clean(info, clear_all=args.clear)
     write_channel(info.channel, info.channel_num, info.commit_hash)
     build()
     post_build(info)
