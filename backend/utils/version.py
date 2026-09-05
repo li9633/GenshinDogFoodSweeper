@@ -11,7 +11,7 @@ from enum import Enum
 
 _MAJOR = 0
 _MINOR = 9
-_PATCH = 33
+_PATCH = 34
 
 
 class Channel(Enum):

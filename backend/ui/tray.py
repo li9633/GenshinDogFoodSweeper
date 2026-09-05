@@ -34,6 +34,9 @@ class TrayManager(QObject):
         self._set_icon()
         self._build_menu()
 
+        # 双击托盘图标显示窗口
+        self._tray.activated.connect(self._on_tray_activated)
+
         # 退出时清理
         app.aboutToQuit.connect(self.cleanup)
 
@@ -88,6 +91,11 @@ class TrayManager(QObject):
                 obj.show()
                 obj.raise_()
                 obj.requestActivate()
+
+    def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason):
+        """托盘图标激活事件：双击显示窗口"""
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self._show_main_window()
 
     def _quit_app(self):
         """优雅退出：关闭窗口 → 等 QML 解绑 → 退出"""
