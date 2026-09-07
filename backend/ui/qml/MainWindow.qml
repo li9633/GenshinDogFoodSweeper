@@ -194,15 +194,15 @@ ApplicationWindow {
     }
 
     // ============================================================
-    // 版本更新 → 导航到同步Tab
+    // 路由导航：NavigationPresenter.navigateRequested → 页面跳转
     // ============================================================
     Connections {
-        target: VersionCheck
-        function onNavigateToSyncTab() {
-            sidebar.currentKey = "settings";
-            stackView.replace(null, settingsPage, StackView.Immediate);
-            if (stackView.currentItem) {
-                stackView.currentItem.currentTab = 1;
+        target: NavigationPresenter
+        function onNavigateRequested(page, tab) {
+            sidebar.currentKey = page;
+            stackView.replace(null, getPageComponent(page), StackView.Immediate);
+            if (tab && stackView.currentItem && stackView.currentItem.goToTab) {
+                stackView.currentItem.goToTab(tab);
             }
         }
     }

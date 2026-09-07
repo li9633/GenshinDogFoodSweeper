@@ -79,6 +79,16 @@ class SettingsPresenter(QObject):
         self._model_manager = None
         self._download_worker = None
 
+        # 注册设置页子Tab路由
+        from ui.presenters.navigation_presenter import NavigationPresenter
+
+        NavigationPresenter.register("settings/general", "settings", "general")
+        NavigationPresenter.register("settings/appearance", "settings", "appearance")
+        NavigationPresenter.register("settings/sync", "settings", "sync")
+        NavigationPresenter.register("settings/model", "settings", "model")
+        NavigationPresenter.register("settings/hotkey", "settings", "hotkey")
+        NavigationPresenter.register("settings/about", "settings", "about")
+
     # ========== 关于 ==========
 
     @Property(str, constant=True)

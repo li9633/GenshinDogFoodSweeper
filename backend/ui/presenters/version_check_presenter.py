@@ -47,9 +47,6 @@ class _VersionCheckWorker(QThread):
 class VersionCheckPresenter(QObject, OnWindowReady):
     """圣遗物更新检查 Presenter — 注册为 QML context property"""
 
-    # 用户点击「立即前往」时发射，QML 侧导航到设置→同步Tab
-    navigateToSyncTab = Signal()
-
     def __init__(self, parent: QObject | None = None):
         QObject.__init__(self, parent)
         OnWindowReady.__init__(self)
@@ -128,5 +125,6 @@ class VersionCheckPresenter(QObject, OnWindowReady):
     def _handle_version_button(self, role: str) -> None:
         """版本更新弹窗按钮回调"""
         if role == "accept":
-            log.info("用户点击「立即前往」，跳转到同步Tab")
-            self.navigateToSyncTab.emit()
+            log.debug("用户点击「立即前往」，跳转到同步Tab")
+            from ui.presenters.navigation_presenter import NavigationPresenter
+            NavigationPresenter.navigate("settings/sync")

@@ -85,11 +85,20 @@ Rectangle {
     // Tab 数据模型
     // ============================================================
     readonly property var _tabItems: [
-        { icon: Icon.sliders, label: "通用" },
-        { icon: Icon.palette, label: "外观" },
-        { icon: Icon.arrowsRotate, label: "同步" },
-        { icon: Icon.flask, label: "模型" },
-        { icon: Icon.keyboard, label: "快捷键" },
-        { icon: Icon.info, label: "关于" },
+        { key: "general",    icon: Icon.sliders,      label: "通用" },
+        { key: "appearance", icon: Icon.palette,       label: "外观" },
+        { key: "sync",       icon: Icon.arrowsRotate,  label: "同步" },
+        { key: "model",      icon: Icon.flask,         label: "模型" },
+        { key: "hotkey",     icon: Icon.keyboard,      label: "快捷键" },
+        { key: "about",      icon: Icon.info,          label: "关于" },
     ]
+
+    function goToTab(key) {
+        for (let i = 0; i < _tabItems.length; i++) {
+            if (_tabItems[i].key === key) {
+                currentTab = i;
+                return;
+            }
+        }
+    }
 }

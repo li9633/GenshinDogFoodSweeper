@@ -32,6 +32,11 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("GMessageBoxBridge", GMessageBoxBridge, []))
 
+    # ---- NavigationPresenter（路由导航）----
+    from ui.presenters.navigation_presenter import NavigationPresenter
+
+    registry.append(("NavigationPresenter", NavigationPresenter, []))
+
     # ---- SettingsPresenter ----
     from ui.presenters.settings_presenter import SettingsPresenter
 
