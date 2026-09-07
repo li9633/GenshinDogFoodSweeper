@@ -16,7 +16,6 @@ from pathlib import Path
 APP_NAME = "GenshinDogFoodSweeper"
 APP_NAME_CN = "原神狗粮扫荡器"
 APP_EXE = f"{APP_NAME}.exe"
-INSTALL_INFO = "install_info.txt"
 REG_UNINST_KEY = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}"
 
 # 进度信号回调类型：Callable[[int, str], None]  (百分比, 状态文字)
@@ -127,18 +126,35 @@ def resolve_install_dir(fallback_dir: str | None = None) -> Path | None:
 def _find_7za() -> Path:
     """查找 7za.exe：优先 MEIPASS/tools/，其次 PATH"""
     own = get_own_dir()
+    candidates: list[Path] = []
+
     bundled = own / "tools" / "7za.exe"
     if bundled.exists():
-        return bundled
-    # 开发模式：尝试从 installer/tools/ 找
+        candidates.append(bundled)
+
     dev_path = Path(__file__).parent / "tools" / "7za.exe"
-    if dev_path.exists():
-        return dev_path
-    # 尝试系统 PATH
+    if dev_path.exists() and dev_path != bundled:
+        candidates.append(dev_path)
+
     which = shutil.which("7za.exe") or shutil.which("7z.exe")
     if which:
-        return Path(which)
-    raise FileNotFoundError("未找到 7za.exe，请确保 installer/tools/7za.exe 存在")
+        candidates.append(Path(which))
+
+    for candidate in candidates:
+        try:
+            subprocess.run(
+                [str(candidate), "--help"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+            )
+            return candidate
+        except Exception:
+            continue
+
+    raise FileNotFoundError(
+        "未找到可用的 7za.exe，请确保 installer/tools/7za.exe 是有效的可执行文件"
+    )
 
 
 def extract_7z(archive: Path, dest: Path, progress_cb: ProgressCallback | None = None) -> None:
@@ -227,21 +243,16 @@ def remove_shortcuts() -> None:
 # 安装信息
 # ============================================================
 
-def write_install_info(install_dir: Path, version: str) -> None:
-    (install_dir / INSTALL_INFO).write_text(
-        f"version={version}\ninstall_path={install_dir}\n", encoding="utf-8",
-    )
-
-
-def read_install_info(install_dir: Path) -> str:
-    """读取安装信息中的版本号"""
-    info = install_dir / INSTALL_INFO
-    if not info.exists():
-        return "0.0.0"
-    for line in info.read_text(encoding="utf-8").splitlines():
-        if line.startswith("version="):
-            return line.split("=", 1)[1].strip()
-    return "0.0.0"
+def read_registry_version() -> str:
+    """从注册表读取已安装版本号"""
+    winreg = _try_import_winreg()
+    if not winreg:
+        return ""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_UNINST_KEY) as key:
+            return winreg.QueryValueEx(key, "DisplayVersion")[0]
+    except Exception:
+        return ""
 
 
 # ============================================================
@@ -267,7 +278,6 @@ def install(install_dir: Path, version: str, progress_cb: ProgressCallback | Non
         shutil.copy2(own_exe, uninst_dest)
 
     write_registry(install_dir, version)
-    write_install_info(install_dir, version)
     create_shortcuts(install_dir)
 
 
@@ -291,7 +301,6 @@ def quick_update(install_dir: Path, version: str,
         shutil.copy2(own_exe, uninst_dest)
 
     write_registry(install_dir, version)
-    write_install_info(install_dir, version)
 
 
 def restart_app(install_dir: Path) -> None:

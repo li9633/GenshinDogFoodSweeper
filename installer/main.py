@@ -26,6 +26,7 @@ from PySide6.QtQuick import QQuickWindow
 from installer.installer_logic import (
     APP_NAME,
     get_default_install_dir,
+    read_registry_version,
     resolve_install_dir,
 )
 from installer.presenters.installer_presenter import InstallerPresenter
@@ -70,6 +71,7 @@ def main() -> None:
     if is_update:
         presenter.mode = "update"
         presenter.installDir = str(resolved) if resolved else str(get_default_install_dir())
+        presenter.oldVersion = read_registry_version()
 
     # -- 加载 QML --
     engine.rootContext().setContextProperty("InstallerPresenter", presenter)

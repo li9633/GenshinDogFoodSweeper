@@ -21,21 +21,21 @@ Item {
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "heading"
-            text: InstallerPresenter.mode === "update" ? "更新完成！" : "安装完成！"
+            text: InstallerPresenter.finishTitle
         }
 
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
             labelType: "body"
-            text: InstallerPresenter.appName + " 已成功安装到：\n" + InstallerPresenter.installDir
+            text: InstallerPresenter.finishMessage
         }
 
         // 创建桌面快捷方式提示
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "small"
-            visible: InstallerPresenter.mode === "install"
+            visible: InstallerPresenter.showShortcutHint
             text: "已创建桌面快捷方式，双击即可启动。"
         }
 

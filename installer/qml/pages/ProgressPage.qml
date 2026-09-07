@@ -32,7 +32,7 @@ Item {
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "heading"
-            text: InstallerPresenter.mode === "update" ? "正在更新..." : "正在安装..."
+            text: InstallerPresenter.progressTitle
         }
 
         ILabel {

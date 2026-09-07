@@ -21,7 +21,7 @@ Item {
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "normal"
-            text: "版本 " + InstallerPresenter.version
+            text: InstallerPresenter.versionLabel
         }
 
         // 分隔线
