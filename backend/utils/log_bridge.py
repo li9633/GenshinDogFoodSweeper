@@ -10,7 +10,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Self
 
-from database.repository.log_repo import LogRepo
 from utils.logger import log
 
 # 需要显示在状态栏的日志级别 → 显示时长（毫秒，0=永久）
@@ -110,29 +109,13 @@ def register_sink(sink_id: int) -> None:
 
 
 def update_global_level(level: str) -> None:
-    """运行时动态切换所有已注册 sink 的日志等级（文件 + DB）"""
+    """运行时动态切换所有已注册 sink 的日志等级"""
     from loguru import logger
     level_no = logger.level(level).no
     for handler_id in _sink_ids:
         handler = logger._core.handlers.get(handler_id)
         if handler is not None:
             handler._levelno = level_no
-
-
-def create_db_sink():
-    """创建 loguru sink — 仅持久化到 DB，受全局日志等级控制"""
-
-    def sink(message):
-        record = message.record
-        level = record["level"].name
-        msg = record["message"]
-        module = record["name"]
-        try:
-            LogRepo.insert(level, msg, module)
-        except Exception:  # noqa: S110
-            pass
-
-    return sink
 
 
 def create_status_bar_sink():

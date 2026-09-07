@@ -49,7 +49,10 @@ class SettingsManager:
             "stop": "<ctrl>+<shift>+x",
         },
         "log": {
-            "db_level": "",
+            "level": "DEBUG",
+            "rotation": "10 MB",
+            "retention": "7 days",
+            "compression": "",
         },
     }
 
@@ -75,8 +78,16 @@ class SettingsManager:
         self._cache = {**self._flat_defaults, **SettingsRepo.get_all()}
 
     def reload(self) -> None:
-        """重新加载缓存（外部修改数据库后调用）"""
+        """重新加载缓存，并确保数据库中存在所有默认值"""
+        self._ensure_defaults_in_db()
         self._load_cache()
+
+    def _ensure_defaults_in_db(self) -> None:
+        """将 _DEFAULTS 中缺失的 key 写入数据库（仅写入不存在的 key）"""
+        existing = SettingsRepo.get_all()
+        for key, value in self._flat_defaults.items():
+            if key not in existing:
+                SettingsRepo.set(key, value)
 
     # ---------- 通用读写 ----------
 

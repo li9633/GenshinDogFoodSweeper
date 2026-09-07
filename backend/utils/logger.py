@@ -9,13 +9,15 @@ import sys
 from pathlib import Path
 
 from loguru import logger
+from utils.settings_manager import settings
 
 
 def setup_logging(
     log_dir: str | Path = "logs",
     level: str = "DEBUG",
-    rotation: str = "10 MB",
-    retention: str = "7 days",
+    rotation: str | None = None,
+    retention: str | None = None,
+    compression: str | None = None,
 ):
     """
     配置全局日志。
@@ -23,11 +25,19 @@ def setup_logging(
     参数:
         log_dir: 日志文件目录
         level: 控制台日志级别
-        rotation: 日志文件轮转大小
-        retention: 日志保留时间
+        rotation: 日志文件轮转条件，None 则从设置中读取
+        retention: 日志保留时间，None 则从设置中读取
+        compression: 轮转后压缩格式，None 则从设置中读取
     """
     log_dir = Path(log_dir)
     log_dir.mkdir(exist_ok=True)
+
+    if rotation is None:
+        rotation = settings.get("log.rotation")
+    if retention is None:
+        retention = settings.get("log.retention")
+    if compression is None:
+        compression = settings.get("log.compression") or None
 
     # 移除默认 handler
     logger.remove()
@@ -55,23 +65,25 @@ def setup_logging(
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
         rotation=rotation,
         retention=retention,
+        compression=compression,
         encoding="utf-8",
     )
 
     # 错误单独记录
-    logger.add(
+    error_sink_id = logger.add(
         log_dir / "error_{time:YYYY-MM-DD}.log",
-        level="ERROR",
+        level="WARNING",
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
         rotation=rotation,
         retention=retention,
+        compression=compression,
         encoding="utf-8",
     )
 
     # 拦截标准 logging → loguru
     _intercept_standard_logging()
 
-    return file_sink_id, stderr_sink_id
+    return file_sink_id, error_sink_id, stderr_sink_id
 
 
 def _intercept_standard_logging():

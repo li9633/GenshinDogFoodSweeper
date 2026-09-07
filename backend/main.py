@@ -45,7 +45,7 @@ def _find_icon() -> str | None:
 
 def main():
     # 日志初始化
-    file_sink_id, stderr_sink_id = setup_logging()
+    file_sink_id, _error_sink_id, stderr_sink_id = setup_logging()
 
     # 高 DPI 适配
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -84,24 +84,17 @@ def main():
     from utils.version import Channel
     from utils.version_manager import AppVersion
 
-    if SettingsRepo.get("log.db_level") is None:
+    if SettingsRepo.get("log.level") is None:
         _default_level = "DEBUG" if AppVersion.CHANNEL == Channel.DEV else "INFO"
-        SettingsRepo.set("log.db_level", _default_level)
+        SettingsRepo.set("log.level", _default_level)
 
     from loguru import logger
-    from utils.log_bridge import create_db_sink, create_status_bar_sink
+    from utils.log_bridge import create_status_bar_sink
     from utils.settings_manager import settings
 
     # 重新加载设置缓存
     settings.reload()
-    db_level = settings.get("log.db_level")
-
-    # 注册 DB sink
-    sink_id = logger.add(
-        create_db_sink(),
-        level=db_level,
-        format="{message}",
-    )
+    file_level = settings.get("log.level")
 
     # 状态栏专用 sink
     logger.add(
@@ -114,8 +107,7 @@ def main():
     register_sink(file_sink_id)
     if stderr_sink_id is not None:
         register_sink(stderr_sink_id)
-    register_sink(sink_id)
-    update_global_level(db_level)
+    update_global_level(file_level)
 
     # -- QML 引擎 --
     engine = QQmlApplicationEngine()

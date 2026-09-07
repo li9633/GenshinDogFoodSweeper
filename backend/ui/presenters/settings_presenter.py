@@ -200,7 +200,7 @@ class SettingsPresenter(QObject):
 
     @Property(int, notify=logLevelChanged)
     def logLevelIndex(self) -> int:
-        level = settings.get("log.db_level")
+        level = settings.get("log.level")
         try:
             return self._LOG_LEVELS.index(level)
         except ValueError:
@@ -210,10 +210,75 @@ class SettingsPresenter(QObject):
     def setLogLevelByIndex(self, index: int) -> None:
         if 0 <= index < len(self._LOG_LEVELS):
             new_level = self._LOG_LEVELS[index]
-            settings.set("log.db_level", new_level)
+            settings.set("log.level", new_level)
             from utils.log_bridge import update_global_level
             update_global_level(new_level)
             self.logLevelChanged.emit()
+
+    # ========== 日志轮转 ==========
+
+    _ROTATION_OPTIONS: ClassVar[list[str]] = [
+        "5 MB", "10 MB", "50 MB", "100 MB", "500 MB", "1 day", "1 week",
+    ]
+    _ROTATION_LABELS: ClassVar[list[str]] = [
+        "5 MB", "10 MB", "50 MB", "100 MB", "500 MB", "每天", "每周",
+    ]
+    _RETENTION_OPTIONS: ClassVar[list[str]] = [
+        "3 days", "7 days", "30 days", "90 days", "180 days",
+    ]
+    _RETENTION_LABELS: ClassVar[list[str]] = [
+        "3 天", "7 天", "30 天", "90 天", "180 天",
+    ]
+
+    rotationChanged = Signal()
+    retentionChanged = Signal()
+
+    @Property("QStringList", notify=rotationChanged)
+    def rotationLabels(self) -> list[str]:
+        return self._ROTATION_LABELS
+
+    @Property(int, notify=rotationChanged)
+    def rotationIndex(self) -> int:
+        val = settings.get("log.rotation")
+        try:
+            return self._ROTATION_OPTIONS.index(val)
+        except ValueError:
+            return 1
+
+    @Slot(int)
+    def setRotationByIndex(self, index: int) -> None:
+        if 0 <= index < len(self._ROTATION_OPTIONS):
+            settings.set("log.rotation", self._ROTATION_OPTIONS[index])
+            self.rotationChanged.emit()
+
+    @Property("QStringList", notify=retentionChanged)
+    def retentionLabels(self) -> list[str]:
+        return self._RETENTION_LABELS
+
+    @Property(int, notify=retentionChanged)
+    def retentionIndex(self) -> int:
+        val = settings.get("log.retention")
+        try:
+            return self._RETENTION_OPTIONS.index(val)
+        except ValueError:
+            return 1
+
+    @Slot(int)
+    def setRetentionByIndex(self, index: int) -> None:
+        if 0 <= index < len(self._RETENTION_OPTIONS):
+            settings.set("log.retention", self._RETENTION_OPTIONS[index])
+            self.retentionChanged.emit()
+
+    compressionChanged = Signal()
+
+    @Property(bool, notify=compressionChanged)
+    def compressionEnabled(self) -> bool:
+        return settings.get("log.compression") == "zip"
+
+    @Slot(bool)
+    def setCompressionEnabled(self, enabled: bool) -> None:
+        settings.set("log.compression", "zip" if enabled else "")
+        self.compressionChanged.emit()
 
     # ========== 圣遗物更新检查 ==========
 
