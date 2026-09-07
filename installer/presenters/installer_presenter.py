@@ -8,6 +8,7 @@ QML 与业务逻辑的桥接层。负责：
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
@@ -44,6 +45,7 @@ class InstallerPresenter(QObject):
     installDirChanged = Signal()
     modeChanged = Signal()
     oldVersionChanged = Signal()
+    installLogChanged = Signal()
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -51,6 +53,7 @@ class InstallerPresenter(QObject):
         self._mode = "install"  # install | update
         self._old_version = ""
         self._version = VERSION
+        self._log_lines: list[str] = []
 
     # ========== 属性 ==========
 
@@ -106,6 +109,10 @@ class InstallerPresenter(QObject):
     def showShortcutHint(self) -> bool:
         return self._mode == "install"
 
+    @Property('QVariantList', notify=installLogChanged)
+    def installLog(self) -> list[str]:
+        return list(self._log_lines)
+
     @Property(str, constant=True)
     def version(self) -> str:
         return self._version
@@ -130,7 +137,12 @@ class InstallerPresenter(QObject):
 
     @Slot()
     def startInstall(self) -> None:
+        self._log_lines.clear()
+        self.installLogChanged.emit()
         self.installStarted.emit()
+        threading.Thread(target=self._run_install, daemon=True).start()
+
+    def _run_install(self) -> None:
         try:
             target = Path(self._install_dir)
             if self._mode == "update":
@@ -143,6 +155,8 @@ class InstallerPresenter(QObject):
 
     def _on_progress(self, pct: int, status: str) -> None:
         self.installProgress.emit(pct, status)
+        self._log_lines.append(status)
+        self.installLogChanged.emit()
 
     # ========== 重启 App ==========
 

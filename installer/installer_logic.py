@@ -149,7 +149,8 @@ def _find_7za() -> Path:
                 check=True,
             )
             return candidate
-        except Exception:
+        except Exception as e:
+            print(f"跳过无效的 7za 候选 {candidate}: {e}", file=sys.stderr)
             continue
 
     raise FileNotFoundError(
@@ -175,16 +176,23 @@ def extract_7z(archive: Path, dest: Path, progress_cb: ProgressCallback | None =
         text=True,
         encoding="utf-8",
         errors="replace",
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
     last_pct = 0
     for line in proc.stdout:  # type: ignore[union-attr]
+        line = line.rstrip('\n\r')
+        # 解析百分比
         m = re.search(r"(\d{1,3})%", line)
         if m:
             pct = int(m.group(1))
             if pct != last_pct:
                 last_pct = pct
                 progress_cb and progress_cb(pct, f"正在解压... {pct}%")
+        # 解析正在解压的文件名
+        if line.startswith("- "):
+            filename = line[2:].strip()
+            progress_cb and progress_cb(last_pct, f"解压 {filename}")
 
     proc.wait()
     if proc.returncode != 0:

@@ -66,6 +66,32 @@ Item {
             color: Theme.error
         }
 
+        // 解压日志
+        Rectangle {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: Theme.contentWidth
+            Layout.fillHeight: true
+            color: "#1A000000"
+            radius: 4
+            clip: true
+
+            ListView {
+                id: logView
+                anchors.fill: parent
+                anchors.margins: 4
+                model: InstallerPresenter.installLog
+                spacing: 2
+                delegate: Text {
+                    width: logView.width
+                    text: modelData
+                    color: Theme.subtleText
+                    font.pixelSize: 11
+                    elide: Text.ElideLeft
+                }
+                onCountChanged: positionViewAtEnd()
+            }
+        }
+
         Item { Layout.fillHeight: true }
     }
 
