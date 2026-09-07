@@ -47,10 +47,10 @@ def _compress_app(app_dist: Path) -> Path:
     return archive
 
 
-def build_installer(app_7z: Path, setup_name: str, output_dir: Path) -> Path:
+def build_installer(app_7z: Path, setup_name: str, output_dir: Path, one_dir: bool = False) -> Path:
     """构建安装程序，返回 setup.exe 路径"""
     _ensure_7za()
-    _generate_spec(app_7z, setup_name)
+    _generate_spec(app_7z, setup_name, one_dir)
 
     print("打包安装程序...")
     subprocess.run(
@@ -59,17 +59,29 @@ def build_installer(app_7z: Path, setup_name: str, output_dir: Path) -> Path:
         cwd=str(ROOT),
     )
 
-    setup_path = ROOT / "dist" / f"{setup_name}.exe"
-    if setup_path.exists():
-        dest = output_dir / f"{setup_name}.exe"
-        shutil.move(str(setup_path), str(dest))
-        print(f"安装程序已生成: {dest}")
-        return dest
+    if one_dir:
+        setup_dir = ROOT / "dist" / setup_name
+        setup_path = setup_dir / f"{setup_name}.exe"
+        if setup_path.exists():
+            dest_dir = output_dir / setup_name
+            if dest_dir != setup_dir:
+                if dest_dir.exists():
+                    shutil.rmtree(dest_dir)
+                shutil.move(str(setup_dir), str(dest_dir))
+            print(f"安装程序已生成: {dest_dir / f'{setup_name}.exe'}")
+            return dest_dir / f"{setup_name}.exe"
+    else:
+        setup_path = ROOT / "dist" / f"{setup_name}.exe"
+        if setup_path.exists():
+            dest = output_dir / f"{setup_name}.exe"
+            shutil.move(str(setup_path), str(dest))
+            print(f"安装程序已生成: {dest}")
+            return dest
 
     raise FileNotFoundError(f"未找到安装程序产物: {setup_path}")
 
 
-def _generate_spec(app_7z: Path, setup_name: str) -> None:
+def _generate_spec(app_7z: Path, setup_name: str, one_dir: bool = False) -> None:
     """生成 PyInstaller spec 文件"""
 
     # 递归收集 QML 文件及 qmldir
@@ -119,24 +131,53 @@ a = Analysis(
         'Crypto', 'cryptography', 'OpenSSL',
         'pystray', 'pydantic_settings',
         'tkinter', 'unittest', 'test',
+        'PySide6.QtWebEngineCore',
+        'PySide6.QtWebEngineWidgets',
+        'PySide6.QtWebEngineQuick',
+        'PySide6.QtWebChannel',
     ],
     noarchive=False,
     optimize=2,
 )
+
+# 过滤掉安装器不需要的二进制文件
+_EXCLUDE_BIN_PATTERNS = (
+    'Qt6WebEngine', 'Qt6Pdf', 'Qt6QmlWebEngine',
+)
+a.binaries = [
+    (name, path, typ)
+    for name, path, typ in a.binaries
+    if not any(p in name for p in _EXCLUDE_BIN_PATTERNS)
+]
 
 pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
+    [] if {one_dir} else a.binaries,
+    [] if {one_dir} else a.datas,
+    exclude_binaries={one_dir},
     name='{setup_name}',
     icon=None,
     debug=False,
-    strip=True,
+    strip=False if {one_dir} else True,
     upx=True,
     console=False,
+)
+'''
+
+    if one_dir:
+        spec_content += f'''
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='{setup_name}',
 )
 '''
     INSTALLER_SPEC.write_text(spec_content, encoding="utf-8")
@@ -170,12 +211,17 @@ if __name__ == "__main__":
 
     if args.empty:
         app_7z = _create_dummy_app_7z()
-        build_installer(app_7z, "GenshinDogFoodSweeper-empty-setup", ROOT / "dist")
-        app_7z.unlink(missing_ok=True)
+        setup_name = "GenshinDogFoodSweeper-empty-setup"
+        output_dir = ROOT / "dist"
+        one_dir = True
     elif args.app_dist:
         app_dist = Path(args.app_dist)
         app_7z = _compress_app(app_dist)
-        build_installer(app_7z, f"{app_dist.name}-setup", app_dist.parent)
-        app_7z.unlink(missing_ok=True)
+        setup_name = f"{app_dist.name}-setup"
+        output_dir = app_dist.parent
+        one_dir = False
     else:
         parser.error("必须指定 --app-dist 或 --empty")
+
+    build_installer(app_7z, setup_name, output_dir, one_dir=one_dir)
+    app_7z.unlink(missing_ok=True)

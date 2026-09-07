@@ -28,6 +28,7 @@ data/*.db-shm
 
 # 运行时数据
 backend/test_output/*
+installer/installer.spec
 
 # IDE
 .vscode/
