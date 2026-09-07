@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from typing import Self
 
@@ -40,26 +41,29 @@ def set_presenter(presenter: object) -> None:
     _presenter = presenter
 
 
-def start_task(key: str, message: str) -> None:
-    """钉住一条任务消息到状态栏，同时写入文件日志和数据库。
+def start_task(key: str, message: str, *, name: str = "") -> None:
+    """钉住一条任务消息到状态栏，同时写入文件日志。
 
     线程安全，可在任意线程调用。
     状态栏直接显示，不受全局日志等级影响。
     """
-    log.info(f"{message}")
+    _emit = log.patch(lambda r: r.update(name=name)) if name else log
+    _emit.info(message)
     if _presenter:
         _presenter.start_task(key, message)  # type: ignore[attr-defined]
 
 
-def end_task(key: str, *, success: bool | None = None, message: str = "") -> None:
-    """结束任务，取消钉住。同时写入文件日志和数据库。线程安全。
+def end_task(key: str, *, success: bool | None = None, message: str = "", name: str = "") -> None:
+    """结束任务，取消钉住。同时写入文件日志。线程安全。
 
     Args:
         key: 任务标识（与 start_task 对应）
         success: None=无提示, True=成功提示, False=失败提示
         message: 自定义提示文本（为空则使用默认值）
+        name: 调用方模块名，用于日志 {name} 字段
     """
-    log.info(f"[任务完成] {key}")
+    _emit = log.patch(lambda r: r.update(name=name)) if name else log
+    _emit.info(message or f"[任务完成] {key}")
     if _presenter:
         _presenter.end_task(key, success=success, message=message)  # type: ignore[attr-defined]
 
@@ -68,6 +72,7 @@ class TaskContext:
     """任务上下文管理器 — 保证 start_task/end_task 配对调用。
 
     异常时自动捕获 str(exc) 作为失败原因，无需手动处理。
+    构造时自动捕获调用方模块名，确保日志中 {name} 字段显示真实来源。
 
     用法::
 
@@ -77,13 +82,18 @@ class TaskContext:
         # 异常 → 状态栏显示 ERROR 异常消息
     """
 
-    def __init__(self, key: str, message: str, *, success_message: str = "") -> None:
+    def __init__(self, key: str, message: str, *, success_message: str = "", name: str = "") -> None:
         self._key = key
         self._message = message
         self._success_message = success_message
+        if name:
+            self._name = name
+        else:
+            frame = sys._getframe(1)
+            self._name = frame.f_globals.get("__name__", "")
 
     def __enter__(self) -> Self:
-        start_task(self._key, self._message)
+        start_task(self._key, self._message, name=self._name)
         return self
 
     def __exit__(
@@ -93,10 +103,10 @@ class TaskContext:
         exc_tb: object,
     ) -> bool:
         if exc_type is None:
-            end_task(self._key, success=True, message=self._success_message)
+            end_task(self._key, success=True, message=self._success_message, name=self._name)
         else:
             reason = str(exc_val) if exc_val else "未知错误"
-            end_task(self._key, success=False, message=reason)
+            end_task(self._key, success=False, message=reason, name=self._name)
         return False
 
 
