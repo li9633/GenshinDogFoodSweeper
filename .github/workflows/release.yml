@@ -1,0 +1,82 @@
+name: 🚀 Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: '发布渠道'
+        required: true
+        type: choice
+        default: 'release'
+        options:
+          - release
+          - beta
+          - alpha
+
+permissions:
+  contents: write
+
+env:
+  PROJECT: GenshinDogFoodSweeper
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 安装 uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 🐍 安装 Python 3.13
+        run: uv python install 3.13
+
+      - name: 📦 安装依赖
+        run: uv sync --group dev
+
+      - name: 🔨 构建主程序
+        shell: bash
+        run: |
+          CHANNEL="${{ github.event.inputs.channel || 'release' }}"
+          uv run python build.py --channel "$CHANNEL" --clear
+
+      - name: 📋 获取产物信息
+        id: dist
+        shell: bash
+        run: |
+          DIST_DIR=$(ls -d dist/${PROJECT}-*/ | head -1)
+          DIST_NAME=$(basename "$DIST_DIR")
+          echo "name=$DIST_NAME" >> $GITHUB_OUTPUT
+          echo "path=$DIST_DIR" >> $GITHUB_OUTPUT
+          echo "产物目录: $DIST_NAME"
+
+      - name: 📦 打包 ZIP（便携版）
+        shell: bash
+        run: |
+          cd dist
+          7z a -tzip "${{ steps.dist.outputs.name }}.zip" "${{ steps.dist.outputs.name }}/"
+
+      - name: 🔧 构建安装程序
+        shell: bash
+        run: |
+          uv run python build_installer.py --app-dist "${{ steps.dist.outputs.path }}"
+
+      - name: 🚀 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.dist.outputs.name }}
+          files: |
+            dist/${{ steps.dist.outputs.name }}.zip
+            dist/${{ steps.dist.outputs.name }}-setup.exe
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
