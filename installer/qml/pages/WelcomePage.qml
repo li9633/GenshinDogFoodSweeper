@@ -6,6 +6,8 @@ import '../InstallerUI'
 Item {
     id: page
 
+    visible: InstallerPresenter.showWelcomePage
+
     ColumnLayout {
         anchors.centerIn: parent
         spacing: Theme.spacingLg
@@ -36,7 +38,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
             labelType: "body"
-            text: "欢迎使用原神狗粮扫荡器安装向导。\n\n本程序将引导您完成安装过程。\n请点击「下一步」继续。"
+            text: InstallerPresenter.welcomeText
             lineHeight: 1.6
         }
 
@@ -56,10 +58,17 @@ Item {
         }
 
         IButton {
-            text: "下一步"
+            text: InstallerPresenter.mode === "update" ? "更新" : "下一步"
             btnType: "primary"
             font.bold: true
-            onClicked: InstallerPresenter.navigateTo("directory")
+            onClicked: {
+                if (InstallerPresenter.mode === "update") {
+                    InstallerPresenter.navigateTo("progress");
+                    InstallerPresenter.startAction();
+                } else {
+                    InstallerPresenter.navigateTo("directory");
+                }
+            }
         }
     }
 }

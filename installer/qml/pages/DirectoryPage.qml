@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import '../InstallerUI'
@@ -8,20 +7,26 @@ import '../InstallerUI'
 Item {
     id: page
 
+    visible: InstallerPresenter.showDirectoryPage
+
     property alias installDir: dirInput.text
 
     FolderDialog {
         id: folderDialog
         title: "选择安装目录"
-        currentFolder: "file:///" + dirInput.text
         onAccepted: {
             let path = selectedFolder.toString();
-            // 去掉 file:/// 前缀
             if (path.startsWith("file:///")) {
                 path = path.substring(8);
             }
-            dirInput.text = path;
+            InstallerPresenter.selectInstallDir(path);
         }
+    }
+
+    Timer {
+        id: spaceTimer
+        interval: 300
+        onTriggered: InstallerPresenter.checkFreeSpace(dirInput.text)
     }
 
     ColumnLayout {
@@ -51,6 +56,7 @@ Item {
                 id: dirInput
                 Layout.fillWidth: true
                 text: InstallerPresenter.installDir
+                onTextChanged: spaceTimer.restart()
             }
 
             IButton {
@@ -63,7 +69,25 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
             labelType: "small"
-            text: "所需空间: 约 800 MB"
+            text: InstallerPresenter.requiredSpaceText
+        }
+
+        ILabel {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: Theme.contentWidth
+            labelType: "small"
+            visible: InstallerPresenter.freeSpaceText !== ""
+            text: InstallerPresenter.freeSpaceText
+        }
+
+        ILabel {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: Theme.contentWidth
+            labelType: "small"
+            wrapMode: Text.WordWrap
+            visible: !InstallerPresenter.canInstall
+            text: InstallerPresenter.cannotInstallReason
+            color: Theme.error
         }
 
         Item { Layout.fillHeight: true }
@@ -88,14 +112,14 @@ Item {
         }
 
         IButton {
-            text: "安装"
+            text: InstallerPresenter.actionButtonText
             btnType: "primary"
             font.bold: true
-            enabled: dirInput.text.length > 0
+            enabled: dirInput.text.length > 0 && InstallerPresenter.canInstall
             onClicked: {
                 InstallerPresenter.setInstallDir(dirInput.text);
                 InstallerPresenter.navigateTo("progress");
-                InstallerPresenter.startInstall();
+                InstallerPresenter.startAction();
             }
         }
     }

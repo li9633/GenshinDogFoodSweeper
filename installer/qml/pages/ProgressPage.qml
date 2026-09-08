@@ -61,6 +61,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
             labelType: "small"
+            wrapMode: Text.WordWrap
             visible: hasError
             text: errorMessage
             color: Theme.error

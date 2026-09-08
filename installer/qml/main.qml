@@ -34,16 +34,18 @@ ApplicationWindow {
         anchors.margins: Theme.pageMargin
         currentIndex: {
             switch (currentPage) {
-                case "welcome": return 0;
-                case "directory": return 1;
-                case "progress": return 2;
-                case "finish": return 3;
-                default: return 0;
+            case "welcome": return 0;
+            case "directory": return 1;
+            case "confirm": return 2;
+            case "progress": return 3;
+            case "finish": return 4;
+            default: return 0;
             }
         }
 
         WelcomePage { id: welcomePage }
         DirectoryPage { id: directoryPage }
+        ConfirmPage { id: confirmPage }
         ProgressPage { id: progressPage }
         FinishPage { id: finishPage }
     }
@@ -54,6 +56,9 @@ ApplicationWindow {
         function onInstallFinished(success, message) {
             if (success) {
                 currentPage = "finish";
+                if (InstallerPresenter.autoLaunchOnFinish) {
+                    InstallerPresenter.launchApp();
+                }
             } else {
                 progressPage.showError(message);
             }

@@ -10,12 +10,12 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 APP_NAME = "GenshinDogFoodSweeper"
 APP_NAME_CN = "原神狗粮扫荡器"
 APP_EXE = f"{APP_NAME}.exe"
+INSTALL_INFO = "install_info.txt"
 REG_UNINST_KEY = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}"
 
 # 进度信号回调类型：Callable[[int, str], None]  (百分比, 状态文字)
@@ -43,9 +43,11 @@ def get_default_install_dir() -> Path:
 # 注册表
 # ============================================================
 
+
 def _try_import_winreg():
     try:
         import winreg
+
         return winreg
     except ImportError:
         return None
@@ -63,6 +65,18 @@ def read_registry_install_dir() -> Path | None:
         return None
 
 
+def read_registry_version() -> str:
+    """从注册表读取已安装版本号"""
+    winreg = _try_import_winreg()
+    if not winreg:
+        return ""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_UNINST_KEY) as key:
+            return winreg.QueryValueEx(key, "DisplayVersion")[0]
+    except Exception:
+        return ""
+
+
 def write_registry(install_dir: Path, version: str) -> None:
     winreg = _try_import_winreg()
     if not winreg:
@@ -71,13 +85,19 @@ def write_registry(install_dir: Path, version: str) -> None:
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REG_UNINST_KEY) as key:
             winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, APP_NAME_CN)
             winreg.SetValueEx(
-                key, "UninstallString", 0, winreg.REG_SZ,
+                key,
+                "UninstallString",
+                0,
+                winreg.REG_SZ,
                 str(install_dir / "uninst.exe"),
             )
             winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, version)
             winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, APP_NAME)
             winreg.SetValueEx(
-                key, "DisplayIcon", 0, winreg.REG_SZ,
+                key,
+                "DisplayIcon",
+                0,
+                winreg.REG_SZ,
                 str(install_dir / APP_EXE),
             )
             winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
@@ -94,7 +114,12 @@ def remove_registry() -> None:
         winreg.DeleteKey(winreg.HKEY_CURRENT_USER, REG_UNINST_KEY)
     except Exception as e:
         print(f"注册表删除失败: {e}", file=sys.stderr)
+
+
 # ============================================================
+# 目录验证
+# ============================================================
+
 
 def _is_app_directory(path: Path) -> bool:
     """检查目录是否包含主程序 exe 和其他关键文件"""
@@ -105,23 +130,47 @@ def _is_app_directory(path: Path) -> bool:
     return (path / "_internal").exists()
 
 
-def resolve_install_dir(fallback_dir: str | None = None) -> Path | None:
-    """解析安装目录：注册表 → fallback 目录验证 → None"""
+def resolve_directory(
+    fallback_dir: str | None = None,
+    *,
+    strict: bool = True,
+) -> tuple[Path | None, str]:
+    """三级级联解析安装目录。
+
+    Args:
+        fallback_dir: 命令行传入的回退目录
+        strict: True=严格校验（_is_app_directory），False=仅检查存在（快速更新）
+
+    Returns:
+        (install_dir, old_version_str)
+    """
+    # Level 1: 注册表
     reg_dir = read_registry_install_dir()
     if reg_dir and _is_app_directory(reg_dir):
-        return reg_dir
+        return reg_dir, read_registry_version()
 
+    # Level 2: --fallback-install-dir
     if fallback_dir:
         fb = Path(fallback_dir)
-        if _is_app_directory(fb):
-            return fb
+        if strict and not _is_app_directory(fb):
+            return None, ""
+        if fb.exists() and fb.is_dir():
+            return fb, ""
 
-    return None
+    # Level 3: 无结果
+    return None, ""
+
+
+def resolve_install_dir(fallback_dir: str | None = None) -> Path | None:
+    """解析安装目录：注册表 → fallback 目录验证 → None（兼容旧接口）"""
+    result, _ = resolve_directory(fallback_dir, strict=True)
+    return result
 
 
 # ============================================================
 # 7z 解压
 # ============================================================
+
 
 def _find_7za() -> Path:
     """查找 7za.exe：优先 MEIPASS/tools/，其次 PATH"""
@@ -158,14 +207,20 @@ def _find_7za() -> Path:
     )
 
 
-def extract_7z(archive: Path, dest: Path, progress_cb: ProgressCallback | None = None) -> None:
+def extract_7z(
+    archive: Path, dest: Path, progress_cb: ProgressCallback | None = None
+) -> None:
     """解压 .7z 文件到目标目录，通过解析 stdout 报告进度"""
     seven_zip = _find_7za()
     dest.mkdir(parents=True, exist_ok=True)
 
     cmd = [
-        str(seven_zip), "x", str(archive), f"-o{dest!s}",
-        "-y", "-mmt=on",
+        str(seven_zip),
+        "x",
+        str(archive),
+        f"-o{dest!s}",
+        "-y",
+        "-mmt=on",
     ]
     progress_cb and progress_cb(0, "正在准备解压...")
 
@@ -181,15 +236,13 @@ def extract_7z(archive: Path, dest: Path, progress_cb: ProgressCallback | None =
 
     last_pct = 0
     for line in proc.stdout:  # type: ignore[union-attr]
-        line = line.rstrip('\n\r')
-        # 解析百分比
+        line = line.rstrip("\n\r")
         m = re.search(r"(\d{1,3})%", line)
         if m:
             pct = int(m.group(1))
             if pct != last_pct:
                 last_pct = pct
                 progress_cb and progress_cb(pct, f"正在解压... {pct}%")
-        # 解析正在解压的文件名
         if line.startswith("- "):
             filename = line[2:].strip()
             progress_cb and progress_cb(last_pct, f"解压 {filename}")
@@ -205,10 +258,12 @@ def extract_7z(archive: Path, dest: Path, progress_cb: ProgressCallback | None =
 # 快捷方式
 # ============================================================
 
+
 def _try_create_shortcut(target: Path, shortcut: Path, description: str = "") -> None:
     try:
         import pythoncom
         from win32com.client import Dispatch
+
         pythoncom.CoInitialize()
         shell = Dispatch("WScript.Shell")
         link = shell.CreateShortCut(str(shortcut))
@@ -229,7 +284,11 @@ def create_shortcuts(install_dir: Path) -> None:
 
     start_menu = (
         Path(os.environ.get("APPDATA", ""))
-        / "Microsoft" / "Windows" / "Start Menu" / "Programs" / APP_NAME_CN
+        / "Microsoft"
+        / "Windows"
+        / "Start Menu"
+        / "Programs"
+        / APP_NAME_CN
     )
     start_menu.mkdir(parents=True, exist_ok=True)
     _try_create_shortcut(target, start_menu / f"{APP_NAME_CN}.lnk", APP_NAME_CN)
@@ -241,74 +300,75 @@ def remove_shortcuts() -> None:
         lnk.unlink(missing_ok=True)
     start_menu = (
         Path(os.environ.get("APPDATA", ""))
-        / "Microsoft" / "Windows" / "Start Menu" / "Programs" / APP_NAME_CN
+        / "Microsoft"
+        / "Windows"
+        / "Start Menu"
+        / "Programs"
+        / APP_NAME_CN
     )
     if start_menu.exists():
         shutil.rmtree(start_menu, ignore_errors=True)
 
 
 # ============================================================
-# 安装信息
+# 卸载程序复制
 # ============================================================
 
-def read_registry_version() -> str:
-    """从注册表读取已安装版本号"""
-    winreg = _try_import_winreg()
-    if not winreg:
-        return ""
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_UNINST_KEY) as key:
-            return winreg.QueryValueEx(key, "DisplayVersion")[0]
-    except Exception:
-        return ""
+
+def _copy_uninstaller(install_dir: Path) -> None:
+    """将预构建的 uninst.exe 复制到安装目录"""
+    own = get_own_dir()
+    src = own / "uninst.exe"
+    if not src.exists():
+        return  # 开发模式，跳过
+    dst = install_dir / "uninst.exe"
+    shutil.copy2(src, dst)
 
 
 # ============================================================
 # 安装 / 更新 / 卸载
 # ============================================================
 
-def install(install_dir: Path, version: str, progress_cb: ProgressCallback | None = None) -> None:
-    """执行安装：解压 app.7z → 写注册表 → 创建快捷方式 → 写安装信息"""
+
+def run_install(
+    install_dir: Path,
+    version: str,
+    progress_cb: ProgressCallback | None = None,
+    *,
+    skip_shortcuts: bool = False,
+) -> None:
+    """安装/更新核心流程：解压 app.7z → 复制卸载程序 → 写注册表 → 快捷方式"""
     own = get_own_dir()
     archive = own / "app.7z"
     if not archive.exists():
         raise FileNotFoundError(f"未找到 app.7z，路径: {archive}")
 
-    # 备份自身为卸载程序
-    own_exe = Path(sys.executable) if _is_frozen() else None
-    uninst_dest = install_dir / "uninst.exe"
-
-    # 先解压
     extract_7z(archive, install_dir, progress_cb)
-
-    # 复制自身为卸载程序
-    if own_exe and own_exe.exists():
-        shutil.copy2(own_exe, uninst_dest)
-
+    _copy_uninstaller(install_dir)
     write_registry(install_dir, version)
-    create_shortcuts(install_dir)
+    if not skip_shortcuts:
+        create_shortcuts(install_dir)
 
 
-def quick_update(install_dir: Path, version: str,
-                 progress_cb: ProgressCallback | None = None) -> None:
-    """快速更新：与 install 相同，但跳过快捷方式"""
-    own = get_own_dir()
-    archive = own / "app.7z"
-    if not archive.exists():
-        raise FileNotFoundError(f"未找到 app.7z，路径: {archive}")
+def run_uninstall(
+    install_dir: Path,
+    progress_cb: ProgressCallback | None = None,
+) -> None:
+    """卸载核心流程：删快捷方式 → 删注册表 → 延迟删除目录"""
+    progress_cb and progress_cb(0, "正在删除快捷方式...")
+    remove_shortcuts()
+    progress_cb and progress_cb(30, "正在删除注册表...")
+    remove_registry()
+    progress_cb and progress_cb(60, "正在清理安装目录...")
 
-    # 等待主程序退出
-    time.sleep(1.5)
-
-    extract_7z(archive, install_dir, progress_cb)
-
-    # 更新卸载程序
-    own_exe = Path(sys.executable) if _is_frozen() else None
-    uninst_dest = install_dir / "uninst.exe"
-    if own_exe and own_exe.exists():
-        shutil.copy2(own_exe, uninst_dest)
-
-    write_registry(install_dir, version)
+    subprocess.Popen(
+        f'cmd /c "timeout /t 3 /nobreak >nul & rmdir /s /q "{install_dir}""',
+        shell=True,
+        creationflags=subprocess.CREATE_NO_WINDOW
+        if hasattr(subprocess, "CREATE_NO_WINDOW")
+        else 0,
+    )
+    progress_cb and progress_cb(100, "卸载完成")
 
 
 def restart_app(install_dir: Path) -> None:
@@ -318,17 +378,7 @@ def restart_app(install_dir: Path) -> None:
         subprocess.Popen(
             [str(app_exe)],
             cwd=str(install_dir),
-            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+            creationflags=subprocess.CREATE_NO_WINDOW
+            if hasattr(subprocess, "CREATE_NO_WINDOW")
+            else 0,
         )
-
-
-def do_uninstall(install_dir: Path) -> None:
-    """执行卸载：删快捷方式 → 删注册表 → 延迟删除目录"""
-    remove_shortcuts()
-    remove_registry()
-
-    subprocess.Popen(
-        f'cmd /c "timeout /t 3 /nobreak >nul & rmdir /s /q \"{install_dir}\""',
-        shell=True,
-        creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
-    )
