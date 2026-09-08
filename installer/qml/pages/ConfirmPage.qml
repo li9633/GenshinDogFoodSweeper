@@ -10,24 +10,49 @@ Item {
         anchors.centerIn: parent
         spacing: Theme.spacingLg
 
-        ILabel {
+        // 图标
+        Image {
             Layout.alignment: Qt.AlignHCenter
-            labelType: "heading"
-            text: "确认卸载"
+            Layout.preferredWidth: 36
+            Layout.preferredHeight: 36
+            source: ConfirmPresenter.pageIcon
+            fillMode: Image.PreserveAspectFit
         }
 
         ILabel {
             Layout.alignment: Qt.AlignHCenter
+            labelType: "heading"
+            text: ConfirmPresenter.pageTitle
+            color: "#D32F2F"
+        }
+
+        // 警告卡片
+        Rectangle {
+            id: warningCard
+            Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
-            labelType: "body"
-            text: "确定要卸载 " + ConfirmPresenter.appName + " 吗？\n\n安装目录将被删除：\n" + ConfirmPresenter.installDir
+            Layout.preferredHeight: warningLabel.implicitHeight + 24
+            color: "#FFF3F3"
+            border.color: "#FFCDD2"
+            border.width: 1
+            radius: 6
+
+            ILabel {
+                id: warningLabel
+                anchors.centerIn: parent
+                width: parent.width - 24
+                labelType: "body"
+                text: ConfirmPresenter.warningText
+                lineHeight: 1.5
+                wrapMode: Text.WordWrap
+            }
         }
 
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "small"
             text: "此操作不可撤销，请确认后再操作。"
-            color: Theme.error
+            color: "#D32F2F"
         }
 
         Item { Layout.fillHeight: true }
@@ -40,14 +65,14 @@ Item {
         anchors.bottomMargin: Theme.spacingMd
 
         IButton {
-            text: "取消"
+            text: "我再想想"
             btnType: "flat"
             onClicked: ConfirmPresenter.quit()
         }
 
         IButton {
             text: ConfirmPresenter.actionButtonText
-            btnType: "primary"
+            btnType: "danger"
             font.bold: true
             onClicked: {
                 ConfirmPresenter.startUninstall();

@@ -14,9 +14,11 @@ ApplicationWindow {
     minimumHeight: Theme.windowHeight
     maximumWidth: Theme.windowWidth
     maximumHeight: Theme.windowHeight
-    title: Theme.windowTitle
+    title: Coordinator.windowTitle
     color: Theme.bgWindow
-    flags: Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowTitleHint
+    flags: Coordinator.allowClose
+           ? (Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowTitleHint)
+           : (Qt.Window | Qt.WindowTitleHint)
 
     // 页面控制
     property string currentPage: "welcome"

@@ -11,11 +11,12 @@ import shutil
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import Property, QObject, Signal
 from PySide6.QtGui import QGuiApplication
 
 from installer.core import (
     APP_NAME,
+    APP_NAME_CN,
     get_default_install_dir,
     get_logger,
     restart_app,
@@ -125,6 +126,42 @@ class AppCoordinator(QObject):
     @property
     def required_space(self) -> int:
         return self._required_space
+
+    # ========== 模式相关 UI 属性 ==========
+
+    @Property(str, notify=modeChanged)
+    def windowTitle(self) -> str:
+        if self._quick_update:
+            return f"{APP_NAME_CN} 快速更新"
+        titles = {
+            "install": f"{APP_NAME_CN} 安装向导",
+            "update": f"{APP_NAME_CN} 更新向导",
+            "uninstall": f"{APP_NAME_CN} 卸载向导",
+        }
+        return titles.get(self._mode, f"{APP_NAME_CN} 安装向导")
+
+    @Property(str, notify=modeChanged)
+    def accentColor(self) -> str:
+        if self._mode == "uninstall":
+            return "#D32F2F"
+        if self._mode == "update":
+            return "#4CAF50"
+        return "#1976D2"
+
+    @Property(bool, notify=modeChanged)
+    def allowClose(self) -> bool:
+        return not self._quick_update
+
+    @Property(str, notify=modeChanged)
+    def windowIcon(self) -> str:
+        if self._quick_update:
+            return "icons/icon_quick_update.svg"
+        icons = {
+            "install": "icons/icon_install.svg",
+            "update": "icons/icon_update.svg",
+            "uninstall": "icons/icon_uninstall.svg",
+        }
+        return icons.get(self._mode, "icons/icon_install.svg")
 
     # ========== 导航 ==========
 

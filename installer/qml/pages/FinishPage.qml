@@ -1,9 +1,8 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import '../InstallerUI'
-
 // qmllint disable unqualified
+
 Item {
     id: page
 
@@ -11,17 +10,20 @@ Item {
         anchors.centerIn: parent
         spacing: Theme.spacingLg
 
-        Label {
+        // 图标
+        Image {
             Layout.alignment: Qt.AlignHCenter
-            text: "✓"
-            font.pixelSize: Theme.fontSizeIcon
-            color: Theme.success
+            Layout.preferredWidth: 36
+            Layout.preferredHeight: 36
+            source: FinishPresenter.finishIcon
+            fillMode: Image.PreserveAspectFit
         }
 
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "heading"
             text: FinishPresenter.finishTitle
+            color: Coordinator.accentColor
         }
 
         ILabel {
@@ -29,14 +31,15 @@ Item {
             Layout.preferredWidth: Theme.contentWidth
             labelType: "body"
             text: FinishPresenter.finishMessage
+            lineHeight: 1.5
         }
 
-        // 创建桌面快捷方式提示
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "small"
             visible: FinishPresenter.showShortcutHint
-            text: "已创建桌面快捷方式，双击即可启动。"
+            text: "可在桌面快捷方式中快速启动"
+            color: Theme.subtleText
         }
 
         Item { Layout.fillHeight: true }

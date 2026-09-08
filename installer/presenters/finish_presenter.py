@@ -20,15 +20,29 @@ class FinishPresenter(QObject):
 
     @Property(str, notify=modeChanged)
     def finishTitle(self) -> str:
-        if self._coord.mode == "uninstall":
-            return "卸载完成！"
-        return "更新完成！" if self._coord.mode == "update" else "安装完成！"
+        titles = {
+            "install": "安装完成！",
+            "update": "更新完成！",
+            "uninstall": "卸载完成！",
+        }
+        return titles.get(self._coord.mode, "安装完成！")
 
     @Property(str, notify=installDirChanged)
     def finishMessage(self) -> str:
         if self._coord.mode == "uninstall":
             return f"{APP_NAME_CN} 已成功卸载"
+        if self._coord.mode == "update":
+            return f"已成功更新到版本 {self._coord.version}"
         return f"{APP_NAME_CN} 已成功安装到：\n{self._coord.install_dir}"
+
+    @Property(str, notify=modeChanged)
+    def finishIcon(self) -> str:
+        icons = {
+            "install": "../icons/icon_install.svg",
+            "update": "../icons/icon_update.svg",
+            "uninstall": "../icons/icon_uninstall.svg",
+        }
+        return icons.get(self._coord.mode, "../icons/icon_install.svg")
 
     @Property(bool, notify=modeChanged)
     def showFinishLaunchButton(self) -> bool:

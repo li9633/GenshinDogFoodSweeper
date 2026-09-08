@@ -22,13 +22,30 @@ class ConfirmPresenter(QObject):
     def appName(self) -> str:
         return APP_NAME_CN
 
+    @Property(str, notify=modeChanged)
+    def pageTitle(self) -> str:
+        return f"卸载 {APP_NAME_CN}"
+
     @Property(str, notify=installDirChanged)
     def installDir(self) -> str:
         return self._coord.install_dir
 
     @Property(str, notify=modeChanged)
+    def warningText(self) -> str:
+        return (
+            f"即将从以下位置移除 {APP_NAME_CN}：\n"
+            f"{self._coord.install_dir}\n\n"
+            "此操作将删除所有程序文件。\n"
+            "您的个人数据不会被删除。"
+        )
+
+    @Property(str, notify=modeChanged)
     def actionButtonText(self) -> str:
         return "确认卸载"
+
+    @Property(str, notify=modeChanged)
+    def pageIcon(self) -> str:
+        return "../icons/icon_uninstall.svg"
 
     @Slot()
     def quit(self) -> None:

@@ -6,23 +6,44 @@ import '../InstallerUI'
 Item {
     id: page
 
-    visible: WelcomePresenter.showWelcomePage
+    visible: WelcomePresenter.mode !== "uninstall" && !Coordinator.quick_update
 
     ColumnLayout {
         anchors.centerIn: parent
         spacing: Theme.spacingLg
 
+        // 图标
+        Image {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: 36
+            Layout.preferredHeight: 36
+            source: WelcomePresenter.pageIcon
+            fillMode: Image.PreserveAspectFit
+        }
+
         // 标题
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "title"
-            text: WelcomePresenter.appName
+            visible: !WelcomePresenter.isUpdateMode
+            text: WelcomePresenter.pageTitle
         }
 
         ILabel {
             Layout.alignment: Qt.AlignHCenter
+            labelType: "heading"
+            visible: WelcomePresenter.isUpdateMode
+            text: WelcomePresenter.pageTitle
+            color: "#4CAF50"
+        }
+
+        // 版本号
+        ILabel {
+            Layout.alignment: Qt.AlignHCenter
             labelType: "normal"
+            visible: WelcomePresenter.versionLabel !== ""
             text: WelcomePresenter.versionLabel
+            color: WelcomePresenter.isUpdateMode ? "#4CAF50" : Theme.secondaryText
         }
 
         // 分隔线
@@ -31,7 +52,7 @@ Item {
             Layout.preferredHeight: 1
             Layout.topMargin: 8
             Layout.bottomMargin: 8
-            color: Theme.separator
+            color: WelcomePresenter.isUpdateMode ? "#A5D6A7" : Theme.separator
         }
 
         ILabel {
@@ -58,7 +79,7 @@ Item {
         }
 
         IButton {
-            text: WelcomePresenter.mode === "update" ? "更新" : "下一步"
+            text: WelcomePresenter.actionButtonText
             btnType: "primary"
             font.bold: true
             onClicked: {

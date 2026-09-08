@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import '../InstallerUI'
-// qmllint disable unqualified
+// qmllint disable unqualified missing-property
 
 Item {
     id: page
@@ -14,7 +14,7 @@ Item {
     function showError(msg) {
         hasError = true;
         errorMessage = msg;
-        statusText = "安装失败";
+        statusText = "操作失败";
     }
 
     Connections {
@@ -43,9 +43,11 @@ Item {
         }
 
         IProgressBar {
+            id: progressBar
             Layout.alignment: Qt.AlignHCenter
             value: progressValue / 100.0
             indeterminate: progressValue === 0 && !hasError
+            accentColor: ProgressPresenter.progressColor
         }
 
         ILabel {
@@ -53,7 +55,7 @@ Item {
             labelType: "normal"
             visible: progressValue > 0
             text: progressValue + "%"
-            color: Theme.secondaryText
+            color: ProgressPresenter.progressColor
         }
 
         // 错误信息
@@ -72,6 +74,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
             Layout.fillHeight: true
+            visible: ProgressPresenter.showLog
             color: "#1A000000"
             radius: 4
             clip: true

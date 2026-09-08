@@ -1,4 +1,4 @@
-"""欢迎页 Presenter"""
+"""欢迎页 Presenter — 安装 & 更新模式共用"""
 
 from __future__ import annotations
 
@@ -22,17 +22,29 @@ class WelcomePresenter(QObject):
     def appName(self) -> str:
         return APP_NAME_CN
 
+    @Property(str, notify=modeChanged)
+    def pageTitle(self) -> str:
+        if self._coord.mode == "update":
+            return "发现新版本"
+        return f"欢迎使用 {APP_NAME_CN}"
+
+    @Property(str, notify=modeChanged)
+    def pageIcon(self) -> str:
+        if self._coord.mode == "update":
+            return "../icons/icon_update.svg"
+        return "../icons/icon_install.svg"
+
     @Property(str, notify=oldVersionChanged)
     def versionLabel(self) -> str:
-        if self._coord.mode in ("update", "uninstall"):
-            return ""
+        if self._coord.mode == "update":
+            return f"v{self._coord.old_version} → v{self._coord.version}"
         if self._coord.old_version:
             return f"v{self._coord.old_version} → v{self._coord.version}"
         return f"版本 {self._coord.version}"
 
     @Property(bool, notify=modeChanged)
-    def showWelcomePage(self) -> bool:
-        return self._coord.mode in ("install", "update")
+    def isUpdateMode(self) -> bool:
+        return self._coord.mode == "update"
 
     @Property(str, notify=modeChanged)
     def welcomeText(self) -> str:
@@ -40,9 +52,14 @@ class WelcomePresenter(QObject):
             return (
                 f"检测到已安装版本 {self._coord.old_version}，\n"
                 f"将更新到版本 {self._coord.version}。\n\n"
-                "请点击「更新」继续。"
+                "更新不会影响您的个人数据。\n"
+                "请点击「开始更新」继续。"
             )
         return "欢迎使用原神狗粮扫荡器安装向导。\n\n本程序将引导您完成安装过程。\n请点击「下一步」继续。"
+
+    @Property(str, notify=modeChanged)
+    def actionButtonText(self) -> str:
+        return "开始更新" if self._coord.mode == "update" else "下一步"
 
     @Property(str, constant=True)
     def mode(self) -> str:

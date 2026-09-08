@@ -25,9 +25,22 @@ class ProgressPresenter(QObject):
 
     @Property(str, notify=modeChanged)
     def progressTitle(self) -> str:
-        if self._coord.mode == "uninstall":
-            return "正在卸载..."
-        return "正在更新..." if self._coord.mode == "update" else "正在安装..."
+        if self._coord.quick_update:
+            return f"正在快速更新到版本 {self._coord.version}..."
+        titles = {
+            "install": "正在安装...",
+            "update": "正在更新...",
+            "uninstall": "正在卸载...",
+        }
+        return titles.get(self._coord.mode, "正在安装...")
+
+    @Property(str, notify=modeChanged)
+    def progressColor(self) -> str:
+        return self._coord.accentColor
+
+    @Property(bool, notify=modeChanged)
+    def showLog(self) -> bool:
+        return not self._coord.quick_update
 
     @Property("QVariantList", notify=installLogChanged)
     def installLog(self) -> list[str]:

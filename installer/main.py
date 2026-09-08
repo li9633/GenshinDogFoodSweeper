@@ -3,10 +3,10 @@ r"""安装程序入口
 PySide6 + QML 安装向导。
 
 用法:
-    GenshinDogFoodSweeper-setup.exe                            # GUI 安装向导
-    GenshinDogFoodSweeper-setup.exe --mode update              # GUI 更新向导
+    GenshinDogFoodSweeper-setup.exe                            # 自动检测：有注册表→更新，无→安装
     GenshinDogFoodSweeper-setup.exe --quick-update --fallback-install-dir "C:\..." --old-version "0.9.3"  # 快速更新
-    GenshinDogFoodSweeper-setup.exe --mode uninstall           # GUI 卸载
+    uninst.exe                                                 # 自动检测：程序名含 uninst → 卸载
+    GenshinDogFoodSweeper-setup.exe --mode uninstall           # 显式卸载
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ def _parse_args() -> argparse.Namespace:
         "--mode",
         type=str,
         default="install",
-        choices=["install", "update", "uninstall"],
+        choices=["install", "uninstall"],
         help="运行模式",
     )
     parser.add_argument("--quick-update", action="store_true", help="快速更新模式")
@@ -84,6 +84,17 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+_UNINSTALLER_NAMES = frozenset({"uninst.exe", "uninstall.exe", "uninstaller.exe"})
+
+
+def _is_uninstaller_exe() -> bool:
+    """检测当前程序是否为卸载器（通过文件名判断）。"""
+    if getattr(sys, "frozen", False):
+        name = Path(sys.executable).name.lower()
+        return name in _UNINSTALLER_NAMES
+    return False
+
+
 def main() -> None:
     args = _parse_args()
 
@@ -100,22 +111,22 @@ def main() -> None:
         old_version = args.old_version
 
     # -- 模式修正 --
-    if quick_update and mode == "install":
+    if quick_update:
         mode = "update"
 
-    if mode in ("update", "uninstall") and install_dir is None:
-        if mode == "uninstall":
-            print("未找到已安装的程序", file=sys.stderr)
-            sys.exit(1)
-        # 更新模式回退到安装模式
-        mode = "install"
-        quick_update = False
-        install_dir = get_default_install_dir()
+    # 自动检测卸载模式：程序名为 uninst.exe / uninstall.exe / uninstaller.exe
+    if mode == "install" and _is_uninstaller_exe():
+        mode = "uninstall"
+
+    # 非卸载模式下，注册表命中 → 自动进入更新模式
+    if mode != "uninstall" and install_dir is not None:
+        mode = "update"
+
+    if mode == "uninstall" and install_dir is None:
+        print("未找到已安装的程序", file=sys.stderr)
+        sys.exit(1)
 
     if mode == "install" and install_dir is None:
-        install_dir = get_default_install_dir()
-
-    if mode == "update" and install_dir is None:
         install_dir = get_default_install_dir()
 
     # -- 创建 App --

@@ -82,6 +82,7 @@ def _generate_cleanup_batch(install_dir: Path, parent_pid: int) -> Path:
     batch = Path(tempfile.gettempdir()) / "gdf_cleanup.bat"
     batch.write_text(
         f'@echo off\r\n'
+        f'cd /d %TEMP%\r\n'
         f':wait\r\n'
         f'tasklist /FI "PID eq {parent_pid}" 2>nul | findstr /I "{parent_pid}" >nul\r\n'
         f'if not errorlevel 1 (\r\n'
