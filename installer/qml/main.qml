@@ -22,7 +22,7 @@ ApplicationWindow {
     property string currentPage: "welcome"
 
     Component.onCompleted: {
-        InstallerPresenter.navigateRequested.connect(function(page) {
+        Coordinator.navigateRequested.connect(function(page) {
             currentPage = page;
         });
     }
@@ -52,12 +52,12 @@ ApplicationWindow {
 
     // 安装完成 → 跳转完成页
     Connections {
-        target: InstallerPresenter
+        target: ProgressPresenter
         function onInstallFinished(success, message) {
             if (success) {
                 currentPage = "finish";
-                if (InstallerPresenter.autoLaunchOnFinish) {
-                    InstallerPresenter.launchApp();
+                if (FinishPresenter.autoLaunchOnFinish) {
+                    FinishPresenter.launchApp();
                 }
             } else {
                 progressPage.showError(message);

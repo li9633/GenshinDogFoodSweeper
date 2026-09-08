@@ -18,7 +18,7 @@ Item {
     }
 
     Connections {
-        target: InstallerPresenter
+        target: ProgressPresenter
         function onInstallProgress(pct, status) {
             progressValue = pct;
             statusText = status;
@@ -32,7 +32,7 @@ Item {
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "heading"
-            text: InstallerPresenter.progressTitle
+            text: ProgressPresenter.progressTitle
         }
 
         ILabel {
@@ -80,7 +80,7 @@ Item {
                 id: logView
                 anchors.fill: parent
                 anchors.margins: 4
-                model: InstallerPresenter.installLog
+                model: ProgressPresenter.installLog
                 spacing: 2
                 delegate: Text {
                     width: logView.width
@@ -105,7 +105,7 @@ Item {
         IButton {
             visible: hasError
             text: "退出"
-            onClicked: InstallerPresenter.quit()
+            onClicked: ProgressPresenter.quit()
         }
     }
 }

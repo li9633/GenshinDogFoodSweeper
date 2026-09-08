@@ -20,7 +20,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
             labelType: "body"
-            text: "确定要卸载 " + InstallerPresenter.appName + " 吗？\n\n安装目录将被删除：\n" + InstallerPresenter.installDir
+            text: "确定要卸载 " + ConfirmPresenter.appName + " 吗？\n\n安装目录将被删除：\n" + ConfirmPresenter.installDir
         }
 
         ILabel {
@@ -42,16 +42,15 @@ Item {
         IButton {
             text: "取消"
             btnType: "flat"
-            onClicked: InstallerPresenter.quit()
+            onClicked: ConfirmPresenter.quit()
         }
 
         IButton {
-            text: InstallerPresenter.actionButtonText
+            text: ConfirmPresenter.actionButtonText
             btnType: "primary"
             font.bold: true
             onClicked: {
-                InstallerPresenter.navigateTo("progress");
-                InstallerPresenter.startAction();
+                ConfirmPresenter.startUninstall();
             }
         }
     }

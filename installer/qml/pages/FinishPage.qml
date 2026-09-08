@@ -21,21 +21,21 @@ Item {
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "heading"
-            text: InstallerPresenter.finishTitle
+            text: FinishPresenter.finishTitle
         }
 
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
             labelType: "body"
-            text: InstallerPresenter.finishMessage
+            text: FinishPresenter.finishMessage
         }
 
         // 创建桌面快捷方式提示
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "small"
-            visible: InstallerPresenter.showShortcutHint
+            visible: FinishPresenter.showShortcutHint
             text: "已创建桌面快捷方式，双击即可启动。"
         }
 
@@ -51,15 +51,15 @@ Item {
         IButton {
             text: "关闭"
             btnType: "flat"
-            onClicked: InstallerPresenter.quit()
+            onClicked: FinishPresenter.quit()
         }
 
         IButton {
             text: "启动程序"
             btnType: "primary"
             font.bold: true
-            visible: InstallerPresenter.showFinishLaunchButton
-            onClicked: InstallerPresenter.launchApp()
+            visible: FinishPresenter.showFinishLaunchButton
+            onClicked: FinishPresenter.launchApp()
         }
     }
 }

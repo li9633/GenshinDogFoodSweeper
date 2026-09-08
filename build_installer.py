@@ -31,11 +31,15 @@ def _ensure_7za() -> Path:
     return seven_za
 
 
-def _compress_app(app_dist: Path) -> Path:
+def _compress_app(app_dist: Path, skip_if_exists: bool = False) -> Path:
     """将 App 产物目录压缩为 app.7z"""
+    archive = app_dist.parent / "app.7z"
+    if skip_if_exists and archive.exists():
+        print(f"app.7z 已存在，跳过压缩: {archive}")
+        return archive
+
     _ensure_7za()
     seven_za = TOOLS_DIR / "7za.exe"
-    archive = app_dist.parent / "app.7z"
 
     print(f"压缩 App 产物: {app_dist.name} → app.7z")
     subprocess.run(
@@ -130,8 +134,20 @@ a = Analysis(
         'PySide6.QtQuickLayouts',
         'PySide6.QtQuickDialogs',
         'PySide6.QtWidgets',
-        'installer.installer_logic',
-        'installer.presenters.installer_presenter',
+        'installer.core',
+        'installer.core.constants',
+        'installer.core.utils',
+        'installer.core.registry',
+        'installer.core.extract',
+        'installer.core.shortcut',
+        'installer.core.installer',
+        'installer.core.logging',
+        'installer.presenters.coordinator',
+        'installer.presenters.welcome_presenter',
+        'installer.presenters.directory_presenter',
+        'installer.presenters.confirm_presenter',
+        'installer.presenters.progress_presenter',
+        'installer.presenters.finish_presenter',
     ],
     hookspath=[],
     hooksconfig={{}},
@@ -248,6 +264,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--empty", action="store_true", help="空打包，仅测试安装程序体积"
     )
+    parser.add_argument(
+        "--keep-7z", action="store_true", help="构建后保留 app.7z，加速后续测试"
+    )
     args = parser.parse_args()
 
     if args.empty:
@@ -257,7 +276,7 @@ if __name__ == "__main__":
         one_dir = True
     elif args.app_dist:
         app_dist = Path(args.app_dist)
-        app_7z = _compress_app(app_dist)
+        app_7z = _compress_app(app_dist, skip_if_exists=args.keep_7z)
         setup_name = f"{app_dist.name}-setup"
         output_dir = app_dist.parent
         one_dir = False
@@ -265,4 +284,6 @@ if __name__ == "__main__":
         parser.error("必须指定 --app-dist 或 --empty")
 
     build_installer(app_7z, setup_name, output_dir, one_dir=one_dir)
-    app_7z.unlink(missing_ok=True)
+    if not args.keep_7z:
+        app_7z.unlink(missing_ok=True)
+        print(f"已删除中间产物: {app_7z}")

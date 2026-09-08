@@ -7,7 +7,7 @@ import '../InstallerUI'
 Item {
     id: page
 
-    visible: InstallerPresenter.showDirectoryPage
+    visible: DirectoryPresenter.showDirectoryPage
 
     property alias installDir: dirInput.text
 
@@ -19,14 +19,14 @@ Item {
             if (path.startsWith("file:///")) {
                 path = path.substring(8);
             }
-            InstallerPresenter.selectInstallDir(path);
+            DirectoryPresenter.selectInstallDir(path);
         }
     }
 
     Timer {
         id: spaceTimer
         interval: 300
-        onTriggered: InstallerPresenter.checkFreeSpace(dirInput.text)
+        onTriggered: DirectoryPresenter.checkFreeSpace(dirInput.text)
     }
 
     ColumnLayout {
@@ -55,7 +55,7 @@ Item {
             ITextField {
                 id: dirInput
                 Layout.fillWidth: true
-                text: InstallerPresenter.installDir
+                text: DirectoryPresenter.installDir
                 onTextChanged: spaceTimer.restart()
             }
 
@@ -69,15 +69,15 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
             labelType: "small"
-            text: InstallerPresenter.requiredSpaceText
+            text: DirectoryPresenter.requiredSpaceText
         }
 
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
             labelType: "small"
-            visible: InstallerPresenter.freeSpaceText !== ""
-            text: InstallerPresenter.freeSpaceText
+            visible: DirectoryPresenter.freeSpaceText !== ""
+            text: DirectoryPresenter.freeSpaceText
         }
 
         ILabel {
@@ -85,8 +85,8 @@ Item {
             Layout.preferredWidth: Theme.contentWidth
             labelType: "small"
             wrapMode: Text.WordWrap
-            visible: !InstallerPresenter.canInstall
-            text: InstallerPresenter.cannotInstallReason
+            visible: !DirectoryPresenter.canInstall
+            text: DirectoryPresenter.cannotInstallReason
             color: Theme.error
         }
 
@@ -102,24 +102,23 @@ Item {
         IButton {
             text: "取消"
             btnType: "flat"
-            onClicked: InstallerPresenter.quit()
+            onClicked: DirectoryPresenter.quit()
         }
 
         IButton {
             text: "上一步"
             btnType: "flat"
-            onClicked: InstallerPresenter.navigateTo("welcome")
+            onClicked: DirectoryPresenter.navigateTo("welcome")
         }
 
         IButton {
-            text: InstallerPresenter.actionButtonText
+            text: DirectoryPresenter.actionButtonText
             btnType: "primary"
             font.bold: true
-            enabled: dirInput.text.length > 0 && InstallerPresenter.canInstall
+            enabled: dirInput.text.length > 0 && DirectoryPresenter.canInstall
             onClicked: {
-                InstallerPresenter.setInstallDir(dirInput.text);
-                InstallerPresenter.navigateTo("progress");
-                InstallerPresenter.startAction();
+                DirectoryPresenter.setInstallDir(dirInput.text);
+                DirectoryPresenter.startInstall();
             }
         }
     }

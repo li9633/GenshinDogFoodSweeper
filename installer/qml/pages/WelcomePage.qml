@@ -6,7 +6,7 @@ import '../InstallerUI'
 Item {
     id: page
 
-    visible: InstallerPresenter.showWelcomePage
+    visible: WelcomePresenter.showWelcomePage
 
     ColumnLayout {
         anchors.centerIn: parent
@@ -16,13 +16,13 @@ Item {
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "title"
-            text: InstallerPresenter.appName
+            text: WelcomePresenter.appName
         }
 
         ILabel {
             Layout.alignment: Qt.AlignHCenter
             labelType: "normal"
-            text: InstallerPresenter.versionLabel
+            text: WelcomePresenter.versionLabel
         }
 
         // 分隔线
@@ -38,7 +38,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: Theme.contentWidth
             labelType: "body"
-            text: InstallerPresenter.welcomeText
+            text: WelcomePresenter.welcomeText
             lineHeight: 1.6
         }
 
@@ -54,20 +54,15 @@ Item {
         IButton {
             text: "取消"
             btnType: "flat"
-            onClicked: InstallerPresenter.quit()
+            onClicked: WelcomePresenter.quit()
         }
 
         IButton {
-            text: InstallerPresenter.mode === "update" ? "更新" : "下一步"
+            text: WelcomePresenter.mode === "update" ? "更新" : "下一步"
             btnType: "primary"
             font.bold: true
             onClicked: {
-                if (InstallerPresenter.mode === "update") {
-                    InstallerPresenter.navigateTo("progress");
-                    InstallerPresenter.startAction();
-                } else {
-                    InstallerPresenter.navigateTo("directory");
-                }
+                WelcomePresenter.nextStep();
             }
         }
     }

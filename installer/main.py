@@ -12,8 +12,10 @@ PySide6 + QML 安装向导。
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
@@ -24,12 +26,37 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 
-from installer.installer_logic import (
+from installer.core import (
     APP_NAME,
     get_default_install_dir,
+    get_logger,
     resolve_directory,
 )
-from installer.presenters.installer_presenter import InstallerPresenter
+
+logger = get_logger(__name__)
+
+from installer.presenters.confirm_presenter import ConfirmPresenter
+from installer.presenters.coordinator import VERSION, AppCoordinator
+from installer.presenters.directory_presenter import DirectoryPresenter
+from installer.presenters.finish_presenter import FinishPresenter
+from installer.presenters.progress_presenter import ProgressPresenter
+from installer.presenters.welcome_presenter import WelcomePresenter
+
+
+def _setup_log() -> Path:
+    """在安装程序运行目录创建日志文件，返回日志路径"""
+    if getattr(sys, "frozen", False):
+        log_dir = Path(sys.executable).parent
+    else:
+        log_dir = Path.cwd()
+    timestamp = datetime.now(tz=timezone(timedelta(hours=8))).strftime("%Y%m%d_%H%M%S")
+    log_path = log_dir / f"install-log-{timestamp}.log"
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.FileHandler(log_path, encoding="utf-8")],
+    )
+    return log_path
 
 
 def _parse_args() -> argparse.Namespace:
@@ -92,25 +119,58 @@ def main() -> None:
         install_dir = get_default_install_dir()
 
     # -- 创建 App --
+    log_path = _setup_log()
+    logger.info("Installer started, version=%s", VERSION)
+    _install_success = False
+
     app = QGuiApplication(sys.argv)
     app.setApplicationName(APP_NAME)
 
     # 全局文本渲染 — Windows ClearType
     QQuickWindow.setTextRenderType(QQuickWindow.NativeTextRendering)
 
-    # -- 创建 Presenter --
+    # -- 创建 Coordinator + Presenters --
     engine = QQmlApplicationEngine()
-    presenter = InstallerPresenter()
-    _presenters = [presenter]  # 保持 Python 引用，防止 GC 回收
-
-    presenter.mode = mode
-    presenter.quickUpdate = quick_update
-    presenter.installDir = str(install_dir)
+    coord = AppCoordinator()
+    coord.mode = mode
+    coord.quick_update = quick_update
+    coord.install_dir = str(install_dir)
     if old_version:
-        presenter.oldVersion = old_version
+        coord.old_version = old_version
+
+    welcome_presenter = WelcomePresenter(coord)
+    directory_presenter = DirectoryPresenter(coord)
+    confirm_presenter = ConfirmPresenter(coord)
+    progress_presenter = ProgressPresenter(coord)
+    finish_presenter = FinishPresenter(coord)
+
+    _presenters = [
+        coord,
+        welcome_presenter,
+        directory_presenter,
+        confirm_presenter,
+        progress_presenter,
+        finish_presenter,
+    ]
+
+    coord.installFinished.connect(lambda ok, _msg: _on_install_finished(ok))
+
+    def _on_install_finished(ok: bool) -> None:
+        nonlocal _install_success
+        _install_success = ok
+        if ok:
+            logger.info("Installation completed successfully")
+        else:
+            logger.error("Installation failed")
 
     # -- 加载 QML --
-    engine.rootContext().setContextProperty("InstallerPresenter", presenter)
+    ctx = engine.rootContext()
+    ctx.setContextProperty("WelcomePresenter", welcome_presenter)
+    ctx.setContextProperty("DirectoryPresenter", directory_presenter)
+    ctx.setContextProperty("ConfirmPresenter", confirm_presenter)
+    ctx.setContextProperty("ProgressPresenter", progress_presenter)
+    ctx.setContextProperty("FinishPresenter", finish_presenter)
+    ctx.setContextProperty("Coordinator", coord)
 
     qml_dir = Path(__file__).parent / "qml"
     engine.addImportPath(str(qml_dir))
@@ -122,14 +182,22 @@ def main() -> None:
 
     # 快速更新：直接跳到进度页
     if quick_update:
-        presenter.navigateRequested.emit("progress")
-        presenter.startAction()
+        coord.navigate_to("progress")
+        coord.start_action()
     elif mode == "uninstall":
-        presenter.navigateRequested.emit("confirm")
+        coord.navigate_to("confirm")
     elif mode == "update":
-        presenter.navigateRequested.emit("welcome")
+        coord.navigate_to("welcome")
 
     app.exec()
+
+    if _install_success:
+        try:
+            log_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+    else:
+        logger.info("Log preserved at: %s", log_path)
 
     # 强制同步销毁 QML 引擎
     shiboken6.delete(engine)
