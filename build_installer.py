@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 INSTALLER_DIR = ROOT / "installer"
 INSTALLER_SPEC = INSTALLER_DIR / "installer.spec"
+UNINSTALLER_SPEC = INSTALLER_DIR / "uninstaller.spec"
 TOOLS_DIR = INSTALLER_DIR / "tools"
 DISPOSABLE = ROOT / "temp" / "disposable"
 
@@ -29,6 +30,14 @@ def _ensure_7za() -> Path:
         raise FileNotFoundError(f"未找到 7za.exe，请手动放置到 {seven_za}")
     print(f"7za.exe 已就绪: {seven_za}")
     return seven_za
+
+
+def _find_icon(name: str) -> str | None:
+    """查找图标文件，返回 as_posix() 路径或 None"""
+    ico = INSTALLER_DIR / f"{name}.ico"
+    if ico.exists():
+        return ico.resolve().as_posix()
+    return None
 
 
 def _compress_app(app_dist: Path, skip_if_exists: bool = False) -> Path:
@@ -61,10 +70,36 @@ def _compress_app(app_dist: Path, skip_if_exists: bool = False) -> Path:
 def build_installer(
     app_7z: Path, setup_name: str, output_dir: Path, one_dir: bool = False
 ) -> Path:
-    """构建安装程序，返回 setup.exe 路径"""
+    """构建安装程序，返回 setup.exe 路径
+
+    流程:
+        1. 构建 uninst.exe（小体积，无 app.7z，独立图标）
+        2. 构建 setup.exe（内嵌 uninst.exe + app.7z）
+    """
     _ensure_7za()
     _write_installer_version()
-    _generate_spec(app_7z, setup_name, one_dir)
+
+    # -- 步骤1: 构建 uninst.exe --
+    _generate_uninstaller_spec()
+    uninst_dist = DISPOSABLE / "uninst_dist"
+    print("构建 uninst.exe ...")
+    subprocess.run(
+        [
+            "pyinstaller", "--clean", "-y",
+            "--distpath", str(uninst_dist.resolve()),
+            "--workpath", str((DISPOSABLE / "uninst_build").resolve()),
+            str(UNINSTALLER_SPEC),
+        ],
+        check=True,
+        cwd=str(ROOT),
+    )
+    uninst_exe = uninst_dist / "uninst.exe"
+    if not uninst_exe.exists():
+        raise FileNotFoundError("uninst.exe 构建失败")
+    print(f"uninst.exe 构建完成: {uninst_exe}")
+
+    # -- 步骤2: 构建 setup.exe --
+    _generate_spec(app_7z, setup_name, one_dir, uninst_exe=uninst_exe)
 
     print("打包安装程序...")
     try:
@@ -85,6 +120,7 @@ def build_installer(
                 if dest_dir.exists():
                     shutil.rmtree(dest_dir)
                 shutil.move(str(setup_dir), str(dest_dir))
+            uninst_exe.unlink(missing_ok=True)
             print(f"安装程序已生成: {dest_dir / f'{setup_name}.exe'}")
             return dest_dir / f"{setup_name}.exe"
     else:
@@ -92,14 +128,22 @@ def build_installer(
         if setup_path.exists():
             dest = output_dir / f"{setup_name}.exe"
             shutil.move(str(setup_path), str(dest))
+            uninst_exe.unlink(missing_ok=True)
             print(f"安装程序已生成: {dest}")
             return dest
 
     raise FileNotFoundError(f"未找到安装程序产物: {setup_path}")
 
 
-def _generate_spec(app_7z: Path, setup_name: str, one_dir: bool = False) -> None:
-    """生成 PyInstaller spec 文件"""
+def _generate_spec(
+    app_7z: Path,
+    setup_name: str,
+    one_dir: bool = False,
+    *,
+    uninst_exe: Path | None = None,
+) -> None:
+    """生成安装程序 PyInstaller spec 文件"""
+    installer_icon = _find_icon("installer")
 
     # 递归收集 QML 文件及 qmldir
     qml_dir = INSTALLER_DIR / "qml"
@@ -115,16 +159,25 @@ def _generate_spec(app_7z: Path, setup_name: str, one_dir: bool = False) -> None
     seven_za = TOOLS_DIR / "7za.exe"
     disposable_as_win = str(DISPOSABLE.resolve())
 
+    # uninst.exe 行
+    uninst_line = ""
+    if uninst_exe and uninst_exe.exists():
+        uninst_line = f'        ("{uninst_exe.resolve().as_posix()}", "."),'
+
+    icon_line = f"    icon='{installer_icon}'," if installer_icon else "    icon=None,"
+
     spec_content = f'''# -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
 
 a = Analysis(
     ['main.py'],
     pathex=['.', r'{disposable_as_win}'],
-    binaries=[],
+    binaries=[
+        ("{seven_za.resolve().as_posix()}", "tools"),
+    ],
     datas=[
         ("{app_7z.resolve().as_posix()}", "."),
-        ("{seven_za.resolve().as_posix()}", "tools"),
+{uninst_line}
 {",\n".join(qml_entries)},
     ],
     hiddenimports=[
@@ -189,10 +242,10 @@ exe = EXE(
     [] if {one_dir} else a.datas,
     exclude_binaries={one_dir},
     name='{setup_name}',
-    icon=None,
+{icon_line}
     debug=False,
-    strip=False if {one_dir} else True,
-    upx=True,
+    strip=False,
+    upx=False,
     console=False,
 )
 '''
@@ -214,6 +267,104 @@ coll = COLLECT(
     print(f"已生成 spec: {INSTALLER_SPEC}")
 
 
+def _generate_uninstaller_spec() -> None:
+    """生成卸载程序 PyInstaller spec 文件（不含 app.7z，体积更小）"""
+    uninstaller_icon = _find_icon("uninstaller")
+    qml_dir = INSTALLER_DIR / "qml"
+    qml_entries: list[str] = []
+    for f in sorted(qml_dir.rglob("*")):
+        if f.is_dir():
+            continue
+        rel = f.relative_to(qml_dir)
+        qml_entries.append(
+            f'        ("{f.resolve().as_posix()}", "qml/{rel.parent.as_posix()}")'
+        )
+
+    icon_line = f"    icon='{uninstaller_icon}'," if uninstaller_icon else "    icon=None,"
+    disposable_as_win = str(DISPOSABLE.resolve())
+
+    spec_content = f'''# -*- mode: python ; coding: utf-8 -*-
+from pathlib import Path
+
+a = Analysis(
+    ['main.py'],
+    pathex=['.', r'{disposable_as_win}'],
+    binaries=[],
+    datas=[
+        ("{DISPOSABLE.resolve().as_posix()}/_installer_version.py", "."),
+{",\n".join(qml_entries)},
+    ],
+    hiddenimports=[
+        'PySide6.QtQuick',
+        'PySide6.QtQml',
+        'PySide6.QtQuickControls2',
+        'PySide6.QtQuickLayouts',
+        'PySide6.QtQuickDialogs',
+        'PySide6.QtWidgets',
+        'installer.core',
+        'installer.core.constants',
+        'installer.core.utils',
+        'installer.core.registry',
+        'installer.core.extract',
+        'installer.core.shortcut',
+        'installer.core.installer',
+        'installer.core.logging',
+        'installer.presenters.coordinator',
+        'installer.presenters.welcome_presenter',
+        'installer.presenters.directory_presenter',
+        'installer.presenters.confirm_presenter',
+        'installer.presenters.progress_presenter',
+        'installer.presenters.finish_presenter',
+    ],
+    hookspath=[],
+    hooksconfig={{}},
+    runtime_hooks=[],
+    excludes=[
+        'paddle', 'paddleocr', 'cv2', 'numpy', 'PIL',
+        'sqlalchemy', 'fastapi', 'uvicorn', 'pydantic',
+        'pydirectinput', 'pyautogui', 'pynput',
+        'requests', 'loguru', 'rapidfuzz',
+        'aistudio_sdk', 'adodbapi', 'altgraph',
+        'Crypto', 'cryptography', 'OpenSSL',
+        'pystray', 'pydantic_settings',
+        'tkinter', 'unittest', 'test',
+        'PySide6.QtWebEngineCore',
+        'PySide6.QtWebEngineWidgets',
+        'PySide6.QtWebEngineQuick',
+        'PySide6.QtWebChannel',
+    ],
+    noarchive=False,
+    optimize=2,
+)
+
+_EXCLUDE_BIN_PATTERNS = (
+    'Qt6WebEngine', 'Qt6Pdf', 'Qt6QmlWebEngine',
+)
+a.binaries = [
+    (name, path, typ)
+    for name, path, typ in a.binaries
+    if not any(p in name for p in _EXCLUDE_BIN_PATTERNS)
+]
+
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    name='uninst',
+{icon_line}
+    debug=False,
+    strip=False,
+    upx=False,
+    console=False,
+)
+'''
+    UNINSTALLER_SPEC.write_text(spec_content, encoding="utf-8")
+    print(f"已生成 uninstaller spec: {UNINSTALLER_SPEC}")
+
+
 def _write_installer_version() -> None:
     """将项目版本号写入 temp/disposable/_installer_version.py，供安装器运行时读取"""
     DISPOSABLE.mkdir(parents=True, exist_ok=True)
@@ -227,11 +378,21 @@ def _write_installer_version() -> None:
 
 
 def _cleanup_disposable() -> None:
-    """删除临时生成的 _installer_version.py"""
+    """删除临时生成的文件"""
+    # 构建时生成的版本文件
     version_file = DISPOSABLE / "_installer_version.py"
     if version_file.exists():
         version_file.unlink()
         print(f"已清理临时文件: {version_file}")
+    # 构建时生成的 spec
+    if UNINSTALLER_SPEC.exists():
+        UNINSTALLER_SPEC.unlink()
+        print(f"已清理临时文件: {UNINSTALLER_SPEC}")
+    # 中间产物 uninst.exe 及其构建目录
+    for d in [DISPOSABLE / "uninst_dist", DISPOSABLE / "uninst_build"]:
+        if d.exists():
+            shutil.rmtree(d)
+            print(f"已清理临时目录: {d}")
 
 
 def _create_dummy_app_7z() -> Path:

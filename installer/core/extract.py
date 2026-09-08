@@ -3,56 +3,86 @@
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 from installer.core.constants import ProgressCallback
+from installer.core.logging import get_logger
 from installer.core.utils import get_own_dir
+
+logger = get_logger(__name__)
+
+
+def _is_valid_pe(path: Path) -> bool:
+    """检查文件是否为有效的 Windows PE 且未被截断
+
+    返回 False 如果文件不是 PE 格式，或文件大小不匹配 PE 头中声明的节区范围。
+    """
+    try:
+        file_size = path.stat().st_size
+        with open(path, "rb") as f:
+            if f.read(2) != b"MZ":
+                return False
+            f.seek(0x3C)
+            pe_offset = int.from_bytes(f.read(4), "little")
+            f.seek(pe_offset)
+            if f.read(4) != b"PE\0\0":
+                return False
+            # 读 NumberOfSections
+            f.seek(pe_offset + 6)
+            num_sections = int.from_bytes(f.read(2), "little")
+            # 读 SizeOfOptionalHeader
+            f.seek(pe_offset + 20)
+            size_opt = int.from_bytes(f.read(2), "little")
+            # 节表起始 = PE 偏移 + 24 + SizeOfOptionalHeader
+            section_start = pe_offset + 24 + size_opt
+            expected_end = 0
+            for i in range(num_sections):
+                f.seek(section_start + i * 40 + 20)
+                raw_offset = int.from_bytes(f.read(4), "little")
+                raw_size = int.from_bytes(f.read(4), "little")
+                section_end = raw_offset + raw_size
+                expected_end = max(expected_end, section_end)
+            return file_size >= expected_end
+    except OSError:
+        return False
 
 
 def _find_7za() -> Path:
-    """查找 7za.exe：优先 MEIPASS/tools/，其次 PATH"""
+    """查找捆绑的 7za.exe"""
     own = get_own_dir()
-    candidates: list[Path] = []
-
     bundled = own / "tools" / "7za.exe"
+
     if bundled.exists():
-        candidates.append(bundled)
+        logger.info("捆绑 7za: %s (size=%d)", bundled, bundled.stat().st_size)
+    else:
+        dev_path = Path(__file__).resolve().parent.parent / "tools" / "7za.exe"
+        if dev_path.exists():
+            bundled = dev_path
+            logger.info("开发模式 7za: %s (size=%d)", bundled, bundled.stat().st_size)
 
-    dev_path = Path(__file__).resolve().parent.parent / "tools" / "7za.exe"
-    if dev_path.exists() and dev_path != bundled:
-        candidates.append(dev_path)
+    if not bundled.exists():
+        raise FileNotFoundError(f"未找到 7za.exe: {bundled}")
 
-    which = shutil.which("7za.exe") or shutil.which("7z.exe")
-    if which:
-        candidates.append(Path(which))
+    if not _is_valid_pe(bundled):
+        raise FileNotFoundError(
+            f"7za.exe 无效或已截断: {bundled} (size={bundled.stat().st_size})"
+        )
 
-    for candidate in candidates:
-        try:
-            subprocess.run(
-                [str(candidate), "--help"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=True,
-            )
-            return candidate
-        except Exception as e:
-            print(f"跳过无效的 7za 候选 {candidate}: {e}", file=sys.stderr)
-            continue
-
-    raise FileNotFoundError(
-        "未找到可用的 7za.exe，请确保 installer/tools/7za.exe 是有效的可执行文件"
-    )
+    return bundled
 
 
 def extract_7z(
     archive: Path, dest: Path, progress_cb: ProgressCallback | None = None
 ) -> None:
-    """解压 .7z 文件到目标目录，通过解析 stdout 报告进度"""
-    seven_zip = _find_7za()
+    """解压 .7z 文件到目标目录，通过解析 stdout 报告进度
+
+    使用 read1() 逐块读取避免 7za 块缓冲问题。
+    7za 输出格式: " 23% 45 - filename"
+    """
     dest.mkdir(parents=True, exist_ok=True)
+    seven_zip = _find_7za()
+    logger.info("使用 7za: %s", seven_zip)
 
     cmd = [
         str(seven_zip),
@@ -63,29 +93,35 @@ def extract_7z(
         "-mmt=on",
     ]
     progress_cb and progress_cb(0, "正在准备解压...")
+    logger.debug("执行命令: %s", cmd)
 
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
-    last_pct = 0
-    for line in proc.stdout:  # type: ignore[union-attr]
-        line = line.rstrip("\n\r")
-        m = re.search(r"(\d{1,3})%", line)
-        if m:
-            pct = int(m.group(1))
-            if pct != last_pct:
-                last_pct = pct
-                progress_cb and progress_cb(pct, f"正在解压... {pct}%")
-        if line.startswith("- "):
-            filename = line[2:].strip()
-            progress_cb and progress_cb(last_pct, f"解压 {filename}")
+    last_pct = -1
+    buf = b""
+    while True:
+        chunk = proc.stdout.read1(4096)  # type: ignore[union-attr]
+        if not chunk:
+            break
+        buf += chunk
+        while b"\n" in buf:
+            line_bytes, buf = buf.split(b"\n", 1)
+            line = line_bytes.decode("utf-8", errors="replace").rstrip("\r")
+            m = re.search(r"(\d{1,3})%", line)
+            if m:
+                pct = int(m.group(1))
+                if pct != last_pct:
+                    last_pct = pct
+                file_match = re.search(r"-\s+(.+)", line)
+                if file_match:
+                    progress_cb and progress_cb(pct, f"解压 {file_match.group(1)}")
+                else:
+                    progress_cb and progress_cb(pct, f"正在解压... {pct}%")
 
     proc.wait()
     if proc.returncode != 0:

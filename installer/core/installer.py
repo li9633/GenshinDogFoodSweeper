@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from installer.core.constants import APP_EXE, ProgressCallback
@@ -47,21 +49,50 @@ def run_uninstall(
     install_dir: Path,
     progress_cb: ProgressCallback | None = None,
 ) -> None:
-    """卸载核心流程：删快捷方式 → 删注册表 → 延迟删除目录"""
+    """卸载核心流程：删快捷方式 → 删注册表 → 延迟删除目录
+
+    通过创建临时批处理脚本解决自删除问题：
+    uninst.exe 自身运行在安装目录中，无法直接删除自己。
+    将删除命令写入 %TEMP% 下的 bat 文件，由独立的 cmd 进程
+    在 uninst.exe 退出后执行删除。
+    """
     progress_cb and progress_cb(0, "正在删除快捷方式...")
     remove_shortcuts()
     progress_cb and progress_cb(30, "正在删除注册表...")
     remove_registry()
     progress_cb and progress_cb(60, "正在清理安装目录...")
 
+    batch = _generate_cleanup_batch(install_dir, os.getpid())
     subprocess.Popen(
-        f'cmd /c "timeout /t 3 /nobreak >nul & rmdir /s /q "{install_dir}""',
+        f'cmd /c "{batch}"',
         shell=True,
         creationflags=subprocess.CREATE_NO_WINDOW
         if hasattr(subprocess, "CREATE_NO_WINDOW")
         else 0,
     )
     progress_cb and progress_cb(100, "卸载完成")
+
+
+def _generate_cleanup_batch(install_dir: Path, parent_pid: int) -> Path:
+    """在 %TEMP% 下生成延迟删除的批处理脚本
+
+    等待 uninst.exe 退出后再删除安装目录，避免因进程未退出导致删除失败。
+    """
+    batch = Path(tempfile.gettempdir()) / "gdf_cleanup.bat"
+    batch.write_text(
+        f'@echo off\r\n'
+        f':wait\r\n'
+        f'tasklist /FI "PID eq {parent_pid}" 2>nul | findstr /I "{parent_pid}" >nul\r\n'
+        f'if not errorlevel 1 (\r\n'
+        f'    ping 127.0.0.1 -n 2 >nul\r\n'
+        f'    goto wait\r\n'
+        f')\r\n'
+        f'ping 127.0.0.1 -n 2 >nul\r\n'
+        f'rmdir /s /q "{install_dir}"\r\n'
+        f'del "%~f0"\r\n',
+        encoding="ascii",
+    )
+    return batch
 
 
 def restart_app(install_dir: Path) -> None:

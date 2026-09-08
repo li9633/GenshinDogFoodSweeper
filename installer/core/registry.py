@@ -53,7 +53,7 @@ def write_registry(install_dir: Path, version: str) -> None:
                 "UninstallString",
                 0,
                 winreg.REG_SZ,
-                str(install_dir / "uninst.exe"),
+                f'{install_dir / "uninst.exe"} --mode uninstall',
             )
             winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, version)
             winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, APP_NAME)
