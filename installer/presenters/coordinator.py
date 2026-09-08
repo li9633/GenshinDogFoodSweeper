@@ -236,8 +236,14 @@ class AppCoordinator(QObject):
     # ========== 启动 App ==========
 
     def launch_app(self) -> None:
-        restart_app(Path(self._install_dir))
-        QGuiApplication.quit()
+        if restart_app(Path(self._install_dir)):
+            QGuiApplication.quit()
+        else:
+            logger.error("无法启动主程序，请检查安装目录: %s", self._install_dir)
+            self.navigate_to("progress")
+            self.installFinished.emit(
+                False, f"无法启动主程序，请检查安装目录:\n{self._install_dir}"
+            )
 
     # ========== 退出 ==========
 

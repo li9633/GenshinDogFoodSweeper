@@ -75,9 +75,11 @@ def _find_7za() -> Path:
 def extract_7z(
     archive: Path, dest: Path, progress_cb: ProgressCallback | None = None
 ) -> None:
-    """解压 .7z 文件到目标目录，通过解析 stdout 报告进度
+    """解压 .7z 文件到目标目录，通过解析 stderr 报告进度
 
-    使用 read1() 逐块读取避免 7za 块缓冲问题。
+    7za 的 stdout 在连管道时使用块缓冲，导致进度行无法实时获取。
+    但 stderr 在 C 运行时中默认无缓冲，因此将所有输出（含进度）重定向到
+    stderr（-bso2 -bse2 -bsp2），从 stderr 管道逐块读取即可实时解析。
     7za 输出格式: " 23% 45 - filename"
     """
     dest.mkdir(parents=True, exist_ok=True)
@@ -91,37 +93,48 @@ def extract_7z(
         f"-o{dest!s}",
         "-y",
         "-mmt=on",
+        "-bso2",
+        "-bse2",
+        "-bsp2",
     ]
     progress_cb and progress_cb(0, "正在准备解压...")
     logger.debug("执行命令: %s", cmd)
 
     proc = subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
     last_pct = -1
     buf = b""
     while True:
-        chunk = proc.stdout.read1(4096)  # type: ignore[union-attr]
+        chunk = proc.stderr.read1(4096)  # type: ignore[union-attr]
         if not chunk:
             break
         buf += chunk
+        # 7za 用 \r 覆盖终端行更新进度，可能长时间不输出 \n。
+        # 将 \r 也视为行分隔符，确保每个进度片段到达时立即处理。
+        buf = buf.replace(b"\r", b"\n")
         while b"\n" in buf:
             line_bytes, buf = buf.split(b"\n", 1)
-            line = line_bytes.decode("utf-8", errors="replace").rstrip("\r")
+            line = line_bytes.decode("utf-8", errors="replace").strip()
+            if not line:
+                continue
+            logger.debug("7za: %s", line)
             m = re.search(r"(\d{1,3})%", line)
             if m:
                 pct = int(m.group(1))
                 if pct != last_pct:
                     last_pct = pct
-                file_match = re.search(r"-\s+(.+)", line)
-                if file_match:
-                    progress_cb and progress_cb(pct, f"解压 {file_match.group(1)}")
-                else:
-                    progress_cb and progress_cb(pct, f"正在解压... {pct}%")
+                    file_match = re.search(r"-\s+(.+)", line)
+                    if file_match:
+                        text = f"解压 {file_match.group(1)}"
+                    else:
+                        text = f"正在解压... {pct}%"
+                    progress_cb and progress_cb(pct, text)
+                    logger.debug("进度 %d%%: %s", pct, text)
 
     proc.wait()
     if proc.returncode != 0:

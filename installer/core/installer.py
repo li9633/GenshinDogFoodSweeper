@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
 import shutil
 import subprocess
@@ -95,14 +96,36 @@ def _generate_cleanup_batch(install_dir: Path, parent_pid: int) -> Path:
     return batch
 
 
-def restart_app(install_dir: Path) -> None:
-    """启动主程序"""
+def restart_app(install_dir: Path) -> bool:
+    """启动主程序，返回 True 表示成功启动
+
+    使用 ShellExecute + runas 动词，当主程序需要管理员权限时
+    会弹出 UAC 提权对话框，而不是直接报错 ERROR_ELEVATION_REQUIRED(740)。
+    """
+    from installer.core.logging import get_logger as _get_logger
+    _log = _get_logger(__name__)
+
     app_exe = install_dir / APP_EXE
-    if app_exe.exists():
-        subprocess.Popen(
-            [str(app_exe)],
-            cwd=str(install_dir),
-            creationflags=subprocess.CREATE_NO_WINDOW
-            if hasattr(subprocess, "CREATE_NO_WINDOW")
-            else 0,
-        )
+    _log.info("尝试启动: %s", app_exe)
+    if not app_exe.exists():
+        _log.error("主程序不存在: %s", app_exe)
+        return False
+
+    # ShellExecuteW 返回值 > 32 表示成功
+    # 常见错误码: 1223 (用户取消UAC), 5 (拒绝访问), 2 (文件未找到)
+    ret = ctypes.windll.shell32.ShellExecuteW(
+        None,                    # hwnd
+        "runas",                 # lpOperation — 触发 UAC 提权
+        str(app_exe),            # lpFile
+        None,                    # lpParameters
+        str(install_dir),        # lpDirectory
+        1,                       # nShowCmd (SW_SHOWNORMAL)
+    )
+    if ret > 32:
+        _log.info("主程序已启动 (ShellExecute ret=%d): %s", ret, app_exe)
+        return True
+    if ret == 1223:
+        _log.warning("用户取消了 UAC 提权")
+    else:
+        _log.error("ShellExecute 失败, ret=%d: %s", ret, app_exe)
+    return False
