@@ -16,13 +16,16 @@ def _try_create_shortcut(target: Path, shortcut: Path, description: str = "") ->
         from win32com.client import Dispatch
 
         pythoncom.CoInitialize()
-        shell = Dispatch("WScript.Shell")
-        link = shell.CreateShortCut(str(shortcut))
-        link.TargetPath = str(target)
-        link.WorkingDirectory = str(target.parent)
-        if description:
-            link.Description = description
-        link.Save()
+        try:
+            shell = Dispatch("WScript.Shell")
+            link = shell.CreateShortCut(str(shortcut))
+            link.TargetPath = str(target)
+            link.WorkingDirectory = str(target.parent)
+            if description:
+                link.Description = description
+            link.Save()
+        finally:
+            pythoncom.CoUninitialize()
     except Exception as e:
         print(f"创建快捷方式失败: {e}", file=sys.stderr)
 

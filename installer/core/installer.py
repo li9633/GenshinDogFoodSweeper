@@ -92,7 +92,7 @@ def _generate_cleanup_batch(install_dir: Path, parent_pid: int) -> Path:
         f'ping 127.0.0.1 -n 2 >nul\r\n'
         f'rmdir /s /q "{install_dir}"\r\n'
         f'del "%~f0"\r\n',
-        encoding="ascii",
+        encoding="utf-8",
     )
     return batch
 
@@ -122,11 +122,11 @@ def restart_app(install_dir: Path) -> bool:
         str(install_dir),        # lpDirectory
         1,                       # nShowCmd (SW_SHOWNORMAL)
     )
-    if ret > 32:
-        _log.info("主程序已启动 (ShellExecute ret=%d): %s", ret, app_exe)
-        return True
     if ret == 1223:
         _log.warning("用户取消了 UAC 提权")
+    elif ret > 32:
+        _log.info("主程序已启动 (ShellExecute ret=%d): %s", ret, app_exe)
+        return True
     else:
         _log.error("ShellExecute 失败, ret=%d: %s", ret, app_exe)
     return False

@@ -49,6 +49,7 @@ class AppCoordinator(QObject):
     oldVersionChanged = Signal()
     installLogChanged = Signal()
     freeSpaceChanged = Signal()
+    quickUpdateChanged = Signal()
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -96,6 +97,11 @@ class AppCoordinator(QObject):
         if self._quick_update != value:
             self._quick_update = value
             self.modeChanged.emit()
+            self.quickUpdateChanged.emit()
+
+    @Property(bool, notify=quickUpdateChanged)
+    def quickUpdate(self) -> bool:
+        return self._quick_update
 
     @property
     def old_version(self) -> str:
@@ -171,8 +177,7 @@ class AppCoordinator(QObject):
     # ========== 目录选择 ==========
 
     def set_install_dir(self, path: str) -> None:
-        self._install_dir = path
-        self._update_free_space(path)
+        self.install_dir = path
 
     def check_free_space(self, path: str) -> None:
         self._update_free_space(path)

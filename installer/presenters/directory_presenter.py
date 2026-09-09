@@ -46,7 +46,7 @@ class DirectoryPresenter(QObject):
     def canInstall(self) -> bool:
         if not self._coord.drive_valid:
             return False
-        if self._coord.free_space <= 0:
+        if self._coord.free_space < 0:
             return True
         return self._coord.free_space >= self._coord.required_space * 2.5
 

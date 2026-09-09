@@ -6,7 +6,7 @@ import '../InstallerUI'
 Item {
     id: page
 
-    visible: WelcomePresenter.mode !== "uninstall" && !Coordinator.quick_update
+    visible: WelcomePresenter.mode !== "uninstall" && !Coordinator.quickUpdate
 
     ColumnLayout {
         anchors.centerIn: parent

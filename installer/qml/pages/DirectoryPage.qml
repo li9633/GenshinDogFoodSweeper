@@ -15,9 +15,9 @@ Item {
         id: folderDialog
         title: "选择安装目录"
         onAccepted: {
-            let path = selectedFolder.toString();
+            let path = String(selectedFolder);
             if (path.startsWith("file:///")) {
-                path = path.substring(8);
+                path = decodeURIComponent(path.substring(8));
             }
             DirectoryPresenter.selectInstallDir(path);
         }
@@ -27,6 +27,13 @@ Item {
         id: spaceTimer
         interval: 300
         onTriggered: DirectoryPresenter.checkFreeSpace(dirInput.text)
+    }
+
+    Connections {
+        target: DirectoryPresenter
+        function onInstallDirChanged() {
+            dirInput.text = DirectoryPresenter.installDir;
+        }
     }
 
     ColumnLayout {

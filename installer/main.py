@@ -164,8 +164,6 @@ def main() -> None:
         finish_presenter,
     ]
 
-    coord.installFinished.connect(lambda ok, _msg: _on_install_finished(ok))
-
     def _on_install_finished(ok: bool) -> None:
         nonlocal _install_success
         _install_success = ok
@@ -173,6 +171,8 @@ def main() -> None:
             logger.info("Installation completed successfully")
         else:
             logger.error("Installation failed")
+
+    coord.installFinished.connect(lambda ok, _msg: _on_install_finished(ok))
 
     # -- 加载 QML --
     ctx = engine.rootContext()
