@@ -33,10 +33,10 @@ QtObject {
     readonly property int pageMargin: 20
 
     // ── 布局 ──
-    readonly property int contentWidth: 440
+    readonly property int contentWidth: 480
 
     // ── 窗口 ──
-    readonly property int windowWidth: 520
-    readonly property int windowHeight: 420
+    readonly property int windowWidth: 560
+    readonly property int windowHeight: 520
     readonly property string windowTitle: "原神狗粮扫荡器 安装向导"
 }

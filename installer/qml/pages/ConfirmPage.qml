@@ -3,66 +3,68 @@ import QtQuick.Layouts
 import '../InstallerUI'
 // qmllint disable unqualified
 
-Item {
+ColumnLayout {
     id: page
 
-    ColumnLayout {
-        anchors.centerIn: parent
-        spacing: Theme.spacingLg
+    spacing: 0
 
-        // 图标
+    readonly property color dangerColor: "#D32F2F"
+
+    // ═══════════════════════════════════════════
+    // Hero 区：图标 + 标题
+    // ═══════════════════════════════════════════
+    ColumnLayout {
+        Layout.alignment: Qt.AlignHCenter
+        Layout.topMargin: 8
+        spacing: Theme.spacingMd
+
         Image {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: 80
-            Layout.preferredHeight: 80
+            Layout.preferredWidth: 200
+            Layout.preferredHeight: 200
             source: ConfirmPresenter.pageIcon
             fillMode: Image.PreserveAspectFit
         }
 
         ILabel {
             Layout.alignment: Qt.AlignHCenter
-            labelType: "heading"
+            labelType: "title"
             text: ConfirmPresenter.pageTitle
-            color: "#D32F2F"
+            color: dangerColor
         }
-
-        // 警告卡片
-        Rectangle {
-            id: warningCard
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: Theme.contentWidth
-            Layout.preferredHeight: warningLabel.implicitHeight + 24
-            color: "#FFF3F3"
-            border.color: "#FFCDD2"
-            border.width: 1
-            radius: 6
-
-            ILabel {
-                id: warningLabel
-                anchors.centerIn: parent
-                width: parent.width - 24
-                labelType: "body"
-                text: ConfirmPresenter.warningText
-                lineHeight: 1.5
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        ILabel {
-            Layout.alignment: Qt.AlignHCenter
-            labelType: "small"
-            text: "此操作不可撤销，请确认后再操作。"
-            color: "#D32F2F"
-        }
-
-        Item { Layout.fillHeight: true }
     }
 
-    // 底部按钮
+    // ═══════════════════════════════════════════
+    // Content 卡片
+    // ═══════════════════════════════════════════
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.topMargin: 12
+        Layout.bottomMargin: 12
+        color: "#FFF3F3"
+        radius: 8
+        border.color: "#FFCDD2"
+        border.width: 1
+        clip: true
+
+        ILabel {
+            anchors.fill: parent
+            anchors.margins: 16
+            labelType: "body"
+            text: ConfirmPresenter.warningText
+            lineHeight: 1.6
+            wrapMode: Text.WordWrap
+            verticalAlignment: Text.AlignTop
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // Actions 区
+    // ═══════════════════════════════════════════
     RowLayout {
-        anchors.bottom: parent.bottom
-        anchors.right: parent.right
-        anchors.bottomMargin: Theme.spacingMd
+        Layout.fillWidth: true
+        Layout.alignment: Qt.AlignRight
 
         IButton {
             text: "我再想想"

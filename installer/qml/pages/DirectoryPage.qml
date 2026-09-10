@@ -4,10 +4,11 @@ import QtQuick.Dialogs
 import '../InstallerUI'
 // qmllint disable unqualified
 
-Item {
+ColumnLayout {
     id: page
 
     visible: DirectoryPresenter.showDirectoryPage
+    spacing: 0
 
     property alias installDir: dirInput.text
 
@@ -36,75 +37,93 @@ Item {
         }
     }
 
-    ColumnLayout {
-        anchors.centerIn: parent
-        spacing: Theme.spacingLg
-
-        ILabel {
-            Layout.alignment: Qt.AlignHCenter
-            labelType: "heading"
-            text: "选择安装目录"
-        }
-
-        ILabel {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: Theme.contentWidth
-            labelType: "body"
-            text: "请选择原神狗粮扫荡器的安装位置。"
-        }
-
-        // 路径输入
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: Theme.contentWidth
-            spacing: Theme.spacingSm
-
-            ITextField {
-                id: dirInput
-                Layout.fillWidth: true
-                text: DirectoryPresenter.installDir
-                onTextChanged: spaceTimer.restart()
-            }
-
-            IButton {
-                text: "浏览..."
-                onClicked: folderDialog.open()
-            }
-        }
-
-        ILabel {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: Theme.contentWidth
-            labelType: "small"
-            text: DirectoryPresenter.requiredSpaceText
-        }
-
-        ILabel {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: Theme.contentWidth
-            labelType: "small"
-            visible: DirectoryPresenter.freeSpaceText !== ""
-            text: DirectoryPresenter.freeSpaceText
-        }
-
-        ILabel {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: Theme.contentWidth
-            labelType: "small"
-            wrapMode: Text.WordWrap
-            visible: !DirectoryPresenter.canInstall
-            text: DirectoryPresenter.cannotInstallReason
-            color: Theme.error
-        }
-
-        Item { Layout.fillHeight: true }
+    // ═══════════════════════════════════════════
+    // Hero 区：标题
+    // ═══════════════════════════════════════════
+    ILabel {
+        Layout.alignment: Qt.AlignHCenter
+        Layout.topMargin: 8
+        Layout.bottomMargin: 12
+        labelType: "heading"
+        text: "选择安装目录"
     }
 
-    // 底部按钮
+    // ═══════════════════════════════════════════
+    // Content 卡片
+    // ═══════════════════════════════════════════
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.bottomMargin: 12
+        color: Theme.bgWhite
+        radius: 8
+        border.color: Theme.separator
+        border.width: 1
+        clip: true
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 16
+            spacing: Theme.spacingMd
+
+            ILabel {
+                Layout.alignment: Qt.AlignHCenter
+                labelType: "body"
+                text: "请选择原神狗粮扫荡器的安装位置。"
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingSm
+
+                ITextField {
+                    id: dirInput
+                    Layout.fillWidth: true
+                    text: DirectoryPresenter.installDir
+                    onTextChanged: spaceTimer.restart()
+                }
+
+                IButton {
+                    text: "浏览..."
+                    onClicked: folderDialog.open()
+                }
+            }
+
+            ILabel {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                labelType: "small"
+                text: DirectoryPresenter.requiredSpaceText
+            }
+
+            ILabel {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                labelType: "small"
+                visible: DirectoryPresenter.freeSpaceText !== ""
+                text: DirectoryPresenter.freeSpaceText
+            }
+
+            ILabel {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                labelType: "small"
+                wrapMode: Text.WordWrap
+                visible: !DirectoryPresenter.canInstall
+                text: DirectoryPresenter.cannotInstallReason
+                color: Theme.error
+            }
+
+            Item { Layout.fillHeight: true }
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // Actions 区
+    // ═══════════════════════════════════════════
     RowLayout {
-        anchors.bottom: parent.bottom
-        anchors.right: parent.right
-        anchors.bottomMargin: Theme.spacingMd
+        Layout.fillWidth: true
+        Layout.alignment: Qt.AlignRight
 
         IButton {
             text: "取消"
