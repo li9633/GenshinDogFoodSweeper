@@ -58,10 +58,15 @@ def setup_logging(
             colorize=True,
         )
 
-    # 文件输出（所有级别）
+    # 文件输出（常规日志：仅低于 WARNING 的级别）
+    # 注意：loguru 的 level 参数是最低阈值（下限），WARNING 及以上若不排除
+    # 会同时写入 app.log 与 error.log 造成重复。这里用 filter 设置上限，
+    # 使 app.log 只记录 DEBUG/INFO/SUCCESS，WARNING+ 全部进 error.log。
+    _warning_no = logger.level("WARNING").no
     file_sink_id = logger.add(
         log_dir / "app_{time:YYYY-MM-DD}.log",
         level="DEBUG",
+        filter=lambda record: record["level"].no < _warning_no,
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
         rotation=rotation,
         retention=retention,
