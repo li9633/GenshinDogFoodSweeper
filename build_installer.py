@@ -21,6 +21,7 @@ TOOLS_DIR = INSTALLER_DIR / "tools"
 DISPOSABLE = ROOT / "temp" / "disposable"
 
 from backend.utils.version import _MAJOR, _MINOR, _PATCH
+from common.paths import IMAGE
 from common.resources import Resource
 
 
@@ -149,6 +150,9 @@ def _generate_spec(
             f'        ("{f.resolve().as_posix()}", "qml/{rel.parent.as_posix()}")'
         )
 
+    icon_image_dir = IMAGE / "GenshinDogFoodSweeper-icon"
+    icon_image_dest = "resources/image/GenshinDogFoodSweeper-icon"
+
     seven_za = TOOLS_DIR / "7za.exe"
     disposable_as_win = str(DISPOSABLE.resolve())
 
@@ -171,6 +175,7 @@ a = Analysis(
     datas=[
         ("{app_7z.resolve().as_posix()}", "."),
 {uninst_line}
+        ("{icon_image_dir.resolve().as_posix()}", "{icon_image_dest}"),
 {",\n".join(qml_entries)},
     ],
     hiddenimports=[
@@ -263,6 +268,9 @@ coll = COLLECT(
 def _generate_uninstaller_spec() -> None:
     """生成卸载程序 PyInstaller spec 文件（不含 app.7z，体积更小）"""
     uninstaller_icon = Resource.UNINSTALLER_ICON_ICO
+    icon_image_dir = IMAGE / "GenshinDogFoodSweeper-icon"
+    icon_image_dest = "resources/image/GenshinDogFoodSweeper-icon"
+
     qml_dir = INSTALLER_DIR / "qml"
     qml_entries: list[str] = []
     for f in sorted(qml_dir.rglob("*")):
@@ -285,6 +293,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ("{DISPOSABLE.resolve().as_posix()}/_installer_version.py", "."),
+        ("{icon_image_dir.resolve().as_posix()}", "{icon_image_dest}"),
 {",\n".join(qml_entries)},
     ],
     hiddenimports=[

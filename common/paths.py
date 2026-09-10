@@ -16,7 +16,7 @@ from pathlib import Path
 # ── 项目根目录 ──
 # 此文件位于 common/paths.py，Path(__file__).parent.parent 始终指向项目根
 if getattr(sys, "frozen", False):
-    ROOT = Path(sys.executable).parent
+    ROOT = Path(sys._MEIPASS) if hasattr(sys, "_MEIPASS") else Path(sys.executable).parent
 else:
     ROOT = Path(__file__).parent.parent
 
