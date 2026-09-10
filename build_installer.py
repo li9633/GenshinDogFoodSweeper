@@ -3,7 +3,17 @@
 先运行 build.py 生成主 App 产物，再运行本脚本打包安装程序。
 
 用法:
-    python build_installer.py --app-dist dist/GenshinDogFoodSweeper-v0.9.38-release.1-abc1234
+    # 从目录打包（自动压缩，默认删除中间产物 app.7z）
+    python build_installer.py --path dist/GenshinDogFoodSweeper-v0.9.38-release.1-abc1234
+
+    # 从目录打包 + 保留 app.7z + 自定义文件名
+    python build_installer.py --path dist/... --keep --name "MyApp-setup"
+
+    # 从已有 .7z 打包 + 自定义文件名
+    python build_installer.py --zip dist/app.7z --name "MyApp-setup"
+
+    # 空打包（测试安装程序体积）
+    python build_installer.py --empty
 """
 
 from __future__ import annotations
@@ -34,12 +44,9 @@ def _ensure_7za() -> Path:
     return seven_za
 
 
-def _compress_app(app_dist: Path, skip_if_exists: bool = False) -> Path:
+def _compress_app(app_dist: Path) -> Path:
     """将 App 产物目录压缩为 app.7z"""
     archive = app_dist.parent / "app.7z"
-    if skip_if_exists and archive.exists():
-        print(f"app.7z 已存在，跳过压缩: {archive}")
-        return archive
 
     _ensure_7za()
     seven_za = TOOLS_DIR / "7za.exe"
@@ -423,30 +430,52 @@ def _create_dummy_app_7z() -> Path:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="构建安装程序")
-    parser.add_argument("--app-dist", type=str, default=None, help="主 App 产物目录")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--path", type=str, help="主 App 产物目录（自动压缩为 .7z 后打包）")
+    group.add_argument("--zip", type=str, help="已有的 .7z 压缩包（直接打包，不压缩）")
+    group.add_argument("--empty", action="store_true", help="空打包，仅测试安装程序体积")
     parser.add_argument(
-        "--empty", action="store_true", help="空打包，仅测试安装程序体积"
+        "--keep", action="store_true",
+        help="配合 --path 使用，构建后保留中间产物 app.7z",
     )
     parser.add_argument(
-        "--keep-7z", action="store_true", help="构建后保留 app.7z，加速后续测试"
+        "--name", type=str, default=None,
+        help="自定义安装程序文件名（不含 .exe 后缀），默认自动生成",
     )
     args = parser.parse_args()
 
+    # --keep 仅在 --path 模式下有意义
+    if args.keep and not args.path:
+        print("警告: --keep 仅在 --path 模式下生效，已忽略")
+
     if args.empty:
         app_7z = _create_dummy_app_7z()
-        setup_name = "GenshinDogFoodSweeper-empty-setup"
+        setup_name = args.name or "GenshinDogFoodSweeper-empty-setup"
         output_dir = ROOT / "dist"
         one_dir = True
-    elif args.app_dist:
-        app_dist = Path(args.app_dist)
-        app_7z = _compress_app(app_dist, skip_if_exists=args.keep_7z)
-        setup_name = f"{app_dist.name}-setup"
+    elif args.path:
+        app_dist = Path(args.path)
+        if not app_dist.is_dir():
+            parser.error(f"--path 指定的目录不存在: {app_dist}")
+        app_7z = _compress_app(app_dist)
+        setup_name = args.name or f"{app_dist.name}-setup"
         output_dir = app_dist.parent
         one_dir = False
+        build_installer(app_7z, setup_name, output_dir, one_dir=one_dir)
+        if not args.keep:
+            app_7z.unlink(missing_ok=True)
+            print(f"已删除中间产物: {app_7z}")
+        else:
+            print(f"已保留中间产物: {app_7z}")
+        raise SystemExit(0)
     else:
-        parser.error("必须指定 --app-dist 或 --empty")
+        app_7z = Path(args.zip)
+        if not app_7z.is_file():
+            parser.error(f"--zip 指定的文件不存在: {app_7z}")
+        if app_7z.suffix.lower() != ".7z":
+            parser.error(f"--zip 需要 .7z 文件，但得到: {app_7z}")
+        setup_name = args.name or f"{app_7z.stem}-setup"
+        output_dir = app_7z.parent
+        one_dir = False
 
     build_installer(app_7z, setup_name, output_dir, one_dir=one_dir)
-    if not args.keep_7z:
-        app_7z.unlink(missing_ok=True)
-        print(f"已删除中间产物: {app_7z}")
