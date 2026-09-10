@@ -21,7 +21,7 @@ from utils.logger import log
 def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
     """集中声明所有 Presenter，延迟导入避免循环依赖"""
 
-    from utils.env_manager import EnvManager
+    from common.env_manager import EnvManager
 
     registry: list[tuple[str, Callable[[], Any], list[Callable]]] = [
         ("EnvManager", EnvManager, []),

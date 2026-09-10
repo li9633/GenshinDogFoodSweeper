@@ -32,6 +32,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
 
+from common.env_manager import EnvManager
 from common.resources import Resource
 from installer.core import (
     APP_NAME,
@@ -44,6 +45,8 @@ logger = get_logger(__name__)
 
 from installer.presenters.confirm_presenter import ConfirmPresenter
 from installer.presenters.coordinator import VERSION, AppCoordinator
+from installer.presenters.debug_panel_presenter import DebugPanelPresenter
+from installer.presenters.debug_presenter import DebugPresenter
 from installer.presenters.directory_presenter import DirectoryPresenter
 from installer.presenters.finish_presenter import FinishPresenter
 from installer.presenters.progress_presenter import ProgressPresenter
@@ -189,6 +192,14 @@ def main() -> None:
 
     coord.installFinished.connect(lambda ok, _msg: _on_install_finished(ok))
 
+    # -- 调试模式（环境变量 GDFS_INSTALLER_DEBUG） --
+    is_debug = EnvManager.is_installer_debug()
+    debug_panel_presenter = None
+    if is_debug:
+        debug_presenter = DebugPresenter(coord)
+        debug_panel_presenter = DebugPanelPresenter(debug_presenter)
+        logger.info("Debug mode enabled via GDFS_INSTALLER_DEBUG")
+
     # -- 加载 QML --
     ctx = engine.rootContext()
     ctx.setContextProperty("WelcomePresenter", welcome_presenter)
@@ -197,6 +208,9 @@ def main() -> None:
     ctx.setContextProperty("ProgressPresenter", progress_presenter)
     ctx.setContextProperty("FinishPresenter", finish_presenter)
     ctx.setContextProperty("Coordinator", coord)
+    ctx.setContextProperty("isDebug", is_debug)
+    if is_debug:
+        ctx.setContextProperty("DebugPanelPresenter", debug_panel_presenter)
 
     qml_dir = Path(__file__).parent / "qml"
     engine.addImportPath(str(qml_dir))

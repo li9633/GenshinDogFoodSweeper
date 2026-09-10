@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import InstallerUI
 import './pages'
+import './debug'
 // qmllint disable unqualified
 
 ApplicationWindow {
@@ -10,10 +11,10 @@ ApplicationWindow {
     visible: true
     width: Theme.windowWidth
     height: Theme.windowHeight
-    minimumWidth: Theme.windowWidth
-    minimumHeight: Theme.windowHeight
-    maximumWidth: Theme.windowWidth
-    maximumHeight: Theme.windowHeight
+    minimumWidth: isDebug ? 400 : Theme.windowWidth
+    minimumHeight: isDebug ? 300 : Theme.windowHeight
+    maximumWidth: isDebug ? 1920 : Theme.windowWidth
+    maximumHeight: isDebug ? 1080 : Theme.windowHeight
     title: Coordinator.windowTitle
     color: Theme.bgWindow
     flags: Coordinator.allowClose
@@ -65,5 +66,17 @@ ApplicationWindow {
                 progressPage.showError(message);
             }
         }
+    }
+
+    // ── 调试面板（F12 切换） ──
+    Shortcut {
+        sequence: "F12"
+        enabled: isDebug
+        onActivated: debugPanel.visible = !debugPanel.visible
+    }
+
+    DebugPanel {
+        id: debugPanel
+        visible: false
     }
 }

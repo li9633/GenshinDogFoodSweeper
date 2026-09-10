@@ -26,8 +26,9 @@ class TitleBarPresenter(QObject):
         self._refresh_title()
 
     def _refresh_title(self) -> None:
-        from utils.env_manager import EnvManager
         from utils.version import AppVersion
+
+        from common.env_manager import EnvManager
 
         base = "原神狗粮清扫器"
         if EnvManager.is_debug():
