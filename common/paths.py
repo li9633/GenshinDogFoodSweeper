@@ -16,7 +16,17 @@ from pathlib import Path
 # ── 项目根目录 ──
 # 此文件位于 common/paths.py，Path(__file__).parent.parent 始终指向项目根
 if getattr(sys, "frozen", False):
-    ROOT = Path(sys._MEIPASS) if hasattr(sys, "_MEIPASS") else Path(sys.executable).parent
+    if hasattr(sys, "_MEIPASS"):
+        meipass = Path(sys._MEIPASS)
+        exe_dir = Path(sys.executable).parent
+        if meipass.parent == exe_dir:
+            # COLLECT 模式（one-dir）：资源在 exe 同级目录，不在 _internal 中
+            ROOT = exe_dir
+        else:
+            # onefile 模式：所有资源都提取到 _MEIPASS 临时目录
+            ROOT = meipass
+    else:
+        ROOT = Path(sys.executable).parent
 else:
     ROOT = Path(__file__).parent.parent
 
@@ -34,3 +44,11 @@ TEMPLATES_IMAGES = TEMPLATES / "images"
 # ── 运行时目录 ──
 ENGINES = ROOT / "engines"
 SCAN_RESULT = ROOT / "scan_result"
+
+# ── QML 目录 ──
+# 开发模式：backend/ui/qml/（在 backend 包内）
+# 打包模式：ui/qml/（spec 文件将 backend/ui/qml 复制到 dist 根目录的 ui/qml）
+if getattr(sys, "frozen", False):
+    QML_DIR = ROOT / "ui" / "qml"
+else:
+    QML_DIR = ROOT / "backend" / "ui" / "qml"

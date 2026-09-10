@@ -9,7 +9,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from common.paths import ROOT
+from common.paths import QML_DIR
 from common.resources import Resource
 
 # 强制使用 Basic 样式，允许自定义控件外观
@@ -59,7 +59,7 @@ def main():
 
     # 加载 FontAwesome 字体
     from PySide6.QtGui import QFontDatabase
-    fonts_dir = ROOT / "backend" / "ui" / "qml" / "GenshinUI" / "fonts"
+    fonts_dir = QML_DIR / "GenshinUI" / "fonts"
     for font_file in fonts_dir.glob("*.otf"):
         font_id = QFontDatabase.addApplicationFont(str(font_file))
         if font_id < 0:
@@ -119,10 +119,19 @@ def main():
     # 全局文本渲染 用 Windows ClearType
     QQuickWindow.setTextRenderType(QQuickWindow.NativeTextRendering)
 
-    qml_dir = ROOT / "backend" / "ui" / "qml"
-    log.debug(f"QML dir: {qml_dir}, exists: {qml_dir.exists()}")
+    qml_dir = QML_DIR
+    main_qml = qml_dir / "main.qml"
+
+    if not main_qml.exists():
+        log.error(f"main.qml 不存在: {main_qml}")
+        sys.exit(-1)
+
+    def _on_qml_warning(msg: object) -> None:
+        log.warning(f"QML 警告: {msg}")
+
+    engine.warnings.connect(_on_qml_warning)
     engine.addImportPath(str(qml_dir))
-    engine.load(str(qml_dir / "main.qml"))
+    engine.load(str(main_qml))
 
     root_objects = engine.rootObjects()
     log.debug(f"QML rootObjects count: {len(root_objects)}")
