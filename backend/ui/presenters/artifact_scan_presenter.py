@@ -12,8 +12,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from models.artifact import ArtifactInfo
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from ui.lifecycle import OnWindowReady
@@ -25,6 +23,7 @@ from backend.automation.slot_detector import BAG_SLOT_CONFIG
 from backend.automation.window_helper import WindowHelper
 from backend.utils.screen_capture import ScreenshotCapture
 from backend.utils.settings_manager import settings
+from common.paths import ENGINES, SCAN_RESULT
 
 
 class ArtifactScanPresenter(QObject, OnWindowReady):
@@ -149,7 +148,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
 
         cfg = self._active_config
         roi = cfg.roi or (0, 0, 0, 0)
-        engines_dir = Path(__file__).resolve().parents[3] / "engines"
+        engines_dir = ENGINES
 
         self._full_scan_results = []
         self._full_scan_saved_path = ""
@@ -170,7 +169,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
                     if artifact_set:
                         r.set_effects = artifact_set.set_effects
 
-            out_dir = Path(__file__).resolve().parents[3] / "scan_result"
+            out_dir = SCAN_RESULT
             out_dir.mkdir(parents=True, exist_ok=True)
             filename = f"scan_{DateTimeHelper.file_timestamp()}.json"
             filepath = out_dir / filename

@@ -8,6 +8,7 @@ from utils.logger import log
 
 from backend.automation.ocr_model_manager import OcrModelManager
 from backend.exceptions.automation import OcrModelNotReadyError
+from common.paths import ENGINES
 
 
 class OcrEngine:
@@ -17,7 +18,7 @@ class OcrEngine:
 
     def __init__(self, engines_dir: Path | None = None):
         if engines_dir is None:
-            engines_dir = Path(__file__).resolve().parents[2] / "engines"
+            engines_dir = ENGINES
         self._engines_dir = engines_dir
         self._model_manager = OcrModelManager(engines_dir)
 

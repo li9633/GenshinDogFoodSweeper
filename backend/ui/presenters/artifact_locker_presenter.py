@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import ClassVar
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
@@ -11,6 +10,7 @@ from utils.settings_manager import settings
 
 from backend.automation.artifact_locker import ArtifactLocker, LockWorker
 from backend.database.repository.dogfood_rule_repo import DogfoodRuleRepo
+from common.paths import ENGINES
 
 
 class ArtifactLockerPresenter(QObject):
@@ -250,7 +250,7 @@ class ArtifactLockerPresenter(QObject):
         )
 
         max_count = self._max_count if self._limit_count_enabled else 0
-        engines_dir = Path(__file__).resolve().parents[3] / "engines"
+        engines_dir = ENGINES
         self._lock_worker = LockWorker(
             self._locker, active_rules, self._default_action,
             self._re_unlock, max_count,

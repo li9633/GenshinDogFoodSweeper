@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from pathlib import Path
 from time import sleep
 
 import numpy as np
@@ -47,6 +46,7 @@ from backend.automation.window_helper import WindowHelper
 from backend.exceptions.automation import GameWindowNotFoundError
 from backend.models.slot_models import DetectResult
 from backend.utils.screen_capture import ScreenshotCapture
+from common.paths import ENGINES
 
 from ..image_provider import PreviewImageProvider
 
@@ -396,7 +396,7 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
             window = WindowHelper.find_genshin_window()
             if window is None:
                 raise GameWindowNotFoundError()
-            engines_dir = Path(__file__).resolve().parents[4] / "engines"
+            engines_dir = ENGINES
             ocr = OcrEngine.create_ocr(engines_dir)
             count = ocr_artifact_count(self._capture, ocr)
             total_pages = max(1, (count + 31) // 32) if count > 0 else 0

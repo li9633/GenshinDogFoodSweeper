@@ -21,6 +21,7 @@ TOOLS_DIR = INSTALLER_DIR / "tools"
 DISPOSABLE = ROOT / "temp" / "disposable"
 
 from backend.utils.version import _MAJOR, _MINOR, _PATCH
+from common.resources import Resource
 
 
 def _ensure_7za() -> Path:
@@ -30,14 +31,6 @@ def _ensure_7za() -> Path:
         raise FileNotFoundError(f"未找到 7za.exe，请手动放置到 {seven_za}")
     print(f"7za.exe 已就绪: {seven_za}")
     return seven_za
-
-
-def _find_icon(name: str) -> str | None:
-    """查找图标文件，返回 as_posix() 路径或 None"""
-    ico = INSTALLER_DIR / f"{name}.ico"
-    if ico.exists():
-        return ico.resolve().as_posix()
-    return None
 
 
 def _compress_app(app_dist: Path, skip_if_exists: bool = False) -> Path:
@@ -143,7 +136,7 @@ def _generate_spec(
     uninst_exe: Path | None = None,
 ) -> None:
     """生成安装程序 PyInstaller spec 文件"""
-    installer_icon = _find_icon("installer")
+    installer_icon = Resource.INSTALLER_ICON_ICO
 
     # 递归收集 QML 文件及 qmldir
     qml_dir = INSTALLER_DIR / "qml"
@@ -164,7 +157,7 @@ def _generate_spec(
     if uninst_exe and uninst_exe.exists():
         uninst_line = f'        ("{uninst_exe.resolve().as_posix()}", "."),'
 
-    icon_line = f"    icon='{installer_icon}'," if installer_icon else "    icon=None,"
+    icon_line = f"    icon='{installer_icon.as_posix()}'," if installer_icon.exists() else "    icon=None,"
 
     spec_content = f'''# -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
@@ -269,7 +262,7 @@ coll = COLLECT(
 
 def _generate_uninstaller_spec() -> None:
     """生成卸载程序 PyInstaller spec 文件（不含 app.7z，体积更小）"""
-    uninstaller_icon = _find_icon("uninstaller")
+    uninstaller_icon = Resource.UNINSTALLER_ICON_ICO
     qml_dir = INSTALLER_DIR / "qml"
     qml_entries: list[str] = []
     for f in sorted(qml_dir.rglob("*")):
@@ -280,7 +273,7 @@ def _generate_uninstaller_spec() -> None:
             f'        ("{f.resolve().as_posix()}", "qml/{rel.parent.as_posix()}")'
         )
 
-    icon_line = f"    icon='{uninstaller_icon}'," if uninstaller_icon else "    icon=None,"
+    icon_line = f"    icon='{uninstaller_icon.as_posix()}'," if uninstaller_icon.exists() else "    icon=None,"
     disposable_as_win = str(DISPOSABLE.resolve())
 
     spec_content = f'''# -*- mode: python ; coding: utf-8 -*-

@@ -20,12 +20,19 @@ from pathlib import Path
 
 os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
 
+# 确保项目根目录在 Python 路径中（开发模式下需要，用于导入 common 模块）
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 import shiboken6
 from PySide6.QtCore import QUrl
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
+from PySide6.QtWidgets import QApplication
 
+from common.resources import Resource
 from installer.core import (
     APP_NAME,
     get_default_install_dir,
@@ -134,8 +141,16 @@ def main() -> None:
     logger.info("Installer started, version=%s", VERSION)
     _install_success = False
 
-    app = QGuiApplication(sys.argv)
+    app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
+
+    # 设置应用图标
+    icon_path = str(Resource.INSTALLER_ICON_PNG)
+
+    if mode == "uninstall":
+        icon_path = str(Resource.UNINSTALLER_ICON_PNG)
+
+    app.setWindowIcon(QIcon(icon_path))
 
     # 全局文本渲染 — Windows ClearType
     QQuickWindow.setTextRenderType(QQuickWindow.NativeTextRendering)

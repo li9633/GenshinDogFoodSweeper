@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import ClassVar
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
@@ -15,6 +14,7 @@ from backend.automation.artifact_decomposer import (
     SelectWorker,
 )
 from backend.database.repository.dogfood_rule_repo import DogfoodRuleRepo
+from common.paths import ENGINES
 
 
 class ArtifactDecomposePresenter(QObject):
@@ -245,7 +245,7 @@ class ArtifactDecomposePresenter(QObject):
             self._active_rules,
             self._active_default_action,
             self._max_discard_count,
-            engines_dir=Path(__file__).resolve().parents[3] / "engines",
+            engines_dir=ENGINES,
         )
         self._select_worker.stepChanged.connect(self._set_status)
         self._select_worker.finished.connect(self._on_select_finished)
@@ -347,7 +347,7 @@ class ArtifactDecomposePresenter(QObject):
                 self._active_rules,
                 self._active_default_action,
                 self._max_discard_count,
-                engines_dir=Path(__file__).resolve().parents[3] / "engines",
+                engines_dir=ENGINES,
             )
             self._select_worker.stepChanged.connect(self._set_status)
             self._select_worker.finished.connect(self._on_select_finished)

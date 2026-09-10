@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from PySide6.QtWidgets import QApplication
 from utils.settings_manager import settings
+
+from common.paths import RESOURCES
 
 
 class ThemeManager:
     """管理明暗主题的 QSS 加载与切换"""
 
-    _QSS_DIR = Path(__file__).parent.parent / "resources"
+    _QSS_DIR = RESOURCES
 
     def __init__(self):
         self._is_dark = settings.get_theme() == "dark"

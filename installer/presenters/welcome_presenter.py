@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
+from common.resources import Resource
 from installer.core import APP_NAME_CN
 from installer.presenters.coordinator import AppCoordinator
 
@@ -31,8 +32,8 @@ class WelcomePresenter(QObject):
     @Property(str, notify=modeChanged)
     def pageIcon(self) -> str:
         if self._coord.mode == "update":
-            return "../icons/icon_update.svg"
-        return "../icons/icon_install.svg"
+            return f"file:///{Resource.UPDATE_ICON_PNG.as_posix()}"
+        return f"file:///{Resource.INSTALL_ICON_PNG.as_posix()}"
 
     @Property(str, notify=oldVersionChanged)
     def versionLabel(self) -> str:

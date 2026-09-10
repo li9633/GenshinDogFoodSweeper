@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
+from common.paths import ENGINES
+
 
 class InfraDebugPresenter(QObject):
     """基础设施调试 Presenter — 供 QML 调试面板绑定"""
@@ -137,11 +139,10 @@ class InfraDebugPresenter(QObject):
     def deleteOcrModel(self) -> None:
         """删除 OCR 模型文件（engine/official_models 目录）"""
         import shutil
-        from pathlib import Path
 
         from utils.logger import log
 
-        engines_dir = Path(__file__).resolve().parents[3] / "engines"
+        engines_dir = ENGINES
         models_dir = engines_dir / "official_models"
         if models_dir.exists():
             shutil.rmtree(models_dir)

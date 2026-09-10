@@ -14,6 +14,7 @@ from pathlib import Path
 from PySide6.QtCore import Property, QObject, Signal
 from PySide6.QtGui import QGuiApplication
 
+from common.resources import Resource
 from installer.core import (
     APP_NAME,
     APP_NAME_CN,
@@ -161,13 +162,14 @@ class AppCoordinator(QObject):
     @Property(str, notify=modeChanged)
     def windowIcon(self) -> str:
         if self._quick_update:
-            return "icons/icon_quick_update.svg"
+            return f"file:///{Resource.QUICK_UPDATE_ICON_PNG.as_posix()}"
         icons = {
-            "install": "icons/icon_install.svg",
-            "update": "icons/icon_update.svg",
-            "uninstall": "icons/icon_uninstall.svg",
+            "install": Resource.INSTALL_ICON_PNG,
+            "update": Resource.UPDATE_ICON_PNG,
+            "uninstall": Resource.UNINSTALL_ICON_PNG,
         }
-        return icons.get(self._mode, "icons/icon_install.svg")
+        icon = icons.get(self._mode, Resource.INSTALL_ICON_PNG)
+        return f"file:///{icon.as_posix()}"
 
     # ========== 导航 ==========
 

@@ -19,6 +19,8 @@ from utils.logger import log
 from utils.settings_manager import settings
 from utils.version import AppVersion, Channel
 
+from common.resources import Resource
+
 
 class SettingsPresenter(QObject):
     """设置页面 Presenter — 注册为 QML context property"""
@@ -131,17 +133,9 @@ class SettingsPresenter(QObject):
 
     @Property(str, constant=True)
     def appIconPath(self) -> str:
-        """应用图标路径，兼容开发模式和 PyInstaller 打包"""
-        import sys
-        from pathlib import Path
-        if getattr(sys, 'frozen', False):
-            base = Path(sys.executable).parent
-        else:
-            base = Path(__file__).parent.parent.parent.parent
-        for name in ("app.png", "app.ico"):
-            p = base / "resources" / name
-            if p.exists():
-                return "file:///" + str(p).replace("\\", "/")
+        """应用图标路径"""
+        if Resource.APP_ICON_PNG.exists():
+            return "file:///" + str(Resource.APP_ICON_PNG).replace("\\", "/")
         return ""
 
     # ========== 主题 ==========

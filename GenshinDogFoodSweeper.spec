@@ -113,7 +113,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='resources/app.ico',
+    icon='resources/icons/app-main-icon-v2.ico',  # 与 backend/config.py 的 APP_ICON_NAME 保持一致
 )
 coll = COLLECT(
     exe,
@@ -138,11 +138,8 @@ if _tpl_src.exists():
     shutil.copytree(_tpl_src, _dist_dir / 'resources' / 'templates', dirs_exist_ok=True)
     print(f'已复制模板资源: {_tpl_src} -> {_dist_dir / "resources" / "templates"}')
 
-# 复制应用图标
-for _icon_name in ('app.ico', 'app.png'):
-    _icon_src = Path('resources') / _icon_name
-    if _icon_src.exists():
-        _dist_dir_res = _dist_dir / 'resources'
-        _dist_dir_res.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(_icon_src, _dist_dir_res / _icon_name)
-        print(f'已复制图标: {_icon_src}')
+# 复制应用图标（PNG 运行时使用，ICO 仅 PyInstaller 打包需要）
+_img_src = Path('resources') / 'image'
+if _img_src.exists():
+    shutil.copytree(_img_src, _dist_dir / 'resources' / 'image', dirs_exist_ok=True)
+    print(f'已复制图标资源: {_img_src} -> {_dist_dir / "resources" / "image"}')

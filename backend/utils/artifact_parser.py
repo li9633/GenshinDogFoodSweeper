@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 from typing import ClassVar
 
 from models.artifact import ArtifactInfo, ArtifactStat, SubStat
 from utils.logger import log
 
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
+from common.resources import Resource
 
 # ========== 加载词条模板 ==========
 
-_STATS_JSON = Path(__file__).parent.parent.parent / "resources" / "templates" / "config" / "artifact_stats.json"
+_STATS_JSON = Resource.ARTIFACT_STATS_JSON
 with open(_STATS_JSON, encoding="utf-8") as _f:
     _TEMPLATE: dict = json.load(_f)
 

@@ -17,6 +17,7 @@ from backend.automation.recognizer import ArtifactRecognizer
 from backend.exceptions.automation import GameWindowNotFoundError
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
 from backend.models.slot_models import ALL_SLOT_CONFIGS
+from common.resources import Resource
 
 
 class RulePresenter(QObject):
@@ -70,11 +71,7 @@ class RulePresenter(QObject):
 
     def _load_stats_config(self) -> dict:
         if self._stats_config is None:
-            stats_path = (
-                Path(__file__).parent.parent.parent.parent
-                / "resources" / "templates" / "config" / "artifact_stats.json"
-            )
-            self._stats_config = json.loads(stats_path.read_text(encoding="utf-8"))
+            self._stats_config = json.loads(Resource.ARTIFACT_STATS_JSON.read_text(encoding="utf-8"))
         return self._stats_config
 
     @Property("QVariantList", notify=rulesChanged)

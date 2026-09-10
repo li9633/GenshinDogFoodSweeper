@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
+from common.resources import Resource
 from installer.core import APP_NAME_CN
 from installer.presenters.coordinator import AppCoordinator
 
@@ -38,11 +39,12 @@ class FinishPresenter(QObject):
     @Property(str, notify=modeChanged)
     def finishIcon(self) -> str:
         icons = {
-            "install": "../icons/icon_install.svg",
-            "update": "../icons/icon_update.svg",
-            "uninstall": "../icons/icon_uninstall.svg",
+            "install": Resource.INSTALL_ICON_PNG,
+            "update": Resource.UPDATE_ICON_PNG,
+            "uninstall": Resource.UNINSTALL_ICON_PNG,
         }
-        return icons.get(self._coord.mode, "../icons/icon_install.svg")
+        icon = icons.get(self._coord.mode, Resource.INSTALL_ICON_PNG)
+        return f"file:///{icon.as_posix()}"
 
     @Property(bool, notify=modeChanged)
     def showFinishLaunchButton(self) -> bool:

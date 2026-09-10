@@ -13,8 +13,8 @@ Item {
         // 图标
         Image {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: 36
-            Layout.preferredHeight: 36
+            Layout.preferredWidth: 88
+            Layout.preferredHeight: 88
             source: FinishPresenter.finishIcon
             fillMode: Image.PreserveAspectFit
         }

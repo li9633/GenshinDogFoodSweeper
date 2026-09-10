@@ -15,8 +15,8 @@ Item {
         // 图标
         Image {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: 36
-            Layout.preferredHeight: 36
+            Layout.preferredWidth: 100
+            Layout.preferredHeight: 100
             source: WelcomePresenter.pageIcon
             fillMode: Image.PreserveAspectFit
         }

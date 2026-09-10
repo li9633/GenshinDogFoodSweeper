@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
+from common.resources import Resource
 from installer.core import APP_NAME_CN
 from installer.presenters.coordinator import AppCoordinator
 
@@ -45,7 +46,7 @@ class ConfirmPresenter(QObject):
 
     @Property(str, notify=modeChanged)
     def pageIcon(self) -> str:
-        return "../icons/icon_uninstall.svg"
+        return f"file:///{Resource.UNINSTALL_ICON_PNG.as_posix()}"
 
     @Slot()
     def quit(self) -> None:

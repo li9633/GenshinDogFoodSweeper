@@ -21,6 +21,8 @@ from typing import Any, ClassVar
 from PySide6.QtCore import QThread, Signal
 from utils.logger import log
 
+from common.paths import ENGINES
+
 
 class OcrWorker(QThread):
     """在专用线程中运行 PaddleOCR。
@@ -39,7 +41,7 @@ class OcrWorker(QThread):
     def __init__(self, engines_dir: Path | None = None):
         super().__init__()
         if engines_dir is None:
-            engines_dir = Path(__file__).resolve().parents[2] / "engines"
+            engines_dir = ENGINES
         self._engines_dir = engines_dir
         self._queue: queue.Queue = queue.Queue()
         self._ocr: Any = None

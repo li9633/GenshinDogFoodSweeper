@@ -10,6 +10,8 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from common.resources import Resource
+
 
 class TrayManager(QObject):
     """系统托盘管理器
@@ -109,24 +111,8 @@ class TrayManager(QObject):
 
     @staticmethod
     def _find_icon() -> str | None:
-        """查找应用图标（兼容开发模式和打包后）"""
-        import sys
-        from pathlib import Path
-
-        if getattr(sys, 'frozen', False):
-            base = Path(sys.executable).parent
-        else:
-            base = Path(__file__).parent.parent.parent
-
-        candidates = [
-            base / "resources" / "app.ico",
-            base / "resources" / "app.png",
-            base / "resources" / "icons" / "app.ico",
-        ]
-        for p in candidates:
-            if p.exists():
-                return str(p)
-        return None
+        """查找应用图标"""
+        return str(Resource.APP_ICON_PNG) if Resource.APP_ICON_PNG.exists() else None
 
     @staticmethod
     def _generate_fallback_icon():

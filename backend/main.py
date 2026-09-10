@@ -9,6 +9,9 @@ import sys
 import traceback
 from pathlib import Path
 
+from common.paths import ROOT
+from common.resources import Resource
+
 # 强制使用 Basic 样式，允许自定义控件外观
 os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
 
@@ -31,16 +34,8 @@ from utils.logger import log, setup_logging
 
 
 def _find_icon() -> str | None:
-    """查找应用图标，兼容开发模式和 PyInstaller 打包后"""
-    if getattr(sys, 'frozen', False):
-        base = Path(sys.executable).parent
-    else:
-        base = Path(__file__).parent.parent
-    for name in ("app.ico", "app.png"):
-        p = base / "resources" / name
-        if p.exists():
-            return str(p)
-    return None
+    """查找应用图标"""
+    return str(Resource.APP_ICON_PNG) if Resource.APP_ICON_PNG.exists() else None
 
 
 def main():
@@ -62,15 +57,9 @@ def main():
     if icon_path:
         app.setWindowIcon(QIcon(icon_path))
 
-    # 资源根目录：开发模式用脚本所在目录，打包后用 exe 所在目录
-    if getattr(sys, 'frozen', False):
-        _base_dir = Path(sys.executable).parent
-    else:
-        _base_dir = Path(__file__).parent
-
     # 加载 FontAwesome 字体
     from PySide6.QtGui import QFontDatabase
-    fonts_dir = _base_dir / "ui" / "qml" / "GenshinUI" / "fonts"
+    fonts_dir = ROOT / "backend" / "ui" / "qml" / "GenshinUI" / "fonts"
     for font_file in fonts_dir.glob("*.otf"):
         font_id = QFontDatabase.addApplicationFont(str(font_file))
         if font_id < 0:
@@ -130,7 +119,7 @@ def main():
     # 全局文本渲染 用 Windows ClearType
     QQuickWindow.setTextRenderType(QQuickWindow.NativeTextRendering)
 
-    qml_dir = _base_dir / "ui" / "qml"
+    qml_dir = ROOT / "backend" / "ui" / "qml"
     log.debug(f"QML dir: {qml_dir}, exists: {qml_dir.exists()}")
     engine.addImportPath(str(qml_dir))
     engine.load(str(qml_dir / "main.qml"))

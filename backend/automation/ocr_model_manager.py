@@ -12,6 +12,8 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Signal
 from utils.logger import log
 
+from common.paths import ENGINES
+
 # 抑制 modelscope 下载时的 INFO 日志（进度条噪音）
 logging.getLogger("modelscope_hub.download").setLevel(logging.WARNING)
 
@@ -141,7 +143,7 @@ class OcrModelManager:
 
     def __init__(self, engines_dir: Path | None = None):
         if engines_dir is None:
-            engines_dir = Path(__file__).resolve().parents[2] / "engines"
+            engines_dir = ENGINES
         self._engines_dir = Path(engines_dir)
         self._models_dir = self._engines_dir / "official_models"
 
