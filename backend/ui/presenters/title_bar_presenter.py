@@ -28,15 +28,14 @@ class TitleBarPresenter(QObject):
         self._refresh_title()
 
     def _refresh_title(self) -> None:
-        from utils.version import AppVersion
-
         from common.env_manager import EnvManager
+        from common.version_manager import AppVersion
 
         base = APP_NAME_CN
         if EnvManager.is_debug():
             self._title = f"{base}（调试模式）"
         else:
-            self._title = f"{base} v{AppVersion.display()}"
+            self._title = f"{base} {AppVersion.display()}"
         self.titleChanged.emit()
 
     def _get_window(self) -> QWindow | None:

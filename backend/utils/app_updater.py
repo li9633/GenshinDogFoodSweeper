@@ -13,7 +13,7 @@ from pathlib import Path
 import requests
 
 from backend.utils.logger import log
-from backend.utils.version_manager import AppVersion
+from common.version_manager import AppVersion
 
 GITHUB_API = "https://api.github.com/repos/{owner}/{repo}/releases"
 
@@ -68,7 +68,8 @@ class AppUpdater:
             major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
         except (ValueError, IndexError):
             return False, None
-        return AppVersion.is_newer_than(major, minor, patch), latest
+        current = (AppVersion.MAJOR, AppVersion.MINOR, AppVersion.PATCH)
+        return (major, minor, patch) > current, latest
 
     def download(self, url: str, progress_cb=None) -> Path:
         """下载到临时目录，返回文件路径"""

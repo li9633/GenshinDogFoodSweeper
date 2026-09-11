@@ -71,8 +71,9 @@ def main():
 
     # 初始化日志等级
     from database.repository.settings_repo import SettingsRepo
-    from utils.version import Channel
-    from utils.version_manager import AppVersion
+
+    from common.version import Channel
+    from common.version_manager import AppVersion
 
     if SettingsRepo.get("log.level") is None:
         _default_level = "DEBUG" if AppVersion.CHANNEL == Channel.DEV else "INFO"

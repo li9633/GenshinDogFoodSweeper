@@ -1,8 +1,10 @@
 """应用版本数据
 ==============
-版本号常量、渠道定义和构建时注入的渠道配置。
+版本号常量、渠道定义。唯一版本数据源。
 
-版本逻辑（格式化、比较、更新检查）见 version_manager.py。
+版本字符串格式化、比较、更新检查见 version_manager.py。
+
+不应被运行时代码直接导入 — 运行时代码请使用 common.version_manager.AppVersion。
 """
 
 from __future__ import annotations
@@ -36,7 +38,7 @@ class Channel(Enum):
 
 # ---- 构建时注入的渠道配置 ----
 try:
-    from ._build_channel import (  # type: ignore[import-untyped]
+    from common._build_channel import (  # type: ignore[import-untyped]
         BUILD_CHANNEL,
         BUILD_CHANNEL_NUM,
         BUILD_COMMIT_HASH,
@@ -49,9 +51,3 @@ except ImportError:
     CHANNEL = Channel.DEV
     CHANNEL_NUM = 0
     COMMIT_HASH = ""
-
-
-# ---- 重新导出（向后兼容）----
-from .version_manager import AppVersion
-
-APP_VERSION = AppVersion

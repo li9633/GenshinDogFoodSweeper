@@ -38,9 +38,9 @@ class WelcomePresenter(QObject):
     @Property(str, notify=oldVersionChanged)
     def versionLabel(self) -> str:
         if self._coord.mode == "update":
-            return f"v{self._coord.old_version} → v{self._coord.version}"
+            return f"v{self._coord.old_version} → {self._coord.version}"
         if self._coord.old_version:
-            return f"v{self._coord.old_version} → v{self._coord.version}"
+            return f"v{self._coord.old_version} → {self._coord.version}"
         return f"版本 {self._coord.version}"
 
     @Property(bool, notify=modeChanged)

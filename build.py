@@ -18,11 +18,11 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 BUILD_DIR = ROOT / "build"
 SPEC_FILE = ROOT / "GenshinDogFoodSweeper.spec"
-CHANNEL_FILE = ROOT / "backend" / "utils" / "_build_channel.py"
+CHANNEL_FILE = ROOT / "common" / "_build_channel.py"
 
-from backend.utils.version import _MAJOR, _MINOR, _PATCH
-from backend.utils.version_manager import AppVersion
 from common.constants import APP_NAME_CN
+from common.version import _MAJOR, _MINOR, _PATCH
+from common.version_manager import AppVersion
 
 _PROJECT = "GenshinDogFoodSweeper"
 

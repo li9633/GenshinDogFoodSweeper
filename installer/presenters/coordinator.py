@@ -28,9 +28,11 @@ from installer.core import (
 logger = get_logger(__name__)
 
 try:
-    from _installer_version import VERSION  # type: ignore
+    from common.version_manager import AppVersion
+
+    VERSION = AppVersion.get_version("clean")
 except ImportError:
-    VERSION = "0.0.0"
+    VERSION = "v0.0.0"
 
 
 class AppCoordinator(QObject):

@@ -17,9 +17,10 @@ from PySide6.QtCore import Property, QObject, Signal, Slot
 from utils.datetime_helper import DateTimeHelper
 from utils.logger import log
 from utils.settings_manager import settings
-from utils.version import AppVersion, Channel
 
 from common.resources import Resource
+from common.version import Channel
+from common.version_manager import AppVersion
 
 
 class SettingsPresenter(QObject):
