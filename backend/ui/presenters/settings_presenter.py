@@ -78,22 +78,6 @@ class SettingsPresenter(QObject):
     _GITHUB_URL: ClassVar[str] = "https://github.com/li9633/GenshinDogFoodSweeper"
     _ISSUES_URL: ClassVar[str] = f"{_GITHUB_URL}/issues"
 
-    def __init__(self, parent: QObject | None = None):
-        super().__init__(parent)
-        self._sync_worker = None
-        self._model_manager = None
-        self._download_worker = None
-
-        # 注册设置页子Tab路由
-        from ui.presenters.navigation_presenter import NavigationPresenter
-
-        NavigationPresenter.register("settings/general", "settings", "general")
-        NavigationPresenter.register("settings/appearance", "settings", "appearance")
-        NavigationPresenter.register("settings/sync", "settings", "sync")
-        NavigationPresenter.register("settings/model", "settings", "model")
-        NavigationPresenter.register("settings/hotkey", "settings", "hotkey")
-        NavigationPresenter.register("settings/about", "settings", "about")
-
     # ========== 关于 ==========
 
     @Property(str, constant=True)
@@ -312,6 +296,28 @@ class SettingsPresenter(QObject):
                 return
             settings.set("sync_check.version_check_interval", new_key)
             self.versionCheckIntervalChanged.emit()
+
+    # ========== App 更新检查 ==========
+
+    # 应用更新已迁移至 UpdateService（backend/service/update_service.py）
+    # SettingsPresenter 不再管理更新逻辑
+    # QML 层可直接绑定 UpdateService 的属性/信号
+
+    def __init__(self, parent: QObject | None = None):
+        super().__init__(parent)
+        self._sync_worker = None
+        self._model_manager = None
+        self._download_worker = None
+
+        # 注册设置页子Tab路由
+        from ui.presenters.navigation_presenter import NavigationPresenter
+
+        NavigationPresenter.register("settings/general", "settings", "general")
+        NavigationPresenter.register("settings/appearance", "settings", "appearance")
+        NavigationPresenter.register("settings/sync", "settings", "sync")
+        NavigationPresenter.register("settings/model", "settings", "model")
+        NavigationPresenter.register("settings/hotkey", "settings", "hotkey")
+        NavigationPresenter.register("settings/about", "settings", "about")
 
     # ========== 同步 ==========
 

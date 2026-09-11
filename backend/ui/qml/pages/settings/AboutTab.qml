@@ -122,6 +122,43 @@ ColumnLayout {
                         url: SettingsPresenter.issuesUrl
                     }
                 }
+
+                Item { Layout.preferredHeight: 8 }
+
+                // -- 检查更新 --
+                GButton {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: UpdateService.checking ? "检查中…" : "检查更新"
+                    enabled: !UpdateService.checking
+                    onClicked: UpdateService.checkForUpdates()
+                }
+
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: UpdateService.statusType !== "idle"
+                    text: UpdateService.statusText
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                    color: {
+                        switch (UpdateService.statusType) {
+                            case "checking": return Theme.accent;
+                            case "available": return "#4CAF50";
+                            case "error": return "#D32F2F";
+                            default: return Theme.textSecondary;
+                        }
+                    }
+                }
+
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: UpdateService.statusType === "available"
+                    text: UpdateService.version + " 版本可用，请检查更新详情"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11
+                    color: Theme.textSecondary
+                    wrapMode: Text.WordWrap
+                    Layout.maximumWidth: 380
+                }
             }
 
             Item { Layout.fillWidth: true }
