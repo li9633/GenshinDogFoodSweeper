@@ -59,7 +59,9 @@ class SettingsPresenter(QObject):
     statusMessage = Signal(str, int, str)
 
     # -- 关于 --
-    _APP_TITLE: ClassVar[str] = "原神狗粮清扫器"
+    from common.constants import APP_NAME_CN
+
+    _APP_TITLE: ClassVar[str] = APP_NAME_CN
     _APP_SUBTITLE: ClassVar[str] = "原神圣遗物自动化管理工具"
     _APP_VERSION: ClassVar[str] = (
         AppVersion.clean()

@@ -10,6 +10,7 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from common.constants import APP_NAME_CN
 from common.resources import Resource
 
 
@@ -31,7 +32,7 @@ class TrayManager(QObject):
         self._engine = engine
 
         self._tray = QSystemTrayIcon(parent=None)
-        self._tray.setToolTip("原神狗粮清扫器")
+        self._tray.setToolTip(APP_NAME_CN)
 
         self._set_icon()
         self._build_menu()

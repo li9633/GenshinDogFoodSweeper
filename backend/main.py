@@ -9,6 +9,7 @@ import sys
 import traceback
 from pathlib import Path
 
+from common.constants import APP_NAME
 from common.paths import QML_DIR
 from common.resources import Resource
 
@@ -48,7 +49,7 @@ def main():
     )
 
     app = QApplication(sys.argv)
-    app.setApplicationName("GenshinDogFoodSweeper")
+    app.setApplicationName(APP_NAME)
     app.setQuitOnLastWindowClosed(False)
 
     # 设置应用图标

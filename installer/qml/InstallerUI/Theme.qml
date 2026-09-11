@@ -38,5 +38,4 @@ QtObject {
     // ── 窗口 ──
     readonly property int windowWidth: 560
     readonly property int windowHeight: 520
-    readonly property string windowTitle: "原神狗粮扫荡器 安装向导"
 }

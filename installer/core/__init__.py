@@ -6,7 +6,6 @@
 from installer.core.constants import (
     APP_EXE,
     APP_NAME,
-    APP_NAME_CN,
     INSTALL_INFO,
     REG_UNINST_KEY,
     ProgressCallback,
@@ -32,7 +31,6 @@ from installer.core.utils import (
 __all__ = [
     "APP_EXE",
     "APP_NAME",
-    "APP_NAME_CN",
     "INSTALL_INFO",
     "REG_UNINST_KEY",
     "ProgressCallback",

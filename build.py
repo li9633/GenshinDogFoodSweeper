@@ -22,6 +22,7 @@ CHANNEL_FILE = ROOT / "backend" / "utils" / "_build_channel.py"
 
 from backend.utils.version import _MAJOR, _MINOR, _PATCH
 from backend.utils.version_manager import AppVersion
+from common.constants import APP_NAME_CN
 
 _PROJECT = "GenshinDogFoodSweeper"
 
@@ -171,7 +172,7 @@ def _auto_increment_num(info: BuildInfo) -> int:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="构建原神狗粮清扫器")
+    parser = argparse.ArgumentParser(description=f"构建{APP_NAME_CN}")
     parser.add_argument(
         "--channel",
         choices=["dev", "alpha", "beta", "release"],

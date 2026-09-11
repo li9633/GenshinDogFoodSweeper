@@ -32,6 +32,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
 
+from common.constants import APP_NAME_CN
 from common.env_manager import EnvManager
 from common.resources import Resource
 from installer.core import (
@@ -70,7 +71,7 @@ def _setup_log() -> Path:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="原神狗粮扫荡器 安装程序")
+    parser = argparse.ArgumentParser(description=f"{APP_NAME_CN} 安装程序")
     parser.add_argument(
         "--mode",
         type=str,

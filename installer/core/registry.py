@@ -5,7 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from installer.core.constants import APP_EXE, APP_NAME, APP_NAME_CN, REG_UNINST_KEY
+from common.constants import APP_NAME_CN
+from installer.core.constants import APP_EXE, APP_NAME, REG_UNINST_KEY
 
 
 def _try_import_winreg():

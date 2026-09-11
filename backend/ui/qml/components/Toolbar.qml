@@ -20,7 +20,7 @@ Rectangle {
         spacing: 8
 
         Text {
-            text: root.pageTitle || "原神狗粮清扫器"
+            text: root.pageTitle || SettingsPresenter.appTitle
             font.family: Theme.fontFamily
             font.pixelSize: 16
             font.bold: true

@@ -69,7 +69,7 @@ ColumnLayout {
             ILabel {
                 Layout.alignment: Qt.AlignHCenter
                 labelType: "body"
-                text: "请选择原神狗粮扫荡器的安装位置。"
+                text: DirectoryPresenter.hintText
             }
 
             RowLayout {

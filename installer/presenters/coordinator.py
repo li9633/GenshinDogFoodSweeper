@@ -14,10 +14,10 @@ from pathlib import Path
 from PySide6.QtCore import Property, QObject, Signal
 from PySide6.QtGui import QGuiApplication
 
+from common.constants import APP_NAME_CN
 from common.resources import Resource
 from installer.core import (
     APP_NAME,
-    APP_NAME_CN,
     get_default_install_dir,
     get_logger,
     restart_app,

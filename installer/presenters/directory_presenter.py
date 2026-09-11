@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
+from common.constants import APP_NAME_CN
 from installer.presenters.coordinator import AppCoordinator
 
 
@@ -18,6 +19,10 @@ class DirectoryPresenter(QObject):
         coordinator.installDirChanged.connect(self.installDirChanged)
         coordinator.modeChanged.connect(self.modeChanged)
         coordinator.freeSpaceChanged.connect(self.freeSpaceChanged)
+
+    @Property(str, constant=True)
+    def hintText(self) -> str:
+        return f"请选择{APP_NAME_CN}的安装位置。"
 
     @Property(str, notify=installDirChanged)
     def installDir(self) -> str:

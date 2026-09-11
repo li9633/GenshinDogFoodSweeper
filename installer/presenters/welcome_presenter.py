@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
+from common.constants import APP_NAME_CN
 from common.resources import Resource
-from installer.core import APP_NAME_CN
 from installer.presenters.coordinator import AppCoordinator
 
 
@@ -56,7 +56,11 @@ class WelcomePresenter(QObject):
                 "更新不会影响您的个人数据。\n"
                 "请点击「开始更新」继续。"
             )
-        return "欢迎使用原神狗粮扫荡器安装向导。\n\n本程序将引导您完成安装过程。\n请点击「下一步」继续。"
+        return (
+            f"欢迎使用{APP_NAME_CN}安装向导。\n\n"
+            "本程序将引导您完成安装过程。\n"
+            "请点击「下一步」继续。"
+        )
 
     @Property(str, notify=modeChanged)
     def actionButtonText(self) -> str:

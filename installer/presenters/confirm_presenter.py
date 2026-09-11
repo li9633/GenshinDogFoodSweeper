@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
+from common.constants import APP_NAME_CN
 from common.resources import Resource
-from installer.core import APP_NAME_CN
 from installer.presenters.coordinator import AppCoordinator
 
 

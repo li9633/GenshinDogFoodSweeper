@@ -7,7 +7,8 @@ import shutil
 import sys
 from pathlib import Path
 
-from installer.core.constants import APP_EXE, APP_NAME_CN
+from common.constants import APP_NAME_CN
+from installer.core.constants import APP_EXE
 
 
 def _try_create_shortcut(target: Path, shortcut: Path, description: str = "") -> None:
