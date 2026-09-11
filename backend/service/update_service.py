@@ -100,6 +100,7 @@ class UpdateService(QObject):
         self._check_worker: _CheckWorker | None = None
         self._download_worker: _DownloadWorker | None = None
         self._update_window: QObject | None = None
+        self._update_component: QQmlComponent | None = None
         self._checking = False
         self._status_text = ""
         self._status_type = "idle"
@@ -164,12 +165,25 @@ class UpdateService(QObject):
     # ── UpdateWindow 生命周期 ──
 
     def _show_update_window(self, *, qml_dir: str | None = None) -> None:
-        """创建并显示独立的 UpdateWindow。"""
+        """创建并显示独立的 UpdateWindow。
+
+        如果窗口已存在且 C++ 对象有效，则聚焦窗口而非新建。
+        """
         from backend.utils.logger import log
 
+        # ── 复用已存在的窗口 ──
         if self._update_window is not None:
-            self._update_window.setProperty("visible", True)
-            return
+            try:
+                self._update_window.setProperty("visible", True)
+                self._update_window.raise_()
+                self._update_window.requestActivate()
+                log.debug("UpdateWindow 已聚焦")
+                return
+            except RuntimeError:
+                # C++ 对象已被 Qt 销毁，清理引用后重新创建
+                log.debug("UpdateWindow 的 C++ 对象已被销毁，重新创建")
+                self._update_window = None
+                self._update_component = None
 
         engine = UpdateService._engine
         if engine is None:
@@ -203,17 +217,20 @@ class UpdateService(QObject):
         win.closing.connect(self._on_window_closing)
 
         self._update_window = win
+        self._update_component = component  # 必须保持引用，否则 Python GC 回收组件时会连带销毁 Window
         win.setProperty("visible", True)
         log.debug("UpdateWindow 已显示")
 
     # ── 窗口关闭 ──
 
     def _on_window_closing(self) -> None:
-        """QML Window 即将关闭（X 按钮或 remindLater 触发 close() 后）。
+        """QML Window 关闭时，清理 Python 侧引用。
 
-        只清空 Python 侧引用，不触碰 C++ 对象。
+        同时释放 QQmlComponent 引用，避免不必要的内存占用。
+        下次 _show_update_window 会重新创建组件和窗口。
         """
         self._update_window = None
+        self._update_component = None
 
     # ── 公开槽 ──
 
