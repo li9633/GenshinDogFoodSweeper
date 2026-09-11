@@ -266,7 +266,13 @@ class ScreenshotCapture:
 
         if method == CaptureMethod.WIN32:
             if window is None:
-                raise ValueError("WIN32 截图方法必须传入 window 参数")
+                from backend.automation.window_helper import WindowHelper
+                from backend.exceptions.automation.exceptions import (
+                    GameWindowNotFoundError,
+                )
+                raise GameWindowNotFoundError(
+                    WindowHelper.get_window_not_found_message()
+                )
             img = self._capture_win32(window)
         elif method == CaptureMethod.PYAUTOGUI:
             r = region or (0, 0, 1920, 1080)
