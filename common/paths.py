@@ -52,3 +52,10 @@ if getattr(sys, "frozen", False):
     QML_DIR = ROOT / "ui" / "qml"
 else:
     QML_DIR = ROOT / "backend" / "ui" / "qml"
+
+# ── 构建目录 ──
+BUILD_DIR = ROOT / "build"
+INSTALLER_DIR = ROOT / "installer"
+INSTALLER_TOOLS = INSTALLER_DIR / "tools"
+INSTALLER_QML = INSTALLER_DIR / "qml"
+TEMP_DISPOSABLE = ROOT / "temp" / "disposable"
