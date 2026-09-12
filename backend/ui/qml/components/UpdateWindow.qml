@@ -18,7 +18,7 @@ Window {
     minimumWidth: 400
     minimumHeight: 420
     color: "transparent"
-    flags: Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowTitleHint
+    flags: Qt.Window | Qt.FramelessWindowHint
     title: "发现新版本"
 
     // ============================================================
@@ -79,6 +79,15 @@ Window {
                     color: parent.color
                 }
 
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton
+                    onPressed: function(mouse) {
+                        if (mouse.button === Qt.LeftButton)
+                            root.startSystemMove()
+                    }
+                }
+
                 RowLayout {
                     anchors.fill: parent
                     anchors.margins: 20
@@ -86,7 +95,7 @@ Window {
 
                     Rectangle {
                         implicitWidth: 40; implicitHeight: 40; radius: 20
-                        color: Theme.accentSoft
+                        color: Theme.bgTrack
 
                         Text {
                             anchors.centerIn: parent
@@ -187,7 +196,7 @@ Window {
                             font.family: "Consolas"
                             font.pixelSize: 12
                             font.bold: true
-                            color: Theme.textPrimary
+                            color: Theme.accent
                         }
                     }
                 }
