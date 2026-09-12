@@ -242,11 +242,7 @@ class UpdateService(QObject):
         if self._checking:
             return
         self._checking = True
-        self._status_text = "正在检查更新…"
-        self._status_type = "checking"
         self.checkingChanged.emit()
-        self.statusTextChanged.emit()
-        self.statusTypeChanged.emit()
         log.info("正在检查更新…")
 
         self._check_worker = _CheckWorker()
@@ -288,12 +284,7 @@ class UpdateService(QObject):
             return
 
         if result is None:
-            mock_hint = " (本地模拟器)" if using_mock else ""
-            self._status_text = f"已是最新版本{mock_hint}"
-            self._status_type = "uptodate"
-            self.statusTextChanged.emit()
-            self.statusTypeChanged.emit()
-            self.updateCheckNone.emit(self._status_text)
+            self.updateCheckNone.emit("")
             return
 
         has_update, info = result  # type: ignore[misc]
@@ -307,19 +298,11 @@ class UpdateService(QObject):
                 f"changelog_len={len(self._changelog)} download_url={bool(self._download_url)}"
             )
             self.versionInfoChanged.emit()
-            self._status_text = f"发现新版本 {self._version}{mock_hint}"
-            self._status_type = "available"
-            self.statusTextChanged.emit()
-            self.statusTypeChanged.emit()
             self.updateFound.emit()
             log.info(f"发现新版本 {self._version}{mock_hint}")
             self._show_update_window()
         else:
-            self._status_text = f"已是最新版本{mock_hint}"
-            self._status_type = "uptodate"
-            self.statusTextChanged.emit()
-            self.statusTypeChanged.emit()
-            self.updateCheckNone.emit(self._status_text)
+            self.updateCheckNone.emit("")
 
     def _on_download_progress(self, downloaded: int, total: int) -> None:
         self._download_progress = downloaded
