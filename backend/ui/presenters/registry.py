@@ -144,10 +144,10 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("ArtifactLocker", ArtifactLockerPresenter, [_wire_locker]))
 
-    # ---- UpdateService (App 更新) ----
-    from backend.service.update_service import UpdateService
+    # ---- UpdatePresenter (App 更新) ----
+    from ui.presenters.update_presenter import UpdatePresenter
 
-    registry.append(("UpdateService", UpdateService, []))
+    registry.append(("UpdatePresenter", UpdatePresenter, []))
 
     return registry
 
@@ -174,8 +174,9 @@ def register_all(engine: QQmlApplicationEngine) -> list:
             traceback.print_exc()
             log.error(f"{name} 初始化失败: {exc}")
 
-    # 将 QML 引擎注入 UpdateService，使其能动态创建 UpdateWindow
-    from backend.service.update_service import UpdateService
-    UpdateService.set_engine(engine)
+    # 将 QML 引擎注入 UpdatePresenter，使其能动态创建 UpdateWindow
+    from ui.presenters.update_presenter import UpdatePresenter
+
+    UpdatePresenter.set_engine(engine)
 
     return presenters

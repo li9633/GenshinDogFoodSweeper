@@ -5,7 +5,7 @@ import QtQuick.Effects
 import GenshinUI
 
 // qmllint disable unqualified
-// UpdateService 是 Python 通过 setContextProperty 注入的上下文属性
+// UpdatePresenter 是 Python 通过 setContextProperty 注入的上下文属性
 
 Window {
     id: root
@@ -107,7 +107,7 @@ Window {
                             color: Theme.textPrimary
                         }
                         Text {
-                            text: "版本 " + UpdateService.version + " 可用"
+                            text: "版本 " + UpdatePresenter.version + " 可用"
                             font.family: Theme.fontFamily
                             font.pixelSize: 12
                             color: Theme.textSecondary
@@ -150,7 +150,7 @@ Window {
                         Text {
                             id: currentVerText
                             anchors.centerIn: parent
-                            text: UpdateService.currentVersion
+                            text: UpdatePresenter.currentVersion
                             font.family: "Consolas"
                             font.pixelSize: 12
                             color: Theme.textSecondary
@@ -183,7 +183,7 @@ Window {
                         Text {
                             id: newVerText
                             anchors.centerIn: parent
-                            text: UpdateService.version
+                            text: UpdatePresenter.version
                             font.family: "Consolas"
                             font.pixelSize: 12
                             font.bold: true
@@ -232,7 +232,7 @@ Window {
                     Text {
                         id: changelogText
                         width: changelogFlick.width
-                        text: UpdateService.changelog || "暂无更新日志"
+                        text: UpdatePresenter.changelog || "暂无更新日志"
                         textFormat: Text.MarkdownText
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
@@ -245,7 +245,7 @@ Window {
 
             // ── 下载进度条 ──
             Item {
-                visible: UpdateService.downloading
+                visible: UpdatePresenter.downloading
                 Layout.fillWidth: true
                 Layout.leftMargin: 24
                 Layout.rightMargin: 24
@@ -256,9 +256,9 @@ Window {
                     spacing: 4
 
                     Text {
-                        text: UpdateService.downloadTotal > 0
-                            ? "正在下载 " + (UpdateService.downloadProgress / 1048576).toFixed(1)
-                              + " / " + (UpdateService.downloadTotal / 1048576).toFixed(1) + " MB"
+                        text: UpdatePresenter.downloadTotal > 0
+                            ? "正在下载 " + (UpdatePresenter.downloadProgress / 1048576).toFixed(1)
+                              + " / " + (UpdatePresenter.downloadTotal / 1048576).toFixed(1) + " MB"
                             : "正在下载…"
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
@@ -272,8 +272,8 @@ Window {
                         color: Theme.bgTrack
 
                         Rectangle {
-                            width: UpdateService.downloadTotal > 0
-                                ? parent.width * UpdateService.downloadProgress / UpdateService.downloadTotal
+                            width: UpdatePresenter.downloadTotal > 0
+                                ? parent.width * UpdatePresenter.downloadProgress / UpdatePresenter.downloadTotal
                                 : 0
                             height: parent.height
                             radius: 3
@@ -300,16 +300,16 @@ Window {
                 GButton {
                     text: "稍后再说"
                     colorType: "default"
-                    enabled: !UpdateService.downloading
+                    enabled: !UpdatePresenter.downloading
                     onClicked: root.remindLater()
                 }
 
                 Item { Layout.fillWidth: true }
 
                 GButton {
-                    text: UpdateService.downloading ? "下载中…" : "立即更新"
+                    text: UpdatePresenter.downloading ? "下载中…" : "立即更新"
                     colorType: "primary"
-                    enabled: !UpdateService.downloading
+                    enabled: !UpdatePresenter.downloading
                     onClicked: root.updateNow()
                 }
             }

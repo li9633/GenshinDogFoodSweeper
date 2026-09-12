@@ -299,9 +299,9 @@ class SettingsPresenter(QObject):
 
     # ========== App 更新检查 ==========
 
-    # 应用更新已迁移至 UpdateService（backend/service/update_service.py）
+    # 应用更新已迁移至 UpdatePresenter（ui/presenters/update_presenter.py）
     # SettingsPresenter 不再管理更新逻辑
-    # QML 层可直接绑定 UpdateService 的属性/信号
+    # QML 层可直接绑定 UpdatePresenter 的属性/信号
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)

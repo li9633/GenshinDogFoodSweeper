@@ -126,6 +126,7 @@ class AppUpdater:
             latest = self.check()
         except requests.HTTPError as e:
             status = e.response.status_code if e.response is not None else 0
+            log.debug(f"检查更新失败 (HTTP {status}): {e}")
             if status == 404:
                 return False, None, "仓库暂无已发布的版本"
             if status == 403:

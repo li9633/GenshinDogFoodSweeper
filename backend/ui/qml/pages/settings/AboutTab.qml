@@ -128,15 +128,15 @@ ColumnLayout {
                 // -- 检查更新 --
                 GButton {
                     Layout.alignment: Qt.AlignHCenter
-                    text: UpdateService.checking ? "检查中…" : "检查更新"
-                    enabled: !UpdateService.checking
-                    onClicked: UpdateService.checkForUpdates()
+                    text: UpdatePresenter.checking ? "检查中…" : "检查更新"
+                    enabled: !UpdatePresenter.checking
+                    onClicked: UpdatePresenter.checkForUpdates()
                 }
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    visible: UpdateService.statusType === "error"
-                    text: UpdateService.statusText
+                    visible: UpdatePresenter.errorText !== ""
+                    text: UpdatePresenter.errorText
                     font.family: Theme.fontFamily
                     font.pixelSize: 12
                     color: "#D32F2F"
