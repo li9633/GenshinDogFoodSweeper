@@ -13,7 +13,7 @@ from enum import Enum
 
 _MAJOR = 0
 _MINOR = 9
-_PATCH = 40
+_PATCH = 41
 
 
 class Channel(Enum):

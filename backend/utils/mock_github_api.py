@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from typing import Any, ClassVar
 
 # ============================================================
@@ -115,7 +117,9 @@ class MockGitHubHandler(BaseHTTPRequestHandler):
     current_release: ClassVar[dict] = {}
     request_log: ClassVar[list[str]] = []
     log_callback: ClassVar[Any] = None
-    error_scenario: str = "200"
+    error_scenario: ClassVar[str] = "200"
+    download_file_path: ClassVar[str | None] = None
+    bandwidth_limit: ClassVar[int] = 0
 
     def log_message(self, format, *args):
         entry = f"[Mock API] {self.command} {self.path} → {format % args}"
@@ -150,12 +154,37 @@ class MockGitHubHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _serve_download(self):
-        fake_data = b"\x00" * 65536
-        self.send_response(200)
-        self.send_header("Content-Type", "application/octet-stream")
-        self.send_header("Content-Length", str(len(fake_data)))
-        self.end_headers()
-        self.wfile.write(fake_data)
+        file_path = MockGitHubHandler.download_file_path
+        if file_path:
+            fp = Path(file_path)
+            if not fp.is_file():
+                self._serve_error(404)
+                return
+            file_size = fp.stat().st_size
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(file_size))
+            self.end_headers()
+            limit = MockGitHubHandler.bandwidth_limit
+            with open(fp, "rb") as f:
+                while True:
+                    t0 = time.perf_counter()
+                    chunk = f.read(65536)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    if limit > 0:
+                        elapsed = time.perf_counter() - t0
+                        expected = len(chunk) / limit
+                        if elapsed < expected:
+                            time.sleep(expected - elapsed)
+        else:
+            fake_data = b"\x00" * 65536
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(fake_data)))
+            self.end_headers()
+            self.wfile.write(fake_data)
 
     def _serve_error(self, code: int):
         self.send_response(code)
@@ -238,6 +267,22 @@ class MockGitHubServer:
 
     def get_request_log(self) -> str:
         return "\n".join(MockGitHubHandler.request_log)
+
+    @property
+    def download_file_path(self) -> str | None:
+        return MockGitHubHandler.download_file_path
+
+    @download_file_path.setter
+    def download_file_path(self, path: str | None) -> None:
+        MockGitHubHandler.download_file_path = path
+
+    @property
+    def bandwidth_limit(self) -> int:
+        return MockGitHubHandler.bandwidth_limit
+
+    @bandwidth_limit.setter
+    def bandwidth_limit(self, limit: int) -> None:
+        MockGitHubHandler.bandwidth_limit = limit
 
     def start(self) -> bool:
         if self._running:

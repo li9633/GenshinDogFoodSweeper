@@ -171,11 +171,10 @@ class AppUpdater:
         return dest
 
     def install(self, setup_path: Path) -> None:
-        """拉起安装程序 --quick-update，并退出当前进程"""
+        """拉起安装程序 --quick-update，返回后由调用方负责退出进程"""
         current_dir = str(Path(sys.executable).parent)
         subprocess.Popen(
             [str(setup_path), "--quick-update",
              "--fallback-install-dir", current_dir],
             creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
         )
-        sys.exit(0)

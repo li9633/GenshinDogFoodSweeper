@@ -60,7 +60,7 @@ Rectangle {
 
         // 标题
         Text {
-            text: TitleBarPresenter.title
+            text: TitleBarPresenter ? TitleBarPresenter.title : ""
             font.family: Theme.fontFamily
             font.pixelSize: 13
             color: Theme.textSecondary
@@ -93,7 +93,7 @@ Rectangle {
 
         // 最大化/还原
         TitleBarButton {
-            icon: TitleBarPresenter.maximized ? Icon.windowRestore : Icon.windowMaximize
+            icon: TitleBarPresenter && TitleBarPresenter.maximized ? Icon.windowRestore : Icon.windowMaximize
             iconFont: Icon.fontRegular
             onClicked: TitleBarPresenter.toggleMaximize()
         }
@@ -142,7 +142,7 @@ Rectangle {
 
         MenuItem {
             text: "还原"
-            enabled: TitleBarPresenter.maximized === true
+            enabled: TitleBarPresenter && TitleBarPresenter.maximized === true
             onTriggered: TitleBarPresenter.toggleMaximize()
         }
         MenuItem {
@@ -159,7 +159,7 @@ Rectangle {
         }
         MenuItem {
             text: "最大化"
-            enabled: TitleBarPresenter.maximized !== true
+            enabled: TitleBarPresenter ? TitleBarPresenter.maximized !== true : false
             onTriggered: TitleBarPresenter.toggleMaximize()
         }
         MenuSeparator {

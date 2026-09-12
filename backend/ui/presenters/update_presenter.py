@@ -261,6 +261,18 @@ class UpdatePresenter(WindowPresenter):
     # ════════════════════════════════════════════
 
     def _install(self, setup_path: Path) -> None:
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication
+
         from backend.utils.app_updater import UPDATE_OWNER, UPDATE_REPO, AppUpdater
 
         AppUpdater(UPDATE_OWNER, UPDATE_REPO).install(setup_path)
+
+        # 关闭更新窗口
+        self.close_window()
+
+        # 延迟退出，让 Qt 事件循环有机会处理完挂起的绑定更新，
+        # 避免 QML 属性绑定在 Presenter 销毁时报 TypeError
+        app = QApplication.instance()
+        if app is not None:
+            QTimer.singleShot(100, app.quit)

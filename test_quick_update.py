@@ -26,6 +26,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFileDialog,
     QGridLayout,
     QGroupBox,
     QLabel,
@@ -132,6 +133,30 @@ class MockApiWindow(QWidget):
         json_layout.addWidget(self._json_edit)
         layout.addWidget(json_group)
 
+        # ---- 第3.5行：下载配置 ----
+        dl_group = QGroupBox("下载配置（真实文件服务 & 限速）")
+        dl_grid = QGridLayout(dl_group)
+
+        dl_grid.addWidget(QLabel("安装包:"), 0, 0)
+        self._file_label = QLabel("（未选择，将返回假数据）")
+        self._file_label.setStyleSheet("color: #888;")
+        dl_grid.addWidget(self._file_label, 0, 1)
+        self._pick_file_btn = QPushButton("选择文件...")
+        self._pick_file_btn.clicked.connect(self._pick_download_file)
+        dl_grid.addWidget(self._pick_file_btn, 0, 2)
+
+        dl_grid.addWidget(QLabel("限速:"), 1, 0)
+        self._bw_spin = QSpinBox()
+        self._bw_spin.setRange(0, 102400)
+        self._bw_spin.setValue(0)
+        self._bw_spin.setSuffix(" KB/s")
+        self._bw_spin.setSpecialValueText("0 = 不限速")
+        self._bw_spin.setToolTip("模拟真实网络速度，0 为不限速。例如 1024 KB/s ≈ 1 MB/s")
+        self._bw_spin.valueChanged.connect(self._on_bandwidth_changed)
+        dl_grid.addWidget(self._bw_spin, 1, 1)
+
+        layout.addWidget(dl_group)
+
         # ---- 第4行：请求日志 ----
         log_group = QGroupBox("请求日志")
         log_layout = QVBoxLayout(log_group)
@@ -166,8 +191,12 @@ class MockApiWindow(QWidget):
         else:
             port = self._port_spin.value()
             if port != self._server.port:
+                saved_file = self._server.download_file_path
+                saved_bw = self._server.bandwidth_limit
                 self._server = MockGitHubServer(port=port)
                 self._server.set_log_callback(self._on_log)
+                self._server.download_file_path = saved_file
+                self._server.bandwidth_limit = saved_bw
             ok = self._server.start()
             if not ok:
                 self._append_log(f"⚠ 端口 {port} 被占用，启动失败")
@@ -237,6 +266,40 @@ class MockApiWindow(QWidget):
             f"{self._server.base_url}/repos/{{owner}}/{{repo}}/releases/latest"
         )
         self._append_log("📋 API 地址已复制到剪贴板")
+
+    def _pick_download_file(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择安装包文件", "", "安装程序 (*.exe);;所有文件 (*)"
+        )
+        if not path:
+            return
+        file_path = Path(path)
+        file_size = file_path.stat().st_size
+        self._server.download_file_path = str(file_path)
+        self._file_label.setText(file_path.name)
+        self._file_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        file_size_mb = file_size / (1024 * 1024)
+        self._append_log(f"📁 下载文件已设置: {file_path.name} ({file_size_mb:.1f} MB)")
+
+        # 自动更新 release 响应体中的 assets，使 AppUpdater.check() 返回真实文件信息
+        release = self._server.get_current_release()
+        if release and release.get("assets"):
+            asset = release["assets"][0]
+            asset["name"] = file_path.name
+            asset["size"] = file_size
+            asset["browser_download_url"] = f"{self._server.base_url}/download/{file_path.name}"
+            self._server.set_custom_release(release)
+            self._server.set_scenario("custom")
+            self._scenario_combo.blockSignals(True)
+            self._scenario_combo.setCurrentIndex(
+                self._scenario_combo.findData("custom")
+            )
+            self._scenario_combo.blockSignals(False)
+
+        self._refresh_state()
+
+    def _on_bandwidth_changed(self, value: int) -> None:
+        self._server.bandwidth_limit = value * 1024
 
     def _test_update_check(self) -> None:
         if not self._updater:
