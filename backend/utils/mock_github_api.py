@@ -130,7 +130,9 @@ class MockGitHubHandler(BaseHTTPRequestHandler):
             if MockGitHubHandler.error_scenario == "500":
                 self._serve_error(500)
             elif MockGitHubHandler.error_scenario == "timeout":
-                pass
+                import time
+                time.sleep(30)
+                self._serve_error(504)
             else:
                 self._serve_release()
         elif self.path.startswith("/download/"):
