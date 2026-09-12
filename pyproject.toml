@@ -10,29 +10,24 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "python-multipart>=0.0.9",
-
     # 数据层
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "sqlalchemy>=2.0",
-
     # 计算机视觉 + OCR
     "opencv-python-headless>=4.10",
     "numpy>=2.0",
     "paddlepaddle>=3.0.0,<3.1.0",
     "paddleocr>=3.0.0",
     "pillow>=10.0",
-
     # 自动化控制
     "pydirectinput>=1.0",
     "pyautogui>=0.9.54",
     "pynput>=1.7",
     "pywin32>=308 ; sys_platform == 'win32'",
-
     # GUI
     "pyside6>=6.7",
     "pystray>=0.19",
-
     # 工具库
     "requests>=2.32",
     "rapidfuzz>=3.0",
@@ -47,9 +42,7 @@ build-backend = "hatchling.build"
 packages = ["backend"]
 
 [dependency-groups]
-dev = [
-    "pyinstaller>=6.0",
-]
+dev = ["pyinstaller>=6.0", "ruff>=0.16.7"]
 
 [tool.ruff]
 # 项目统一使用 except Exception 并在内部 log + emit 信号，不使用盲异常
