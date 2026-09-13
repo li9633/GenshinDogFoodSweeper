@@ -1,7 +1,7 @@
 """App 更新 Presenter
 
 承担 AboutTab 和 UpdateWindow 的 Presenter 职责：
-- AboutTab → checking、errorText、checkForUpdates
+- AboutTab → checking、checkResultText、checkResultIsError、checkForUpdates
 - UpdateWindow → version、changelog、downloading、downloadAndInstall
 - UpdateWindow 生命周期管理（继承 WindowPresenter）
 
@@ -91,7 +91,8 @@ class UpdatePresenter(WindowPresenter):
 
     # AboutTab 状态
     checkingChanged = Signal()
-    errorTextChanged = Signal()
+    checkResultTextChanged = Signal()
+    checkResultIsErrorChanged = Signal()
 
     # UpdateWindow 数据
     versionInfoChanged = Signal()
@@ -120,7 +121,8 @@ class UpdatePresenter(WindowPresenter):
 
         # ── UI 状态 ──
         self._checking = False
-        self._error_text = ""
+        self._check_result_text = ""
+        self._check_result_is_error = False
 
         # ── 展示文案
         self._version_label = ""
@@ -143,9 +145,13 @@ class UpdatePresenter(WindowPresenter):
     def checking(self) -> bool:
         return self._checking
 
-    @Property(str, notify=errorTextChanged)
-    def errorText(self) -> str:
-        return self._error_text
+    @Property(str, notify=checkResultTextChanged)
+    def checkResultText(self) -> str:
+        return self._check_result_text
+
+    @Property(bool, notify=checkResultIsErrorChanged)
+    def checkResultIsError(self) -> bool:
+        return self._check_result_is_error
 
     # ════════════════════════════════════════════
     # QML 属性 — UpdateWindow
@@ -212,6 +218,12 @@ class UpdatePresenter(WindowPresenter):
             return
         self._checking = True
         self.checkingChanged.emit()
+
+        # 开始新一轮检查，清除上一次的检查结果
+        if self._check_result_text:
+            self._check_result_text = ""
+            self.checkResultTextChanged.emit()
+
         log.info("正在检查更新…")
 
         self._check_worker = _CheckWorker()
@@ -260,22 +272,28 @@ class UpdatePresenter(WindowPresenter):
         self.checkingChanged.emit()
 
         if error is not None:
-            self._error_text = f"检查失败: {error}"
-            self.errorTextChanged.emit()
+            self._check_result_text = f"检查失败: {error}"
+            self._check_result_is_error = True
+            self.checkResultTextChanged.emit()
+            self.checkResultIsErrorChanged.emit()
             log.warning(f"检查更新失败: {error}")
             return
 
-        # 检查成功，清除旧的失败提示
-        if self._error_text:
-            self._error_text = ""
-            self.errorTextChanged.emit()
-
         if result is None:
             # 无更新
+            self._check_result_text = "已是最新版本"
+            self._check_result_is_error = False
+            self.checkResultTextChanged.emit()
+            self.checkResultIsErrorChanged.emit()
+            log.info("未发现新版本")
             return
 
         has_update, info = result  # type: ignore[misc]
         if has_update and info:
+            # 有更新 → 弹窗接管，清除 AboutTab 提示
+            if self._check_result_text:
+                self._check_result_text = ""
+                self.checkResultTextChanged.emit()
             self._version = info.get("tag", "?")
             self._changelog = info.get("body", "") or ""
             self._download_url = info.get("download_url", "")
@@ -287,7 +305,11 @@ class UpdatePresenter(WindowPresenter):
             self.versionInfoChanged.emit()
             log.info(f"发现新版本 {self._version}")
             self.show_window()
-        # else: 无更新，静默不处理
+        else:
+            self._check_result_text = "已是最新版本"
+            self._check_result_is_error = False
+            self.checkResultTextChanged.emit()
+            self.checkResultIsErrorChanged.emit()
 
     def _on_download_progress(self, downloaded: int, total: int) -> None:
         self._download_progress = downloaded

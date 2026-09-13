@@ -135,11 +135,11 @@ ColumnLayout {
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    visible: UpdatePresenter.errorText !== ""
-                    text: UpdatePresenter.errorText
+                    visible: UpdatePresenter.checkResultText !== ""
+                    text: UpdatePresenter.checkResultText
                     font.family: Theme.fontFamily
                     font.pixelSize: 12
-                    color: "#D32F2F"
+                    color: UpdatePresenter.checkResultIsError ? "#D32F2F" : Theme.success
                     wrapMode: Text.WordWrap
                     Layout.maximumWidth: 380
                 }
