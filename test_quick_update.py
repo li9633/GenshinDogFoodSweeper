@@ -21,7 +21,7 @@ _BACKEND_DIR = _PROJECT_ROOT / "backend"
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -53,7 +53,8 @@ class MockApiWindow(QWidget):
         super().__init__()
         self._server = MockGitHubServer(port=9888)
         self._server.set_log_callback(self._on_log)
-        self._log_buffer: list[str] = []
+        # 服务器线程 → GUI 线程 的日志中转队列（见 _on_log / _flush_logs）
+        self._pending_logs: list[str] = []
         self._updater: AppUpdater | None = None
 
         self.setWindowTitle("GitHub Release API 模拟器")
@@ -62,6 +63,12 @@ class MockApiWindow(QWidget):
 
         self._setup_ui()
         self._refresh_state()
+
+        # 由 GUI 线程定时取走服务器线程排队的日志
+        self._log_timer = QTimer(self)
+        self._log_timer.setInterval(100)
+        self._log_timer.timeout.connect(self._flush_logs)
+        self._log_timer.start()
 
     # ============================================================
     # UI 构建
@@ -253,12 +260,27 @@ class MockApiWindow(QWidget):
             pass
 
     def _on_log(self, entry: str) -> None:
-        self._log_edit.appendPlainText(entry)
+        """HTTP 服务器线程回调 —— 只入队，绝不触碰任何 QWidget。
+
+        Qt 控件只能在 GUI 线程访问。主 APP 反复「检查更新」时请求非常密集，
+        若在这里直接 appendPlainText()，就是跨线程操作控件，模拟器进程会
+        无任何报错提示地崩溃（0xC0000005）。
+        """
+        self._pending_logs.append(entry)
+
+    def _flush_logs(self) -> None:
+        """GUI 线程：把服务器线程排队的日志写入日志框"""
+        if not self._pending_logs:
+            return
+        pending, self._pending_logs = self._pending_logs, []
+        self._log_edit.appendPlainText("\n".join(pending))
 
     def _append_log(self, msg: str) -> None:
+        """GUI 线程直接调用"""
         self._log_edit.appendPlainText(msg)
 
     def _clear_log(self) -> None:
+        self._pending_logs.clear()
         self._log_edit.clear()
 
     def _copy_api_url(self) -> None:

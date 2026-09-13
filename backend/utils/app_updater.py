@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import json
+import socket
 import subprocess
 import sys
 import tempfile
@@ -20,7 +22,7 @@ from common.version_manager import AppVersion
 
 # ── 常量 ──
 
-GITHUB_API = "https://api.github.com/repos/{owner}/{repo}/releases"
+GITHUB_API = "https://api.github.com"
 
 UPDATE_OWNER = "li9633"
 UPDATE_REPO = "GenshinDogFoodSweeper"
@@ -31,22 +33,41 @@ UPDATE_REPO = "GenshinDogFoodSweeper"
 def detect_mock_server(
     host: str = "127.0.0.1", port: int = 9888, timeout: float = 0.5
 ) -> str | None:
-    """探测本地是否运行了 GitHub API 模拟器。
+    """两步探测：TCP 端口 → /health 签名验证 → 返回 base_url。
 
-    test_quick_update.py 启动后会监听本地端口，此函数通过快速 HTTP 请求
-    探测其是否存在。若探测成功，返回 API 基础 URL 模板。
-
-    Returns:
-        str | None: 如 "http://127.0.0.1:9888/repos/{owner}/{repo}/releases"
-                    若未探测到则返回 None
+    纯 debug 日志，release 下探测失败静默。
     """
-    url = f"http://{host}:{port}/repos/test/releases/latest"
+    # 第 1 步：TCP 端口探测（~毫秒级，失败则跳过 HTTP）
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(0.2)
+    reachable = sock.connect_ex((host, port)) == 0
+    sock.close()
+    if not reachable:
+        log.debug(f"[detect_mock] 端口 {host}:{port} 未监听")
+        return None
+
+    # 第 2 步：GET /health + 双签名验证
+    url = f"http://{host}:{port}/health"
+    log.debug(f"[detect_mock] GET {url}")
     try:
         import urllib.request
+
         req = urllib.request.Request(url)
-        urllib.request.urlopen(req, timeout=timeout)
-        return f"http://{host}:{port}/repos/{{owner}}/{{repo}}/releases"
-    except Exception:
+        resp = urllib.request.urlopen(req, timeout=timeout)
+        if resp.headers.get("X-GenshinDogFood-Mock") != "true":
+            log.debug("[detect_mock] /health 缺少签名 Header")
+            return None
+        data = json.loads(resp.read().decode())
+        if not data.get("mock_github_api"):
+            log.debug("[detect_mock] /health JSON 缺少 mock_github_api: true")
+            return None
+        base_url = data.get("base_url", f"http://{host}:{port}")
+        log.debug(f"[detect_mock] ✓ 已检测到模拟器 → {base_url}")
+        return base_url
+    except Exception as exc:
+        log.debug(
+            f"[detect_mock] /health 失败 ({type(exc).__name__}: {exc})"
+        )
         return None
 
 
@@ -59,12 +80,11 @@ class AppUpdater:
     所有依赖通过构造函数显式注入，无隐式全局状态。
 
     Usage:
-        # 真实 GitHub API（默认）
+        # 自动探测：优先本地模拟器，否则 GitHub API
         updater = AppUpdater(UPDATE_OWNER, UPDATE_REPO)
 
-        # 本地模拟器（调试/测试）
-        mock = detect_mock_server()
-        updater = AppUpdater(UPDATE_OWNER, UPDATE_REPO, api_base=mock)
+        # 显式指定（测试用）
+        updater = AppUpdater(UPDATE_OWNER, UPDATE_REPO, api_base="http://127.0.0.1:9888")
     """
 
     def __init__(
@@ -76,8 +96,13 @@ class AppUpdater:
     ) -> None:
         self._owner = owner
         self._repo = repo
-        template = api_base if api_base else GITHUB_API
-        self._api = template.format(owner=owner, repo=repo)
+        if api_base is None:
+            api_base = detect_mock_server()
+            if api_base:
+                log.info(f"使用本地模拟器 {api_base}")
+        base = api_base if api_base else GITHUB_API
+        self._api = f"{base}/repos/{owner}/{repo}/releases"
+        log.debug(f"[AppUpdater] API = {self._api}")
 
     def check(self) -> dict | None:
         """查询最新 Release，返回 {tag, name, download_url, size, body} 或 None。
@@ -87,11 +112,14 @@ class AppUpdater:
             requests.ConnectionError: 网络不可达
             requests.Timeout: 请求超时
         """
+        check_url = f"{self._api}/latest"
+        log.debug(f"[AppUpdater.check] GET {check_url}")
         resp = requests.get(
-            f"{self._api}/latest",
+            check_url,
             headers={"Accept": "application/vnd.github+json"},
             timeout=15,
         )
+        log.debug(f"[AppUpdater.check] ← {resp.status_code} {resp.reason}")
         resp.raise_for_status()
         release = resp.json()
 
@@ -126,15 +154,17 @@ class AppUpdater:
             latest = self.check()
         except requests.HTTPError as e:
             status = e.response.status_code if e.response is not None else 0
-            log.debug(f"检查更新失败 (HTTP {status}): {e}")
+            log.debug(f"[AppUpdater] HTTP {status}: {e}")
             if status == 404:
                 return False, None, "仓库暂无已发布的版本"
             if status == 403:
                 return False, None, "API 访问受限，可能是触发了 GitHub 速率限制"
             return False, None, f"服务器响应异常 (HTTP {status})"
-        except requests.ConnectionError:
+        except requests.ConnectionError as e:
+            log.debug(f"[AppUpdater] ConnectionError: {e}")
             return False, None, "网络连接失败，请检查网络设置"
-        except requests.Timeout:
+        except requests.Timeout as e:
+            log.debug(f"[AppUpdater] Timeout: {e}")
             return False, None, "请求超时，请稍后重试"
         except Exception as e:
             log.warning(f"检查更新失败: {e}")
@@ -166,7 +196,9 @@ class AppUpdater:
                 for chunk in r.iter_content(chunk_size=65536):
                     f.write(chunk)
                     downloaded += len(chunk)
-                    if progress_cb and total:
+                    # 无 Content-Length（分块传输）时 total 为 0，仍上报已下载字节数，
+                    # 让调用方能显示实际进度而不是一片空白
+                    if progress_cb:
                         progress_cb(downloaded, total)
         return dest
 

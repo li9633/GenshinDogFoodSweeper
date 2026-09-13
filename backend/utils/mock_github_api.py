@@ -2,6 +2,8 @@ r"""GitHub Release API 模拟服务器
 ================================
 提供可编程控制的 HTTP 模拟服务器，用于测试 AppUpdater 更新流程。
 
+基于 FastAPI + uvicorn 实现，替代原始 http.server 方案。
+
 用法:
     from backend.utils.mock_github_api import MockGitHubServer
 
@@ -13,12 +15,14 @@ r"""GitHub Release API 模拟服务器
 
 from __future__ import annotations
 
-import json
+import asyncio
 import threading
-import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any
+
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, Response
 
 # ============================================================
 # 场景预设
@@ -102,93 +106,114 @@ SCENARIO_500_LABELS = {
 }
 
 # ============================================================
-# HTTP Handler
+# 全局可变状态（线程安全：所有读写通过 _state_lock 保护）
+# ============================================================
+
+_state_lock = threading.Lock()
+
+_current_release: dict = {}
+_request_log: list[str] = []
+_log_callback: Any = None
+_error_scenario: str = "200"
+_download_file_path: str | None = None
+_bandwidth_limit: int = 0
+
+
+def _append_log(entry: str) -> None:
+    with _state_lock:
+        _request_log.append(entry)
+        if len(_request_log) > 500:
+            _request_log[:] = _request_log[-200:]
+        cb = _log_callback
+    if cb:
+        cb(entry)
+
+
+# ============================================================
+# FastAPI 应用
 # ============================================================
 
 
-class MockGitHubHandler(BaseHTTPRequestHandler):
-    """模拟 GitHub API 的 HTTP Handler。
+def _create_app() -> FastAPI:
+    app = FastAPI()
 
-    路径规则：
-      GET /repos/{owner}/{repo}/releases/latest → 返回当前场景 Release
-      GET /download/*                            → 返回模拟安装包二进制
-    """
+    @app.get("/health")
+    async def health(request: Request) -> JSONResponse:
+        body = JSONResponse(
+            content={
+                "mock_github_api": True,
+                "base_url": str(request.base_url).rstrip("/"),
+            }
+        )
+        body.headers["X-GenshinDogFood-Mock"] = "true"
+        return body
 
-    current_release: ClassVar[dict] = {}
-    request_log: ClassVar[list[str]] = []
-    log_callback: ClassVar[Any] = None
-    error_scenario: ClassVar[str] = "200"
-    download_file_path: ClassVar[str | None] = None
-    bandwidth_limit: ClassVar[int] = 0
+    @app.get("/repos/{owner}/{repo}/releases/latest")
+    async def get_latest_release(request: Request) -> JSONResponse:
+        _append_log(f"[Mock API] GET {request.url.path} → 200 OK")
 
-    def log_message(self, format, *args):
-        entry = f"[Mock API] {self.command} {self.path} → {format % args}"
-        MockGitHubHandler.request_log.append(entry)
-        if len(MockGitHubHandler.request_log) > 500:
-            MockGitHubHandler.request_log = MockGitHubHandler.request_log[-200:]
-        if MockGitHubHandler.log_callback:
-            MockGitHubHandler.log_callback(entry)
+        with _state_lock:
+            scenario = _error_scenario
 
-    def do_GET(self):
-        if self.path.endswith("/releases/latest"):
-            if MockGitHubHandler.error_scenario == "500":
-                self._serve_error(500)
-            elif MockGitHubHandler.error_scenario == "timeout":
-                import time
-                time.sleep(30)
-                self._serve_error(504)
-            else:
-                self._serve_release()
-        elif self.path.startswith("/download/"):
-            self._serve_download()
-        else:
-            self._serve_error(404)
+        if scenario == "500":
+            _append_log(
+                f"[Mock API] GET {request.url.path} → 500 Internal Server Error"
+            )
+            return JSONResponse(
+                status_code=500,
+                content={"message": "Internal Server Error"},
+            )
+        if scenario == "timeout":
+            await asyncio.sleep(30)
+            _append_log(
+                f"[Mock API] GET {request.url.path} → 504 Gateway Timeout"
+            )
+            return JSONResponse(
+                status_code=504,
+                content={"message": "Gateway Timeout"},
+            )
 
-    def _serve_release(self):
-        release = MockGitHubHandler.current_release
-        body = json.dumps(release, ensure_ascii=False).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        with _state_lock:
+            release = dict(_current_release) if _current_release else {}
 
-    def _serve_download(self):
-        file_path = MockGitHubHandler.download_file_path
+        return JSONResponse(content=release)
+
+    @app.get("/download/{filename:path}")
+    async def download_file(filename: str) -> Response:
+        _append_log(f"[Mock API] GET /download/{filename} → 200 OK")
+
+        with _state_lock:
+            file_path = _download_file_path
+            limit = _bandwidth_limit
+
         if file_path:
             fp = Path(file_path)
             if not fp.is_file():
-                self._serve_error(404)
-                return
-            file_size = fp.stat().st_size
-            self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(file_size))
-            self.end_headers()
-            limit = MockGitHubHandler.bandwidth_limit
-            with open(fp, "rb") as f:
-                while True:
-                    t0 = time.perf_counter()
-                    chunk = f.read(65536)
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
-                    if limit > 0:
-                        elapsed = time.perf_counter() - t0
-                        expected = len(chunk) / limit
-                        if elapsed < expected:
-                            time.sleep(expected - elapsed)
-        else:
-            fake_data = b"\x00" * 65536
-            self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(len(fake_data)))
-            self.end_headers()
-            self.wfile.write(fake_data)
+                return Response(status_code=404)
 
-    def _serve_error(self, code: int):
-        self.send_response(code)
-        self.end_headers()
+            content = fp.read_bytes()
+            headers = {
+                "Content-Type": "application/octet-stream",
+                "Content-Length": str(len(content)),
+            }
+
+            if limit > 0:
+                expected_duration = len(content) / limit
+                await asyncio.sleep(expected_duration)
+
+            return Response(content=content, headers=headers)
+
+        # 无真实文件时返回占位数据
+        fake_data = b"\x00" * 65536
+        return Response(
+            content=fake_data,
+            headers={
+                "Content-Type": "application/octet-stream",
+                "Content-Length": str(len(fake_data)),
+            },
+        )
+
+    return app
 
 
 # ============================================================
@@ -197,26 +222,41 @@ class MockGitHubHandler(BaseHTTPRequestHandler):
 
 
 class MockGitHubServer:
-    """可编程控制的模拟 GitHub API 服务器"""
+    """可编程控制的模拟 GitHub API 服务器
+
+    基于 FastAPI + uvicorn，通过独立线程运行事件循环。
+    与旧版 http.server 方案保持完全相同的公开 API。
+    """
 
     def __init__(self, host: str = "127.0.0.1", port: int = 9888) -> None:
         self._host = host
         self._port = port
-        self._server: HTTPServer | None = None
+        self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
         self._running = False
         self._error_scenario = "200"
         self._current_scenario = "newer"
         self._custom_release: dict | None = None
         self._log_callback: Any = None
-        self._init_presets_and_handler()
+        self._init_state()
 
-    def _init_presets_and_handler(self) -> None:
+    def _init_state(self) -> None:
         base = f"http://{self._host}:{self._port}"
         self._presets = _build_presets(base)
-        MockGitHubHandler.request_log.clear()
-        MockGitHubHandler.current_release = self._presets["newer"]
-        MockGitHubHandler.log_callback = None
+
+        global _current_release, _log_callback
+        global _error_scenario, _download_file_path, _bandwidth_limit
+        with _state_lock:
+            _request_log.clear()
+            _current_release = self._presets["newer"]
+            _log_callback = None
+            _error_scenario = "200"
+            _download_file_path = None
+            _bandwidth_limit = 0
+
+    # ============================================================
+    # 属性
+    # ============================================================
 
     @property
     def base_url(self) -> str:
@@ -224,7 +264,7 @@ class MockGitHubServer:
 
     @property
     def api_url(self) -> str:
-        return f"{self.base_url}/repos/{{owner}}/{{repo}}/releases"
+        return self.base_url
 
     @property
     def is_running(self) -> bool:
@@ -242,63 +282,122 @@ class MockGitHubServer:
     def error_scenario(self) -> str:
         return self._error_scenario
 
+    # ============================================================
+    # 日志回调
+    # ============================================================
+
     def set_log_callback(self, cb) -> None:
+        """设置请求日志回调。
+
+        注意：回调在 HTTP 服务器线程中执行（每个请求一次）。
+        Qt 程序必须在回调里只做入队，绝不能直接操作 QWidget ——
+        跨线程访问控件会让整个进程无提示崩溃。
+        """
         self._log_callback = cb
-        MockGitHubHandler.log_callback = cb
+        global _log_callback
+        with _state_lock:
+            _log_callback = cb
+
+    # ============================================================
+    # 场景控制
+    # ============================================================
 
     def set_error_scenario(self, scenario: str) -> None:
         self._error_scenario = scenario
-        MockGitHubHandler.error_scenario = scenario
+        global _error_scenario
+        with _state_lock:
+            _error_scenario = scenario
 
     def get_current_release(self) -> dict:
-        return dict(MockGitHubHandler.current_release)
+        with _state_lock:
+            return dict(_current_release)
 
     def set_scenario(self, name: str) -> None:
         self._current_scenario = name
-        if name in self._presets:
-            MockGitHubHandler.current_release = self._presets[name]
-        elif name == "custom" and self._custom_release:
-            MockGitHubHandler.current_release = self._custom_release
+        global _current_release
+        with _state_lock:
+            if name in self._presets:
+                _current_release = self._presets[name]
+            elif name == "custom" and self._custom_release:
+                _current_release = self._custom_release
 
     def set_custom_release(self, release: dict) -> None:
         self._custom_release = release
-        if self._current_scenario == "custom":
-            MockGitHubHandler.current_release = release
+        global _current_release
+        with _state_lock:
+            if self._current_scenario == "custom":
+                _current_release = release
 
     def get_request_log(self) -> str:
-        return "\n".join(MockGitHubHandler.request_log)
+        with _state_lock:
+            return "\n".join(_request_log)
+
+    # ============================================================
+    # 下载配置
+    # ============================================================
 
     @property
     def download_file_path(self) -> str | None:
-        return MockGitHubHandler.download_file_path
+        with _state_lock:
+            return _download_file_path
 
     @download_file_path.setter
     def download_file_path(self, path: str | None) -> None:
-        MockGitHubHandler.download_file_path = path
+        global _download_file_path
+        with _state_lock:
+            _download_file_path = path
 
     @property
     def bandwidth_limit(self) -> int:
-        return MockGitHubHandler.bandwidth_limit
+        with _state_lock:
+            return _bandwidth_limit
 
     @bandwidth_limit.setter
     def bandwidth_limit(self, limit: int) -> None:
-        MockGitHubHandler.bandwidth_limit = limit
+        global _bandwidth_limit
+        with _state_lock:
+            _bandwidth_limit = limit
+
+    # ============================================================
+    # 生命周期
+    # ============================================================
 
     def start(self) -> bool:
         if self._running:
             return False
-        try:
-            self._server = HTTPServer((self._host, self._port), MockGitHubHandler)
-            self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
-            self._thread.start()
-            self._running = True
-            return True
-        except OSError:
-            return False
+
+        app = _create_app()
+        config = uvicorn.Config(
+            app,
+            host=self._host,
+            port=self._port,
+            log_level="error",
+            loop="asyncio",
+        )
+        self._server = uvicorn.Server(config)
+
+        def _run() -> None:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(self._server.serve())
+            except asyncio.CancelledError:
+                pass
+            finally:
+                loop.close()
+
+        self._thread = threading.Thread(target=_run, daemon=True)
+        self._thread.start()
+        self._running = True
+        return True
 
     def stop(self) -> None:
-        if self._server:
-            self._server.shutdown()
+        if not self._running:
+            return
+        self._running = False
+
+        if self._server is not None:
+            self._server.should_exit = True
             self._server = None
-            self._thread = None
-            self._running = False
+
+        self._thread = None

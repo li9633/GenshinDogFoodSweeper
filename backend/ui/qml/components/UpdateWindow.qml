@@ -116,7 +116,7 @@ Window {
                             color: Theme.textPrimary
                         }
                         Text {
-                            text: "版本 " + UpdatePresenter.version + " 可用"
+                            text: UpdatePresenter.versionLabel
                             font.family: Theme.fontFamily
                             font.pixelSize: 12
                             color: Theme.textSecondary
@@ -241,7 +241,7 @@ Window {
                     Text {
                         id: changelogText
                         width: changelogFlick.width
-                        text: UpdatePresenter.changelog || "暂无更新日志"
+                        text: UpdatePresenter.changelogOrPlaceholder
                         textFormat: Text.MarkdownText
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
@@ -254,21 +254,19 @@ Window {
 
             // ── 下载进度条 ──
             Item {
+                id: progressArea
                 visible: UpdatePresenter.downloading
                 Layout.fillWidth: true
                 Layout.leftMargin: 24
                 Layout.rightMargin: 24
-                Layout.preferredHeight: 24
+                Layout.preferredHeight: 30
 
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 4
 
                     Text {
-                        text: UpdatePresenter.downloadTotal > 0
-                            ? "正在下载 " + (UpdatePresenter.downloadProgress / 1048576).toFixed(1)
-                              + " / " + (UpdatePresenter.downloadTotal / 1048576).toFixed(1) + " MB"
-                            : "正在下载…"
+                        text: UpdatePresenter.progressLabel
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
                         color: Theme.textSecondary
@@ -281,9 +279,7 @@ Window {
                         color: Theme.bgTrack
 
                         Rectangle {
-                            width: UpdatePresenter.downloadTotal > 0
-                                ? parent.width * UpdatePresenter.downloadProgress / UpdatePresenter.downloadTotal
-                                : 0
+                            width: parent.width * UpdatePresenter.progressRatio
                             height: parent.height
                             radius: 3
                             color: Theme.accent
@@ -316,7 +312,7 @@ Window {
                 Item { Layout.fillWidth: true }
 
                 GButton {
-                    text: UpdatePresenter.downloading ? "下载中…" : "立即更新"
+                    text: UpdatePresenter.updateButtonText
                     colorType: "primary"
                     enabled: !UpdatePresenter.downloading
                     onClicked: root.updateNow()

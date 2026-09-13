@@ -21,29 +21,34 @@ from common.version_manager import AppVersion
 class _CheckWorker(QThread):
     """版本检查工作线程"""
 
-    finished = Signal(object, object, bool)
+    finished = Signal(object, object)
 
     def run(self) -> None:
         from backend.utils.app_updater import (
             UPDATE_OWNER,
             UPDATE_REPO,
             AppUpdater,
-            detect_mock_server,
         )
-
-        mock_url = detect_mock_server()
-        using_mock = mock_url is not None
+        from backend.utils.logger import log
 
         try:
-            updater = AppUpdater(UPDATE_OWNER, UPDATE_REPO, api_base=mock_url)
+            updater = AppUpdater(UPDATE_OWNER, UPDATE_REPO)
+            log.debug("[_CheckWorker] 开始 is_update_available() …")
             has_update, info, error = updater.is_update_available()
+            log.debug(
+                f"[_CheckWorker] is_update_available() → "
+                f"has_update={has_update}, "
+                f"info={'None' if info is None else ('{tag:' + info.get('tag','?') + '}')}, "
+                f"error={error!r}"
+            )
 
             if error:
-                self.finished.emit(None, error, using_mock)
+                self.finished.emit(None, error)
             else:
-                self.finished.emit((has_update, info), None, using_mock)
+                self.finished.emit((has_update, info), None)
         except Exception as e:
-            self.finished.emit(None, str(e), using_mock)
+            log.debug(f"[_CheckWorker] 异常: {type(e).__name__}: {e}", exc_info=True)
+            self.finished.emit(None, str(e))
 
 
 class _DownloadWorker(QThread):
@@ -94,6 +99,13 @@ class UpdatePresenter(WindowPresenter):
     downloadProgressChanged = Signal()
     downloadTotalChanged = Signal()
 
+    # UpdateWindow 展示文案
+    versionLabelChanged = Signal()
+    progressLabelChanged = Signal()
+    progressRatioChanged = Signal()
+    changelogOrPlaceholderChanged = Signal()
+    updateButtonTextChanged = Signal()
+
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
 
@@ -109,6 +121,13 @@ class UpdatePresenter(WindowPresenter):
         # ── UI 状态 ──
         self._checking = False
         self._error_text = ""
+
+        # ── 展示文案
+        self._version_label = ""
+        self._progress_label = "正在下载…"
+        self._progress_ratio: float = 0.0
+        self._changelog_or_placeholder = "暂无更新日志"
+        self._update_button_text = "立即更新"
 
         # ── 工作线程 ──
         self._check_worker: _CheckWorker | None = None
@@ -157,6 +176,30 @@ class UpdatePresenter(WindowPresenter):
         return self._download_total
 
     # ════════════════════════════════════════════
+    # QML 属性 — 展示文案（Python 侧预计算）
+    # ════════════════════════════════════════════
+
+    @Property(str, notify=versionLabelChanged)
+    def versionLabel(self) -> str:
+        return self._version_label
+
+    @Property(str, notify=progressLabelChanged)
+    def progressLabel(self) -> str:
+        return self._progress_label
+
+    @Property(float, notify=progressRatioChanged)
+    def progressRatio(self) -> float:
+        return self._progress_ratio
+
+    @Property(str, notify=changelogOrPlaceholderChanged)
+    def changelogOrPlaceholder(self) -> str:
+        return self._changelog_or_placeholder
+
+    @Property(str, notify=updateButtonTextChanged)
+    def updateButtonText(self) -> str:
+        return self._update_button_text
+
+    # ════════════════════════════════════════════
     # 公开槽
     # ════════════════════════════════════════════
 
@@ -186,6 +229,9 @@ class UpdatePresenter(WindowPresenter):
         self._download_total = 0
         self.downloadingChanged.emit()
         self.downloadProgressChanged.emit()
+        self.downloadTotalChanged.emit()
+        self._refresh_download_display()
+        self._refresh_button_text()
 
         self._download_worker = _DownloadWorker(self._download_url)
         self._download_worker.progress.connect(self._on_download_progress)
@@ -206,7 +252,7 @@ class UpdatePresenter(WindowPresenter):
     # ════════════════════════════════════════════
 
     def _on_check_finished(
-        self, result: object, error: object, using_mock: bool
+        self, result: object, error: object
     ) -> None:
         from backend.utils.logger import log
 
@@ -229,7 +275,6 @@ class UpdatePresenter(WindowPresenter):
             return
 
         has_update, info = result  # type: ignore[misc]
-        mock_hint = " [模拟器]" if using_mock else ""
         if has_update and info:
             self._version = info.get("tag", "?")
             self._changelog = info.get("body", "") or ""
@@ -238,23 +283,61 @@ class UpdatePresenter(WindowPresenter):
                 f"发现新版本: tag={self._version!r} "
                 f"changelog_len={len(self._changelog)} download_url={bool(self._download_url)}"
             )
+            self._refresh_version_labels()
             self.versionInfoChanged.emit()
-            log.info(f"发现新版本 {self._version}{mock_hint}")
+            log.info(f"发现新版本 {self._version}")
             self.show_window()
         # else: 无更新，静默不处理
 
     def _on_download_progress(self, downloaded: int, total: int) -> None:
         self._download_progress = downloaded
-        self._download_total = total
+        if total != self._download_total:
+            self._download_total = total
+            self.downloadTotalChanged.emit()
+        self._refresh_download_display()
         self.downloadProgressChanged.emit()
 
     def _on_download_finished(self, success: bool, filepath: str) -> None:
         self._downloading = False
         self.downloadingChanged.emit()
+        self._refresh_button_text()
         if success:
             self._install(Path(filepath))
         else:
             self.downloadProgressChanged.emit()
+
+    # ════════════════════════════════════════════
+    # 展示文案刷新
+    # ════════════════════════════════════════════
+
+    def _refresh_version_labels(self) -> None:
+        self._version_label = f"版本 {self._version} 可用"
+        self._changelog_or_placeholder = self._changelog or "暂无更新日志"
+        self.versionLabelChanged.emit()
+        self.changelogOrPlaceholderChanged.emit()
+
+    def _refresh_download_display(self) -> None:
+        downloaded = self._download_progress
+        total = self._download_total
+
+        if total > 0:
+            self._progress_ratio = downloaded / total
+            self._progress_label = (
+                f"正在下载 {downloaded / 1048576:.1f} / {total / 1048576:.1f} MB"
+            )
+        elif downloaded > 0:
+            self._progress_ratio = 0.0
+            self._progress_label = f"正在下载 {downloaded / 1048576:.1f} MB…"
+        else:
+            self._progress_ratio = 0.0
+            self._progress_label = "正在下载…"
+
+        self.progressRatioChanged.emit()
+        self.progressLabelChanged.emit()
+
+    def _refresh_button_text(self) -> None:
+        self._update_button_text = "下载中…" if self._downloading else "立即更新"
+        self.updateButtonTextChanged.emit()
 
     # ════════════════════════════════════════════
     # 安装
