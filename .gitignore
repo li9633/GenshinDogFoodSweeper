@@ -17,6 +17,7 @@ backend/static/
 dist/
 build/
 backend/utils/_build_channel.py
+common/_build_channel.py
 
 # 数据库文件
 backend/data/*.db
