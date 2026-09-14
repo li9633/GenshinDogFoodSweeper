@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from PySide6.QtCore import QThread, Signal
-from utils.logger import log
 
+from backend.utils.logger import log
 from common.paths import ENGINES
 
 
@@ -71,10 +71,9 @@ class OcrWorker(QThread):
         此处直接创建 OCR 实例。
         """
         try:
-            from utils.log_bridge import TaskContext
-
             from backend.automation.ocr_engine import OcrEngine
             from backend.exceptions.automation import OcrModelNotReadyError
+            from backend.utils.log_bridge import TaskContext
 
             with TaskContext("ocr_init", "OCR 引擎预热中 …", success_message="OCR 引擎就绪"):
                 self._ocr = OcrEngine.create_ocr(self._engines_dir)

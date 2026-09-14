@@ -8,13 +8,13 @@
 from __future__ import annotations
 
 import requests
-from database.repository.artifact_set_repo import ArtifactSetRepo
-from utils.logger import log
 
+from backend.database.repository.artifact_set_repo import ArtifactSetRepo
 from backend.exceptions.automation.exceptions import (
     ArtifactDatabaseEmptyError,
     ArtifactUpdateAvailableError,
 )
+from backend.utils.logger import log
 
 # 与 artifact_set_fetcher 共用同一 API
 API_URL = (

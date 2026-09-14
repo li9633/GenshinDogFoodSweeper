@@ -8,10 +8,10 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
-from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
 from backend.automation.window_helper import WindowHelper
+from backend.utils.logger import log
 
 
 class InputDebugPresenter(QObject):

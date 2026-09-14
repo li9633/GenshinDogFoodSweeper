@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import json
 
-from database.connection import get_db
-from models.dogfood_rule import DogfoodRule
+from backend.database.connection import get_db
+from backend.models.dogfood_rule import DogfoodRule
 
 
 class DogfoodRuleRepo:

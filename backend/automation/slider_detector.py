@@ -6,7 +6,8 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
-from utils.logger import log
+
+from backend.utils.logger import log
 
 # 滑块检测 ROI 参数
 _SLIDER_DETECT_W = 10

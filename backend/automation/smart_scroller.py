@@ -8,9 +8,9 @@ import hashlib
 from time import perf_counter, sleep
 
 import numpy as np
-from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
+from backend.automation.screen_capture import ScreenshotCapture
 from backend.automation.slider_scroller import SliderScroller
 from backend.automation.slot_detector import (
     BAG_SLOT_CONFIG,
@@ -18,7 +18,7 @@ from backend.automation.slot_detector import (
     SlotDetectorConfig,
 )
 from backend.automation.window_helper import WindowHelper
-from backend.utils.screen_capture import ScreenshotCapture
+from backend.utils.logger import log
 
 
 class SmartScroller:

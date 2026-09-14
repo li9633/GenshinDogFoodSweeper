@@ -13,7 +13,7 @@
 
 使用示例:
     from backend.automation.window_helper import WindowHelper
-    from backend.utils.screen_capture import ScreenshotCapture, CaptureMethod
+    from backend.automation.screen_capture import ScreenshotCapture, CaptureMethod
 
     cap = ScreenshotCapture()
     win = WindowHelper.find_genshin_window()

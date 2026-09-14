@@ -9,7 +9,8 @@ import sys
 from pathlib import Path
 
 from loguru import logger
-from utils.settings_manager import settings
+
+from backend.utils.settings_manager import settings
 
 
 def setup_logging(

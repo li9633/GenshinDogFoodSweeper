@@ -19,7 +19,8 @@ from typing import ClassVar
 
 from PySide6.QtCore import QObject, QUrl
 from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent
-from utils.logger import log as logger
+
+from backend.utils.logger import log as logger
 
 
 class WindowPresenter(QObject):

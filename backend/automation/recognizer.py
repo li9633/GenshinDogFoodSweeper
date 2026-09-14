@@ -8,7 +8,6 @@ from typing import ClassVar
 
 import cv2
 import numpy as np
-from utils.logger import log
 
 from backend.automation.color_sampler import sample_roi_color
 from backend.automation.template_manager import TemplateManager
@@ -16,6 +15,7 @@ from backend.automation.template_matcher import multi_scale_match
 from backend.models.artifact import ArtifactInfo
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
 from backend.models.template import Template
+from backend.utils.logger import log
 
 
 class ArtifactRecognizer:
@@ -41,7 +41,7 @@ class ArtifactRecognizer:
     def is_db_empty() -> bool:
         """检查本地圣遗物数据库是否为空"""
         try:
-            from database.repository.artifact_set_repo import ArtifactSetRepo
+            from backend.database.repository.artifact_set_repo import ArtifactSetRepo
 
             return ArtifactSetRepo.count() == 0
         except Exception:
@@ -84,9 +84,12 @@ class ArtifactRecognizer:
         若通过单件名匹配，部位类型和名称不为 None，后续可跳过部位匹配。
         """
         try:
-            from database.repository.artifact_piece_repo import ArtifactPieceRepo
-            from database.repository.artifact_set_repo import ArtifactSetRepo
             from rapidfuzz import fuzz, process
+
+            from backend.database.repository.artifact_piece_repo import (
+                ArtifactPieceRepo,
+            )
+            from backend.database.repository.artifact_set_repo import ArtifactSetRepo
 
             pieces = ArtifactPieceRepo.find_all_names()
             if pieces:
@@ -124,8 +127,11 @@ class ArtifactRecognizer:
         若提供 set_id，则限定在指定套装内匹配，避免跨套装误匹配。
         """
         try:
-            from database.repository.artifact_piece_repo import ArtifactPieceRepo
             from rapidfuzz import fuzz, process
+
+            from backend.database.repository.artifact_piece_repo import (
+                ArtifactPieceRepo,
+            )
 
             all_pieces = ArtifactPieceRepo.find_all_names()
             if not all_pieces:
@@ -274,9 +280,8 @@ class ArtifactRecognizer:
         """
         import time
 
-        from utils.artifact_parser import ArtifactTextParser
-
         from backend.automation.color_sampler import sample_roi_color
+        from backend.domain.artifact_parser import ArtifactTextParser
 
         t0 = time.perf_counter()
 
@@ -429,7 +434,7 @@ class ArtifactRecognizer:
         # 星级识别
         t_rarity = time.perf_counter()
         if need_rarity and not db_empty and matched_set_id is not None:
-            from database.repository.artifact_set_repo import ArtifactSetRepo
+            from backend.database.repository.artifact_set_repo import ArtifactSetRepo
 
             set_obj = ArtifactSetRepo.find_by_id(matched_set_id)
             if set_obj:

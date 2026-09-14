@@ -11,7 +11,8 @@ from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtQml import QQmlApplicationEngine
-from utils.logger import log
+
+from backend.utils.logger import log
 
 # 注册表条目
 # 格式: (ContextProperty 名称, 工厂函数, [可选的信号连接函数])
@@ -28,19 +29,18 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
     ]
 
     # GMessageBoxBridge（信号桥，Python → QML 弹窗）
-    from ui.gmessagebox import GMessageBoxBridge
+    from backend.ui.gmessagebox import GMessageBoxBridge
 
     registry.append(("GMessageBoxBridge", GMessageBoxBridge, []))
 
     # NavigationPresenter（路由导航）
-    from ui.presenters.navigation_presenter import NavigationPresenter
+    from backend.ui.presenters.navigation_presenter import NavigationPresenter
 
     registry.append(("NavigationPresenter", NavigationPresenter, []))
 
     # SettingsPresenter
-    from ui.presenters.settings_presenter import SettingsPresenter
-
     from backend.automation.hotkey_listener import HotkeyListener
+    from backend.ui.presenters.settings_presenter import SettingsPresenter
 
     def _wire_settings(p: SettingsPresenter) -> None:
         HotkeyListener.instance().hotkeyCaptured.connect(p._on_hotkey_captured)
@@ -48,27 +48,29 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
     registry.append(("SettingsPresenter", SettingsPresenter, [_wire_settings]))
 
     # RegionMarker
-    from ui.presenters.debug_panel.region_marker_presenter import RegionMarkerPresenter
+    from backend.ui.presenters.debug_panel.region_marker_presenter import (
+        RegionMarkerPresenter,
+    )
 
     registry.append(("RegionMarker", RegionMarkerPresenter, []))
 
     # ElementDetection
-    from ui.presenters.debug_panel.element_detection_presenter import (
+    from backend.ui.presenters.debug_panel.element_detection_presenter import (
         ElementDetectionPresenter,
     )
 
     registry.append(("ElementDetection", ElementDetectionPresenter, []))
 
     # ArtifactRecognition
-    from ui.presenters.debug_panel.artifact_recognition_presenter import (
+    from backend.ui.presenters.debug_panel.artifact_recognition_presenter import (
         ArtifactRecognitionPresenter,
     )
 
     registry.append(("ArtifactRecognition", ArtifactRecognitionPresenter, []))
 
     # StatusBar
-    from ui.presenters.status_bar_presenter import StatusBarPresenter
-    from utils.log_bridge import set_presenter, set_status_callback
+    from backend.ui.presenters.status_bar_presenter import StatusBarPresenter
+    from backend.utils.log_bridge import set_presenter, set_status_callback
 
     def _wire_status(p: StatusBarPresenter) -> None:
         set_status_callback(p.show)
@@ -77,17 +79,21 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
     registry.append(("StatusBarPresenter", StatusBarPresenter, [_wire_status]))
 
     # InputDebug
-    from ui.presenters.debug_panel.input_debug_presenter import InputDebugPresenter
+    from backend.ui.presenters.debug_panel.input_debug_presenter import (
+        InputDebugPresenter,
+    )
 
     registry.append(("InputDebug", InputDebugPresenter, []))
 
     # InfraDebug
-    from ui.presenters.debug_panel.infra_debug_presenter import InfraDebugPresenter
+    from backend.ui.presenters.debug_panel.infra_debug_presenter import (
+        InfraDebugPresenter,
+    )
 
     registry.append(("InfraDebug", InfraDebugPresenter, []))
 
     # ArtifactScan
-    from ui.presenters.artifact_scan_presenter import ArtifactScanPresenter
+    from backend.ui.presenters.artifact_scan_presenter import ArtifactScanPresenter
 
     def _wire_scan(p: ArtifactScanPresenter) -> None:
         HotkeyListener.instance().stopRequested.connect(p.stopAllOperations)
@@ -95,41 +101,43 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
     registry.append(("ArtifactScan", ArtifactScanPresenter, [_wire_scan]))
 
     # ArtifactScanDebug
-    from ui.presenters.debug_panel.artifact_scan_debug_presenter import (
+    from backend.ui.presenters.debug_panel.artifact_scan_debug_presenter import (
         ArtifactScanDebugPresenter,
     )
 
     registry.append(("ArtifactScanDebug", ArtifactScanDebugPresenter, []))
 
     # SmartScrollDebug
-    from ui.presenters.debug_panel.smart_scroll_debug_presenter import (
+    from backend.ui.presenters.debug_panel.smart_scroll_debug_presenter import (
         SmartScrollDebugPresenter,
     )
 
     registry.append(("SmartScrollDebug", SmartScrollDebugPresenter, []))
 
     # GameDetector
-    from ui.presenters.game_detector import GameDetector
+    from backend.ui.presenters.game_detector import GameDetector
 
     registry.append(("GameDetector", GameDetector, []))
 
     # TitleBar
-    from ui.presenters.title_bar_presenter import TitleBarPresenter
+    from backend.ui.presenters.title_bar_presenter import TitleBarPresenter
 
     registry.append(("TitleBarPresenter", TitleBarPresenter, []))
 
     # VersionCheck
-    from ui.presenters.version_check_presenter import VersionCheckPresenter
+    from backend.ui.presenters.version_check_presenter import VersionCheckPresenter
 
     registry.append(("VersionCheck", VersionCheckPresenter, []))
 
     # RulePresenter
-    from ui.presenters.rule_presenter import RulePresenter
+    from backend.ui.presenters.rule_presenter import RulePresenter
 
     registry.append(("RulePresenter", RulePresenter, []))
 
     # ArtifactDecompose
-    from ui.presenters.artifact_decompose_presenter import ArtifactDecomposePresenter
+    from backend.ui.presenters.artifact_decompose_presenter import (
+        ArtifactDecomposePresenter,
+    )
 
     def _wire_decompose(p: ArtifactDecomposePresenter) -> None:
         HotkeyListener.instance().stopRequested.connect(p._on_hotkey_stop)
@@ -137,7 +145,7 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
     registry.append(("ArtifactDecompose", ArtifactDecomposePresenter, [_wire_decompose]))
 
     # ArtifactLocker
-    from ui.presenters.artifact_locker_presenter import ArtifactLockerPresenter
+    from backend.ui.presenters.artifact_locker_presenter import ArtifactLockerPresenter
 
     def _wire_locker(p: ArtifactLockerPresenter) -> None:
         HotkeyListener.instance().stopRequested.connect(p._on_hotkey_stop)
@@ -145,7 +153,7 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
     registry.append(("ArtifactLocker", ArtifactLockerPresenter, [_wire_locker]))
 
     # UpdatePresenter (App 更新)
-    from ui.presenters.update_presenter import UpdatePresenter
+    from backend.ui.presenters.update_presenter import UpdatePresenter
 
     registry.append(("UpdatePresenter", UpdatePresenter, []))
 
@@ -175,7 +183,7 @@ def register_all(engine: QQmlApplicationEngine) -> list:
             log.error(f"{name} 初始化失败: {exc}")
 
     # 将 QML 引擎注入 UpdatePresenter，使其能动态创建 UpdateWindow
-    from ui.presenters.update_presenter import UpdatePresenter
+    from backend.ui.presenters.update_presenter import UpdatePresenter
 
     UpdatePresenter.set_engine(engine)
 

@@ -11,7 +11,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from utils.logger import log
 
 from backend.models.slot_models import (
     ALL_RARITY_THRESHOLDS,  # noqa: F401
@@ -32,6 +31,7 @@ from backend.models.slot_models import (
     classify_rarity,
     star_count_to_rarity,
 )
+from backend.utils.logger import log
 
 
 def _draw_chinese_text(

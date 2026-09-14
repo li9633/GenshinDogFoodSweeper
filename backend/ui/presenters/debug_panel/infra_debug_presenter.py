@@ -17,7 +17,7 @@ class InfraDebugPresenter(QObject):
     @Slot(str)
     def testStatusBar(self, level: str) -> None:
         """测试状态栏：通过 log.xxx 发送消息，测试完整的日志桥接链路"""
-        from utils.logger import log
+        from backend.utils.logger import log
 
         msg = f"[调试] 状态栏颜色测试 — {level}"
         if level == "SUCCESS":
@@ -34,7 +34,7 @@ class InfraDebugPresenter(QObject):
     @Slot(str)
     def testGMessageBox(self, msg_type: str) -> None:
         """测试 GMessageBox Python 桥接链路：Python → Signal → QML"""
-        from ui.gmessagebox import GMessageBox
+        from backend.ui.gmessagebox import GMessageBox
 
         messages = {
             "info": "[基础设施调试] Python桥接 — 信息消息",
@@ -53,7 +53,8 @@ class InfraDebugPresenter(QObject):
         错误/警告类型会触发 requestActivate → 窗口拉起；信息/成功类型不会。
         """
         from PySide6.QtCore import QTimer
-        from ui.gmessagebox import GMessageBox
+
+        from backend.ui.gmessagebox import GMessageBox
 
         messages = {
             "info": "[聚焦测试] 延迟后 — 信息消息（不激活窗口）",
@@ -118,8 +119,8 @@ class InfraDebugPresenter(QObject):
     @Slot()
     def clearArtifactSets(self) -> None:
         """清空圣遗物套装表（artifact_sets）"""
-        from database.repository.artifact_set_repo import ArtifactSetRepo
-        from utils.logger import log
+        from backend.database.repository.artifact_set_repo import ArtifactSetRepo
+        from backend.utils.logger import log
 
         count = ArtifactSetRepo.delete_all()
         log.info(f"[调试] 已清空 artifact_sets 表（{count} 条记录）")
@@ -127,8 +128,8 @@ class InfraDebugPresenter(QObject):
     @Slot()
     def clearArtifactPieces(self) -> None:
         """清空圣遗物单件表（artifact_pieces）"""
-        from database.repository.artifact_piece_repo import ArtifactPieceRepo
-        from utils.logger import log
+        from backend.database.repository.artifact_piece_repo import ArtifactPieceRepo
+        from backend.utils.logger import log
 
         count = ArtifactPieceRepo.delete_all()
         log.info(f"[调试] 已清空 artifact_pieces 表（{count} 条记录）")
@@ -138,7 +139,7 @@ class InfraDebugPresenter(QObject):
         """删除 OCR 模型文件（engine/official_models 目录）"""
         import shutil
 
-        from utils.logger import log
+        from backend.utils.logger import log
 
         engines_dir = ENGINES
         models_dir = engines_dir / "official_models"

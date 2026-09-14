@@ -13,7 +13,7 @@ class SyncWorker(QThread):
     failed = Signal(str)
 
     def run(self) -> None:
-        from crawler.artifact_set_fetcher import ArtifactSetFetcher
+        from backend.crawler.artifact_set_fetcher import ArtifactSetFetcher
 
         try:
             # 不确定阶段：通知 QML 显示滚动进度条

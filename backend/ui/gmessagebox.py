@@ -2,7 +2,7 @@
 =======================
 通过信号桥接触发 QML 侧的 GMessageBox 弹窗，提供简洁的静态方法调用：
 
-    from ui.gmessagebox import GMessageBox
+    from backend.ui.gmessagebox import GMessageBox
     GMessageBox.init(engine)          # 在 main.py 中初始化一次
     GMessageBox.error("错误消息")      # 任意位置调用
     GMessageBox.warning("警告消息")
@@ -27,7 +27,8 @@ from typing import ClassVar
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtQml import QQmlApplicationEngine
-from utils.logger import log
+
+from backend.utils.logger import log
 
 # Windows API 常量
 _SWP_NOMOVE = 0x0002

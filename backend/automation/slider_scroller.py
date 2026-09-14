@@ -8,13 +8,13 @@ from collections.abc import Callable
 from time import sleep
 
 import numpy as np
-from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
+from backend.automation.screen_capture import ScreenshotCapture
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slot_detector import SlotDetectorConfig
 from backend.automation.window_helper import WindowHelper
-from backend.utils.screen_capture import ScreenshotCapture
+from backend.utils.logger import log
 
 
 class SliderScroller:

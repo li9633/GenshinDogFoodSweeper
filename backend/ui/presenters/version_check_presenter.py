@@ -1,4 +1,4 @@
-﻿"""
+"""
 圣遗物更新检查 Presenter
 ==================
 启动时在后台线程检查原神圣遗物是否有新版本，通过信号通知 UI。
@@ -7,15 +7,15 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
-from ui.gmessagebox import GMessageBox
-from ui.lifecycle import OnWindowReady
-from utils.logger import log
-from utils.settings_manager import settings
 
 from backend.exceptions.automation.exceptions import (
     ArtifactDatabaseEmptyError,
     ArtifactUpdateAvailableError,
 )
+from backend.ui.gmessagebox import GMessageBox
+from backend.ui.lifecycle import OnWindowReady
+from backend.utils.logger import log
+from backend.utils.settings_manager import settings
 from common.datetime_helper import DateTimeHelper
 
 # 间隔常量（秒）
@@ -34,7 +34,7 @@ class _VersionCheckWorker(QThread):
     checkFailed = Signal(str)  # 异常类型名
 
     def run(self) -> None:
-        from crawler.version_checker import VersionChecker
+        from backend.crawler.version_checker import VersionChecker
 
         try:
             VersionChecker.check()
@@ -125,5 +125,5 @@ class VersionCheckPresenter(QObject, OnWindowReady):
         """版本更新弹窗按钮回调"""
         if role == "accept":
             log.debug("用户点击「立即前往」，跳转到同步Tab")
-            from ui.presenters.navigation_presenter import NavigationPresenter
+            from backend.ui.presenters.navigation_presenter import NavigationPresenter
             NavigationPresenter.navigate("settings/sync")

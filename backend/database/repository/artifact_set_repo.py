@@ -7,8 +7,8 @@
 import json
 from typing import Any
 
-from database.connection import get_db
-from models.artifact_set import ArtifactSet
+from backend.database.connection import get_db
+from backend.models.artifact_set import ArtifactSet
 
 
 class ArtifactSetRepo:

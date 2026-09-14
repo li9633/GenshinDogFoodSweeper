@@ -8,8 +8,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from utils.logger import log
 
+from backend.utils.logger import log
 from common.constants import APP_NAME, APP_NAME_CN
 from common.version_manager import AppVersion
 

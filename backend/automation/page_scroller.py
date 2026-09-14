@@ -2,9 +2,8 @@
 
 from time import sleep
 
-from utils.logger import log
-
 from backend.automation.mouse_controller import MouseController
+from backend.automation.screen_capture import ScreenshotCapture
 from backend.automation.slot_detector import (
     BAG_SLOT_CONFIG,
     SlotDetector,
@@ -12,7 +11,7 @@ from backend.automation.slot_detector import (
 )
 from backend.automation.window_helper import WindowHelper, WindowInfo
 from backend.models.slot_models import DetectResult
-from backend.utils.screen_capture import ScreenshotCapture
+from backend.utils.logger import log
 
 
 class PageScroller:

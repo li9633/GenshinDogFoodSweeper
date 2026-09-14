@@ -5,7 +5,8 @@ from __future__ import annotations
 import numpy as np
 from PySide6.QtGui import QImage
 from PySide6.QtQuick import QQuickImageProvider
-from utils.logger import log
+
+from backend.utils.logger import log
 
 
 class PreviewImageProvider(QQuickImageProvider):

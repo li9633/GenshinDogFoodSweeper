@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from utils.logger import log
-
 from backend.automation.ocr_model_manager import OcrModelManager
 from backend.exceptions.automation import OcrModelNotReadyError
+from backend.utils.logger import log
 from common.paths import ENGINES
 
 

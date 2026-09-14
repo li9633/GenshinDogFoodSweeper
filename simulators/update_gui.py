@@ -50,7 +50,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from backend.utils.app_updater import UPDATE_OWNER, UPDATE_REPO, AppUpdater
+from backend.features.update.app_updater import UPDATE_OWNER, UPDATE_REPO, AppUpdater
 from common.datetime_helper import FMT_TIME, DateTimeHelper
 from tests.mocks.mock_github_api import (
     CURRENT_MAJOR,

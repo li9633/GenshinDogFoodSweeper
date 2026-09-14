@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from models.artifact import ArtifactInfo
-from models.dogfood_rule import DogfoodRule
-from utils.logger import log
+from backend.models.artifact import ArtifactInfo
+from backend.models.dogfood_rule import DogfoodRule
+from backend.utils.logger import log
 
 
 class DogfoodRuleEngine:

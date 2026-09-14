@@ -6,10 +6,9 @@ import json
 import re
 from typing import ClassVar
 
-from models.artifact import ArtifactInfo, ArtifactStat, SubStat
-from utils.logger import log
-
+from backend.models.artifact import ArtifactInfo, ArtifactStat, SubStat
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
+from backend.utils.logger import log
 from common.resources import Resource
 
 # 加载词条模板
@@ -163,7 +162,7 @@ class ArtifactTextParser:
     def _lookup_set_effects(set_id: int) -> dict[str, str] | None:
         """按 set_id 查询套装效果，返回 {'2pc': '...', '4pc': '...'} 或 None"""
         try:
-            from database.repository.artifact_set_repo import ArtifactSetRepo
+            from backend.database.repository.artifact_set_repo import ArtifactSetRepo
 
             set_obj = ArtifactSetRepo.find_by_id(set_id)
             if set_obj is None:

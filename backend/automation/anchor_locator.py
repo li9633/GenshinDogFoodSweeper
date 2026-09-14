@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
-from models.artifact import ArtifactInfo
+
+from backend.models.artifact import ArtifactInfo
 
 
 class AnchorLocator:

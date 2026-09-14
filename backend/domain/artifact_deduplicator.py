@@ -9,8 +9,8 @@
 
 from __future__ import annotations
 
-from models.artifact import ArtifactInfo, ArtifactStat
-from utils.logger import log
+from backend.models.artifact import ArtifactInfo, ArtifactStat
+from backend.utils.logger import log
 
 
 class ArtifactDeduplicator:

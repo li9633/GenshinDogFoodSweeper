@@ -6,8 +6,8 @@
 
 from typing import Any
 
-from database.connection import get_db
-from models.artifact_piece import ArtifactPiece
+from backend.database.connection import get_db
+from backend.models.artifact_piece import ArtifactPiece
 
 
 class ArtifactPieceRepo:

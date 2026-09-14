@@ -11,12 +11,12 @@ import cv2
 import numpy as np
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from PySide6.QtWidgets import QApplication
-from utils.logger import log
 
 from backend.automation.color_sampler import sample_roi_color
+from backend.automation.screen_capture import CaptureResult, ScreenshotCapture
 from backend.automation.template_manager import TemplateManager
 from backend.automation.window_helper import WindowHelper
-from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
+from backend.utils.logger import log
 
 from ..image_provider import PreviewImageProvider
 

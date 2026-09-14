@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from utils.logger import log
+from backend.utils.logger import log
 
 # 可选依赖检测
 

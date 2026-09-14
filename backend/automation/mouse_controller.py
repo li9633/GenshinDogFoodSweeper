@@ -8,7 +8,7 @@ import ctypes
 import time
 from ctypes import wintypes
 
-from utils.logger import log
+from backend.utils.logger import log
 
 # Win32 API 常量
 INPUT_MOUSE = 0

@@ -10,7 +10,8 @@ from typing import ClassVar
 
 from pynput.keyboard import GlobalHotKeys, Key, Listener
 from PySide6.QtCore import QObject, Signal
-from utils.logger import log
+
+from backend.utils.logger import log
 
 # pynput Key 常量 → 字符串映射
 _KEY_TO_STR: dict = {
@@ -79,13 +80,13 @@ class HotkeyListener(QObject):
     @staticmethod
     def get_hotkey() -> str:
         """从 settings 读取当前热键"""
-        from utils.settings_manager import settings
+        from backend.utils.settings_manager import settings
         return settings.get("hotkey.stop")
 
     @staticmethod
     def set_hotkey(hotkey: str) -> None:
         """持久化热键并重启监听"""
-        from utils.settings_manager import settings
+        from backend.utils.settings_manager import settings
         settings.set("hotkey.stop", hotkey)
         if HotkeyListener._instance is not None:
             HotkeyListener._instance._restart()

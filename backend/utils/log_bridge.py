@@ -11,7 +11,7 @@ import sys
 from collections.abc import Callable
 from typing import Self
 
-from utils.logger import log
+from backend.utils.logger import log
 
 # 需要显示在状态栏的日志级别 → 显示时长（毫秒，0=永久）
 _STATUS_BAR_DURATION: dict[str, int] = {

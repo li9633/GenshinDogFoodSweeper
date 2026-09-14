@@ -15,12 +15,16 @@ from typing import Any
 import cv2
 import numpy as np
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
-from utils.logger import log
 
 from backend.automation.recognizer import ArtifactRecognizer
+from backend.automation.screen_capture import (
+    CaptureMethod,
+    CaptureResult,
+    ScreenshotCapture,
+)
 from backend.automation.window_helper import WindowHelper
 from backend.models.slot_models import ALL_SLOT_CONFIGS, SlotDetectorConfig
-from backend.utils.screen_capture import CaptureMethod, CaptureResult, ScreenshotCapture
+from backend.utils.logger import log
 
 from ..image_provider import PreviewImageProvider
 

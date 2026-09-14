@@ -10,12 +10,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
-from utils.logger import log
 
+from backend.automation.screen_capture import CaptureResult, ScreenshotCapture
 from backend.automation.template_manager import TemplateManager
 from backend.automation.template_matcher import multi_scale_match
 from backend.automation.window_helper import WindowHelper
-from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
+from backend.utils.logger import log
 
 from ..image_provider import PreviewImageProvider
 

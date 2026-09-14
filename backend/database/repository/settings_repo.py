@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from database.connection import get_db
-
+from backend.database.connection import get_db
 from common.datetime_helper import DateTimeHelper
 
 

@@ -9,8 +9,8 @@ import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
-from utils.logger import log
 
+from backend.utils.logger import log
 from common.datetime_helper import DateTimeHelper
 from common.paths import ENGINES
 

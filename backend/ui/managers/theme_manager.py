@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import QApplication
-from utils.settings_manager import settings
 
+from backend.utils.settings_manager import settings
 from common.paths import RESOURCES
 
 
