@@ -1,4 +1,4 @@
-﻿"""
+"""
 原神狗粮清扫器 — 启动入口
 ===========================
 PySide6 + QML 桌面 GUI + FastAPI 后端服务。
@@ -21,17 +21,16 @@ import PySide6
 
 os.add_dll_directory(str(Path(PySide6.__file__).parent))
 
-# 确保项目根目录在 sys.path 中
-sys.path.insert(0, str(Path(__file__).parent))
-
-from database.init_db import create_tables
 from PySide6.QtCore import Qt
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
-from ui.presenters.image_provider import PreviewImageProvider
-from ui.presenters.registry import register_all
-from utils.logger import log, setup_logging
+
+from backend.database.init_db import create_tables
+from backend.exceptions.automation.exception_handler import install_exception_filters
+from backend.ui.presenters.image_provider import PreviewImageProvider
+from backend.ui.presenters.registry import register_all
+from backend.utils.logger import log, setup_logging
 
 
 def _find_icon() -> str | None:
@@ -42,6 +41,9 @@ def _find_icon() -> str | None:
 def main():
     # 日志初始化
     file_sink_id, _error_sink_id, stderr_sink_id = setup_logging()
+
+    # 全局异常过滤器（显式安装；不再由 import 副作用触发）
+    install_exception_filters()
 
     # 高 DPI 适配
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -70,8 +72,7 @@ def main():
     create_tables()
 
     # 初始化日志等级
-    from database.repository.settings_repo import SettingsRepo
-
+    from backend.database.repository.settings_repo import SettingsRepo
     from common.version import Channel
     from common.version_manager import AppVersion
 
@@ -80,8 +81,9 @@ def main():
         SettingsRepo.set("log.level", _default_level)
 
     from loguru import logger
-    from utils.log_bridge import create_status_bar_sink
-    from utils.settings_manager import settings
+
+    from backend.utils.log_bridge import create_status_bar_sink
+    from backend.utils.settings_manager import settings
 
     # 重新加载设置缓存
     settings.reload()
@@ -94,7 +96,7 @@ def main():
         format="{message}",
     )
 
-    from utils.log_bridge import register_sink, update_global_level
+    from backend.utils.log_bridge import register_sink, update_global_level
     register_sink(file_sink_id)
     if stderr_sink_id is not None:
         register_sink(stderr_sink_id)
@@ -143,7 +145,7 @@ def main():
 
     # 系统托盘
     try:
-        from ui.tray import TrayManager
+        from backend.ui.tray import TrayManager
 
         _tray = TrayManager(app=app, engine=engine)
         log.debug("TrayManager 启动成功")
@@ -151,8 +153,8 @@ def main():
         traceback.print_exc()
         log.error(f"TrayManager 初始化失败: {exc}")
 
-    # OCR 初始化器
-    from ui.gmessagebox import GMessageBox
+    # OCR 初始化器（自动化层不依赖 UI，这里显式注册窗口就绪回调）
+    from backend.ui.gmessagebox import GMessageBox
 
     GMessageBox.init(engine)
     from backend.automation.ocr_initializer import OcrInitializer
@@ -160,8 +162,9 @@ def main():
     _ocr_initializer = OcrInitializer()
 
     # 窗口就绪回调
-    from ui.lifecycle import OnWindowReady
+    from backend.ui.lifecycle import OnWindowReady
 
+    OnWindowReady.register(_ocr_initializer.on_window_ready)
     OnWindowReady.trigger_all()
 
     app.exec()
