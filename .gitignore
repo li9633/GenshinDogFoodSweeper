@@ -58,3 +58,6 @@ temp/
 engines/
 
 scan_result/
+# 测试缓存
+.pytest_cache/
+pytest-cache-files-*/

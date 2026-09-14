@@ -42,7 +42,11 @@ build-backend = "hatchling.build"
 packages = ["backend"]
 
 [dependency-groups]
-dev = ["pyinstaller>=6.0", "ruff>=0.16.7"]
+dev = ["pyinstaller>=6.0", "pytest>=8.0", "ruff>=0.16.7"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
 
 [tool.ruff]
 # 项目统一使用 except Exception 并在内部 log + emit 信号，不使用盲异常

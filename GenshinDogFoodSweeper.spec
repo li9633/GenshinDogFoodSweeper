@@ -6,7 +6,7 @@ from pathlib import Path
 
 a = Analysis(
     ['backend\\main.py'],
-    pathex=['backend'],
+    pathex=['.'],
     binaries=[],
     datas=[],
     hiddenimports=[
@@ -16,10 +16,10 @@ a = Analysis(
         'PySide6.QtWidgets',
         'pynput.keyboard._win32',
         'pynput.mouse._win32',
-        'database',
-        'database.init_db',
-        'database.connection',
-        'database.repository',
+        'backend.database',
+        'backend.database.init_db',
+        'backend.database.connection',
+        'backend.database.repository',
     ],
     hookspath=[],
     hooksconfig={},
