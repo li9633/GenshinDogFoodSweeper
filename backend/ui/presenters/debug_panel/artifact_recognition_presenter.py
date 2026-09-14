@@ -1,4 +1,4 @@
-﻿"""圣遗物识别 Presenter — QObject 封装，供 QML 绑定
+"""圣遗物识别 Presenter — QObject 封装，供 QML 绑定
 
 截图 → OCR → Recognizer → 格式化展示。
 
@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 
-from backend.automation.recognizer import ArtifactRecognizer
+from backend.automation.artifact_recognizer import ArtifactRecognizer
 from backend.automation.screen_capture import (
     CaptureMethod,
     CaptureResult,

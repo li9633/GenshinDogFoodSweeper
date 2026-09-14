@@ -7,8 +7,8 @@ from pathlib import Path
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
+from backend.automation.artifact_recognizer import ArtifactRecognizer
 from backend.automation.dogfood_rule_engine import DogfoodRuleEngine
-from backend.automation.recognizer import ArtifactRecognizer
 from backend.database.repository.dogfood_rule_repo import DogfoodRuleRepo
 from backend.exceptions.automation import GameWindowNotFoundError
 from backend.models.artifact import ArtifactInfo

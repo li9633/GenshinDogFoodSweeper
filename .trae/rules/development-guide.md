@@ -220,7 +220,7 @@ text: modelData.key + "(" + getFileName(modelData.key) + ")"
 
 | 模块 | 职责 |
 |------|------|
-| `automation/recognizer.py` | 圣遗物识别：OCR 解析 + 套装匹配 + 星级检测 |
+| `automation/artifact_recognizer.py` | 圣遗物识别：OCR 解析 + 套装匹配 + 星级检测 |
 | `automation/template_matcher.py` | 多尺度模板匹配 |
 | `automation/template_manager.py` | 模板文件管理（增删查） |
 | `automation/ocr_engine.py` | OCR 引擎封装（PaddleOCR 初始化 + 推理） |
@@ -476,7 +476,7 @@ backend/
 │       ├── artifact_set_repo.py
 │       └── artifact_piece_repo.py
 ├── automation/                  # 业务逻辑层
-│   ├── recognizer.py
+│   ├── artifact_recognizer.py
 │   ├── template_matcher.py
 │   ├── template_manager.py
 │   ├── ocr_engine.py            # PaddleOCR 引擎封装

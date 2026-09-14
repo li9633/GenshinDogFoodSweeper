@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
+from backend.automation.artifact_recognizer import ArtifactRecognizer
 from backend.automation.mouse_controller import MouseController
 from backend.automation.page_scroller import PageScroller
-from backend.automation.recognizer import ArtifactRecognizer
 from backend.automation.slider_scroller import SliderScroller
 from backend.automation.slot_detector import SlotDetector
 from backend.automation.window_helper import WindowHelper

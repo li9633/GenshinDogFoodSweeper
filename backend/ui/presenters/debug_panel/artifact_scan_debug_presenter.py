@@ -606,7 +606,7 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
     @staticmethod
     def _create_anchor_ocr_task(image, roi_configs, anchor_type):
         def task(ocr) -> dict:
-            from backend.automation.recognizer import ArtifactRecognizer
+            from backend.automation.artifact_recognizer import ArtifactRecognizer
             from backend.ui.presenters.debug_panel.artifact_recognition_presenter import (
                 ArtifactRecognitionPresenter,
             )
