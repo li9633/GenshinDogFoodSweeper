@@ -13,18 +13,19 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Property, QObject, QThread, Signal, Slot
-from ui.presenters.window_presenter import WindowPresenter
 
+from backend.ui.presenters.window_presenter import WindowPresenter
+from backend.ui.presenters.worker_host import WorkerHost
 from common.version_manager import AppVersion
 
 
 class _CheckWorker(QThread):
     """版本检查工作线程"""
 
-    finished = Signal(object, object)
+    checkCompleted = Signal(object, object)
 
     def run(self) -> None:
-        from backend.utils.app_updater import (
+        from backend.features.update.app_updater import (
             UPDATE_OWNER,
             UPDATE_REPO,
             AppUpdater,
@@ -43,12 +44,12 @@ class _CheckWorker(QThread):
             )
 
             if error:
-                self.finished.emit(None, error)
+                self.checkCompleted.emit(None, error)
             else:
-                self.finished.emit((has_update, info), None)
+                self.checkCompleted.emit((has_update, info), None)
         except Exception as e:
             log.debug(f"[_CheckWorker] 异常: {type(e).__name__}: {e}", exc_info=True)
-            self.finished.emit(None, str(e))
+            self.checkCompleted.emit(None, str(e))
 
 
 class _DownloadWorker(QThread):
@@ -62,7 +63,7 @@ class _DownloadWorker(QThread):
         self._url = url
 
     def run(self) -> None:
-        from backend.utils.app_updater import (
+        from backend.features.update.app_updater import (
             UPDATE_OWNER,
             UPDATE_REPO,
             AppUpdater,
@@ -131,9 +132,9 @@ class UpdatePresenter(WindowPresenter):
         self._changelog_or_placeholder = "暂无更新日志"
         self._update_button_text = "立即更新"
 
-        # ── 工作线程 ──
-        self._check_worker: _CheckWorker | None = None
-        self._download_worker: _DownloadWorker | None = None
+        # ── 工作线程（检查与下载互不干扰，各自单飞）──
+        self._check_host = WorkerHost(self)
+        self._download_host = WorkerHost(self)
 
         self._current_version = AppVersion.display()
 
@@ -214,7 +215,7 @@ class UpdatePresenter(WindowPresenter):
         """检查是否有可用更新（AboutTab 按钮调用）"""
         from backend.utils.logger import log
 
-        if self._checking:
+        if self._checking or self._check_host.busy:
             return
         self._checking = True
         self.checkingChanged.emit()
@@ -226,14 +227,14 @@ class UpdatePresenter(WindowPresenter):
 
         log.info("正在检查更新…")
 
-        self._check_worker = _CheckWorker()
-        self._check_worker.finished.connect(self._on_check_finished)
-        self._check_worker.start()
+        worker = _CheckWorker()
+        worker.checkCompleted.connect(self._on_check_finished)
+        self._check_host.start(worker)
 
     @Slot()
     def downloadAndInstall(self) -> None:
         """下载安装包并拉起安装程序"""
-        if self._downloading or not self._download_url:
+        if self._downloading or self._download_host.busy or not self._download_url:
             return
 
         self._downloading = True
@@ -245,10 +246,10 @@ class UpdatePresenter(WindowPresenter):
         self._refresh_download_display()
         self._refresh_button_text()
 
-        self._download_worker = _DownloadWorker(self._download_url)
-        self._download_worker.progress.connect(self._on_download_progress)
-        self._download_worker.finished_download.connect(self._on_download_finished)
-        self._download_worker.start()
+        worker = _DownloadWorker(self._download_url)
+        worker.progress.connect(self._on_download_progress)
+        worker.finished_download.connect(self._on_download_finished)
+        self._download_host.start(worker)
 
     # ════════════════════════════════════════════
     # 窗口生命周期（继承 WindowPresenter）
@@ -369,7 +370,11 @@ class UpdatePresenter(WindowPresenter):
         from PySide6.QtCore import QTimer
         from PySide6.QtWidgets import QApplication
 
-        from backend.utils.app_updater import UPDATE_OWNER, UPDATE_REPO, AppUpdater
+        from backend.features.update.app_updater import (
+            UPDATE_OWNER,
+            UPDATE_REPO,
+            AppUpdater,
+        )
 
         AppUpdater(UPDATE_OWNER, UPDATE_REPO).install(setup_path)
 

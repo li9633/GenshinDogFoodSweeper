@@ -1,4 +1,4 @@
-﻿"""
+"""
 设置页面 Presenter
 ==================
 封装主题切换、数据同步、OCR 模型下载的业务逻辑，
@@ -13,9 +13,10 @@ from __future__ import annotations
 from typing import ClassVar
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
-from utils.logger import log
-from utils.settings_manager import settings
 
+from backend.ui.presenters.worker_host import WorkerHost
+from backend.utils.logger import log
+from backend.utils.settings_manager import settings
 from common.datetime_helper import DateTimeHelper
 from common.resources import Resource
 from common.version import Channel
@@ -201,7 +202,7 @@ class SettingsPresenter(QObject):
         if 0 <= index < len(self._LOG_LEVELS):
             new_level = self._LOG_LEVELS[index]
             settings.set("log.level", new_level)
-            from utils.log_bridge import update_global_level
+            from backend.utils.log_bridge import update_global_level
             update_global_level(new_level)
             self.logLevelChanged.emit()
 
@@ -304,12 +305,13 @@ class SettingsPresenter(QObject):
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._sync_worker = None
+        # 同步与模型下载是两件独立的事，各给一个单飞托管
+        self._sync_host = WorkerHost(self)
+        self._download_host = WorkerHost(self)
         self._model_manager = None
-        self._download_worker = None
 
         # 注册设置页子Tab路由
-        from ui.presenters.navigation_presenter import NavigationPresenter
+        from backend.ui.presenters.navigation_presenter import NavigationPresenter
 
         NavigationPresenter.register("settings/general", "settings", "general")
         NavigationPresenter.register("settings/appearance", "settings", "appearance")
@@ -344,8 +346,10 @@ class SettingsPresenter(QObject):
     def dbStats(self) -> str:
         """当前数据库实际存储的圣遗物数据量（可能因手动删除等操作与上次同步记录不一致）"""
         try:
-            from database.repository.artifact_piece_repo import ArtifactPieceRepo
-            from database.repository.artifact_set_repo import ArtifactSetRepo
+            from backend.database.repository.artifact_piece_repo import (
+                ArtifactPieceRepo,
+            )
+            from backend.database.repository.artifact_set_repo import ArtifactSetRepo
             sets = ArtifactSetRepo.count()
             pieces = ArtifactPieceRepo.count()
             if sets > 0:
@@ -364,14 +368,18 @@ class SettingsPresenter(QObject):
     def startSync(self) -> None:
         from backend.ui.presenters.sync_worker import SyncWorker
 
+        if self._sync_host.busy:
+            log.warning("同步已在运行中")
+            return
+
         self.syncStarted.emit()
         self.statusMessage.emit("正在同步圣遗物数据…", 0, "INFO")
 
-        self._sync_worker = SyncWorker()
-        self._sync_worker.progress.connect(self.syncProgress.emit)
-        self._sync_worker.finished_sync.connect(self._on_sync_finished)
-        self._sync_worker.failed.connect(self._on_sync_failed)
-        self._sync_worker.start()
+        worker = SyncWorker()
+        worker.progress.connect(self.syncProgress.emit)
+        worker.finished_sync.connect(self._on_sync_finished)
+        worker.failed.connect(self._on_sync_failed)
+        self._sync_host.start(worker)
 
     def _notify_sync_changed(self) -> None:
         self.syncTimeChanged.emit()
@@ -425,13 +433,17 @@ class SettingsPresenter(QObject):
 
     @Slot()
     def downloadModels(self) -> None:
+        if self._download_host.busy:
+            log.warning("模型下载已在运行中")
+            return
+
         self.modelDownloadStarted.emit()
 
         mgr = self._get_model_manager()
-        self._download_worker = mgr.create_download_worker()
-        self._download_worker.progress.connect(self.modelDownloadProgress.emit)
-        self._download_worker.finished_download.connect(self._on_download_finished)
-        self._download_worker.start()
+        worker = mgr.create_download_worker()
+        worker.progress.connect(self.modelDownloadProgress.emit)
+        worker.finished_download.connect(self._on_download_finished)
+        self._download_host.start(worker)
 
     def _on_download_finished(self, success: bool, message: str) -> None:
         self._notify_model_changed()

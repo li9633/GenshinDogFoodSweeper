@@ -188,21 +188,39 @@ Rectangle {
                     spacing: 6
 
                     Text {
-                        text: "当前配置: " + ArtifactScanDebug.activeConfigName
-                              + " | " + ArtifactScanDebug.activeConfigCols + "×" + ArtifactScanDebug.activeConfigRows
-                              + " | 格子: " + ArtifactScanDebug.activeConfigSlotW + "×" + ArtifactScanDebug.activeConfigSlotH
+                        text: ArtifactScanDebug.activeConfigSummaryText
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
                         color: Theme.accent
                     }
 
                     Text {
-                        text: "ROI: (" + ArtifactScanDebug.activeConfigRoiX + ", " + ArtifactScanDebug.activeConfigRoiY
-                              + ", " + ArtifactScanDebug.activeConfigRoiW + ", " + ArtifactScanDebug.activeConfigRoiH + ")"
-                              + " | 间距: " + ArtifactScanDebug.gridGap + "px | 点击间隔: " + ArtifactScanDebug.batchClickInterval + "ms"
+                        text: ArtifactScanDebug.activeConfigRoiText
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
                         color: Theme.textSecondary
+                    }
+
+                    // 点击间隔
+                    RowLayout {
+                        spacing: 4
+                        Text {
+                            text: "点击间隔(ms)"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            color: Theme.textSecondary
+                        }
+                        GSpinBox {
+                            id: batchInterval
+                            from: 10
+                            to: 2000
+                            stepSize: 10
+                            value: ArtifactScanDebug.batchClickInterval
+                            editable: true
+                            enabled: !ArtifactScanDebug.batchRunning
+                            Layout.preferredWidth: 100
+                            onValueModified: ArtifactScanDebug.setBatchClickInterval(value)
+                        }
                     }
 
                     // 按钮 + 进度
