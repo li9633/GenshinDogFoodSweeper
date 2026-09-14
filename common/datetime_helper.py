@@ -53,6 +53,11 @@ class DateTimeHelper:
         return datetime.now(_TZ).strftime(FMT_FILE)
 
     @staticmethod
+    def now_ts() -> float:
+        """返回当前 Unix 时间戳（秒），基于项目统一时区"""
+        return datetime.now(_TZ).timestamp()
+
+    @staticmethod
     def format_ts(ts: float) -> str:
         """
         格式化 Unix 时间戳为字符串。

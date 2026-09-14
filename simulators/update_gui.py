@@ -51,7 +51,7 @@ from PySide6.QtWidgets import (
 )
 
 from backend.utils.app_updater import UPDATE_OWNER, UPDATE_REPO, AppUpdater
-from common.datetime_helper import DateTimeHelper
+from common.datetime_helper import FMT_TIME, DateTimeHelper
 from tests.mocks.mock_github_api import (
     CURRENT_MAJOR,
     CURRENT_MINOR,
@@ -516,7 +516,7 @@ class MockApiWindow(QWidget):
 
     @staticmethod
     def _ts() -> str:
-        return DateTimeHelper.now().strftime("%H:%M:%S")
+        return DateTimeHelper.now().strftime(FMT_TIME)
 
     def _on_log(self, entry: str) -> None:
         self._pending_logs.append(f"[{self._ts()}] {entry}")

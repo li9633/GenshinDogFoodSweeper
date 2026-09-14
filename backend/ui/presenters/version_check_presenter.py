@@ -6,8 +6,6 @@
 
 from __future__ import annotations
 
-import time
-
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 from ui.gmessagebox import GMessageBox
 from ui.lifecycle import OnWindowReady
@@ -18,6 +16,7 @@ from backend.exceptions.automation.exceptions import (
     ArtifactDatabaseEmptyError,
     ArtifactUpdateAvailableError,
 )
+from common.datetime_helper import DateTimeHelper
 
 # 间隔常量（秒）
 INTERVAL_SECONDS: dict[str, int] = {
@@ -69,7 +68,7 @@ class VersionCheckPresenter(QObject, OnWindowReady):
         last_ts = settings.get_int("sync_check.last_version_check_ts")
         if last_ts <= 0:
             return True
-        return (time.time() - last_ts) >= interval_sec
+        return (DateTimeHelper.now_ts() - last_ts) >= interval_sec
 
     # ========== 公开 Slot ==========
 
@@ -88,13 +87,13 @@ class VersionCheckPresenter(QObject, OnWindowReady):
 
     def _on_check_ok(self) -> None:
         """检查完成，无需更新"""
-        now_ts = int(time.time())
+        now_ts = int(DateTimeHelper.now_ts())
         settings.set("sync_check.last_version_check_ts", str(now_ts))
         log.debug("圣遗物更新检查: 本地数据已是最新，无需更新")
 
     def _on_check_failed(self, exc_name: str) -> None:
         """检查失败，根据异常类型名决定是否弹窗"""
-        now_ts = int(time.time())
+        now_ts = int(DateTimeHelper.now_ts())
         settings.set("sync_check.last_version_check_ts", str(now_ts))
 
         if exc_name == ArtifactDatabaseEmptyError.__name__:

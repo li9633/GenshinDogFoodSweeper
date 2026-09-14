@@ -6,12 +6,12 @@ import json
 import logging
 import shutil
 import tempfile
-import time
 from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 from utils.logger import log
 
+from common.datetime_helper import DateTimeHelper
 from common.paths import ENGINES
 
 # 抑制 modelscope 下载时的 INFO 日志（进度条噪音）
@@ -119,8 +119,8 @@ class _DownloadWorker(QThread):
                 json.dumps(
                     {
                         "models": {m: _MODELSCOPE_REVISION for m in downloaded},
-                        "downloaded_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "downloaded_ts": int(time.time()),
+                        "downloaded_at": DateTimeHelper.now_str(),
+                        "downloaded_ts": int(DateTimeHelper.now_ts()),
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -185,7 +185,7 @@ class OcrModelManager:
             return "未下载"
         ts = info.get("downloaded_ts", 0)
         if ts:
-            dt = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+            dt = DateTimeHelper.format_ts(ts)
             models = info.get("models", {})
             return f"已下载 {len(models)} 个模型 ({dt})"
         return "版本信息异常"

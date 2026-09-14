@@ -10,7 +10,6 @@
 
 from __future__ import annotations
 
-import time
 from typing import ClassVar
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
@@ -386,7 +385,7 @@ class SettingsPresenter(QObject):
     def _on_sync_finished(
         self, sets_count: int, slots_count: int, expected_count: int
     ) -> None:
-        now_ts = time.time()
+        now_ts = DateTimeHelper.now_ts()
         settings.set("data.last_sync_ts", str(int(now_ts)))
         settings.set("data.last_sync_sets", str(sets_count))
         settings.set("data.last_sync_pieces", str(slots_count))

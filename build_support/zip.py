@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import shutil
-from datetime import UTC, datetime
 from pathlib import Path
 
 from build_support.config import BuildConfig
+from common.datetime_helper import DateTimeHelper
 
 
 def create_zip(config: BuildConfig) -> Path:
@@ -32,7 +32,7 @@ def create_zip(config: BuildConfig) -> Path:
             f"名称: {dist_name}\n"
             f"渠道: {config.channel}\n"
             f"版本: {dist_name}\n"
-            f"构建时间: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+            f"构建时间: {DateTimeHelper.now_str()}\n"
             f"Git Commit: {config.commit_hash or 'N/A'}\n",
             encoding="utf-8",
         )

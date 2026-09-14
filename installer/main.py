@@ -15,8 +15,9 @@ import argparse
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from common.datetime_helper import DateTimeHelper
 
 os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
 
@@ -60,7 +61,7 @@ def _setup_log() -> Path:
         log_dir = Path(sys.executable).parent
     else:
         log_dir = Path.cwd()
-    timestamp = datetime.now(tz=timezone(timedelta(hours=8))).strftime("%Y%m%d_%H%M%S")
+    timestamp = DateTimeHelper.file_timestamp()
     log_path = log_dir / f"install-log-{timestamp}.log"
     logging.basicConfig(
         level=logging.DEBUG,
