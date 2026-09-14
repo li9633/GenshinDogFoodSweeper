@@ -90,7 +90,7 @@ Rectangle {
             }
             GButton {
                 visible: RulePresenter.multiSelectedCount > 0
-                text: "导出选中(" + RulePresenter.multiSelectedCount + ")"
+                text: RulePresenter.exportSelectedText
                 colorType: "warning"
                 onClicked: fileExportSelectedDialog.open()
             }

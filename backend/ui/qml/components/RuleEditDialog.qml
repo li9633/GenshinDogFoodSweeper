@@ -382,7 +382,7 @@ Dialog {
                                     spacing: 4
                                     Text {
                                         id: setBtnText
-                                        text: root._formSelectedSets.length > 0 ? "已选 " + root._formSelectedSets.length + " 个" : "选择套装"
+                                        text: RulePresenter.selectedSetsText(root._formSelectedSets.length)
                                         font.family: Theme.fontFamily
                                         font.pixelSize: 12
                                         color: Theme.textSecondary
@@ -478,7 +478,7 @@ Dialog {
                     spacing: 4
                     GButton {
                         id: subStatsBtn
-                        text: root._formSelectedSubStats.length > 0 ? "已选 " + root._formSelectedSubStats.length + " 个" : "不限"
+                        text: RulePresenter.selectedSubStatsText(root._formSelectedSubStats.length)
                         colorType: "default"
                         implicitHeight: 32
                         onClicked: {
@@ -504,13 +504,7 @@ Dialog {
                                     anchors.verticalCenter: parent.verticalCenter
                                     spacing: 4
                                     Text {
-                                        text: {
-                                            var s = modelData.name;
-                                            if (modelData.op && modelData.op !== "") {
-                                                s += " " + modelData.op + " " + modelData.value;
-                                            }
-                                            return s;
-                                        }
+                                        text: RulePresenter.subStatChipText(modelData)
                                         font.family: Theme.fontFamily
                                         font.pixelSize: 12
                                         color: Theme.accent

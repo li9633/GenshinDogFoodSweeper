@@ -98,29 +98,6 @@ Rectangle {
     // ============================================================
     // 辅助格式化函数
     // ============================================================
-    function _fmtPart(p) {
-        return (!p || p === "*") ? "任意部位" : p
-    }
-
-    function _fmtMainStat(ms) {
-        return (!ms || ms === "*") ? "任意主词条" : ms
-    }
-
-    function _fmtSetName(sn) {
-        return (!sn || sn === "*") ? "" : sn
-    }
-
-    function _fmtSubStats(subs) {
-        if (!subs || subs.length === 0) return ""
-        const parts = subs.map(function(s) {
-            if (s.op && s.value)
-                return s.name + s.op + s.value + "%"
-            return s.name
-        })
-        return parts.join(", ")
-    }
-
-    // ============================================================
     // 内容区
     // ============================================================
     ColumnLayout {
@@ -173,7 +150,7 @@ Rectangle {
                 Text {
                     id: priorityLabel
                     anchors.centerIn: parent
-                    text: "P" + (ruleData.priority || 0)
+                    text: ruleData.display.priority
                     font.family: Theme.fontFamily
                     font.pixelSize: 11
                     color: Theme.accent
@@ -184,16 +161,7 @@ Rectangle {
         // -- 第二行：部位 + 排除 + 主词条 + 套装 --
         Text {
             Layout.fillWidth: true
-            text: {
-                const parts = [_fmtPart(ruleData.part)]
-                const pe = ruleData.part_exclude || ""
-                if (pe && pe !== "*") parts.push("排除: " + pe)
-                const ms = _fmtMainStat(ruleData.main_stat)
-                if (ms !== "任意主词条") parts.push(ms)
-                const sn = _fmtSetName(ruleData.set_name)
-                if (sn) parts.push(sn)
-                return parts.join(" · ")
-            }
+            text: ruleData.display.meta
             font.family: Theme.fontFamily
             font.pixelSize: 12
             color: Theme.textSecondary
@@ -205,18 +173,11 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             spacing: 6
-            visible: _fmtSubStats(ruleData.sub_stats) !== ""
+            visible: ruleData.display.sub_stats !== ""
 
             Text {
                 Layout.fillWidth: true
-                text: {
-                    const subs = _fmtSubStats(ruleData.sub_stats)
-                    if (!subs) return ""
-                    let line = "副词条: " + subs
-                    if (ruleData.sub_count > 0)
-                        line += "  (≥" + ruleData.sub_count + "条匹配)"
-                    return line
-                }
+                text: ruleData.display.sub_stats
                 font.family: Theme.fontFamily
                 font.pixelSize: 12
                 color: Theme.textSecondary

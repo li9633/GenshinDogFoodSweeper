@@ -14,28 +14,8 @@ Dialog {
     standardButtons: Dialog.Close
     padding: 0
 
-    property var resultData: ({
-                                  ok: false,
-                                  error: "",
-                                  rule_name: "",
-                                  rule_action: "keep",
-                                  matched: false,
-                                  detail: ({}),
-                                  final_action: "keep",
-                                  artifact: ({
-                                                 set_name: "",
-                                                 piece_icon: "",
-                                                 piece_type: "",
-                                                 piece_name: "",
-                                                 rarity: 0,
-                                                 level: 0,
-                                                 main_stat: "",
-                                                 sub_stats: [],
-                                                 is_locked: false,
-                                                 is_material: false,
-                                                 material_name: ""
-                                             })
-                              })
+    // 载荷结构与展示文案都由 RulePresenter 提供（含 testResultReady 的字段骨架）
+    property var resultData: RulePresenter.emptyTestResult
 
     background: Rectangle {
         radius: 10
@@ -103,7 +83,7 @@ Dialog {
             Text {
                 Layout.fillWidth: true
                 visible: !root.resultData.ok
-                text: "测试失败: " + (root.resultData.error || "未知错误")
+                text: root.resultData.error_text
                 font.family: Theme.fontFamily
                 font.pixelSize: 14
                 color: Theme.danger
@@ -146,7 +126,7 @@ Dialog {
                                 color: Theme.warning
                             }
                             Text {
-                                text: "+" + (root.resultData.artifact.level || 0)
+                                text: root.resultData.artifact.level_text
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 14
                                 font.bold: true
@@ -162,7 +142,7 @@ Dialog {
                             Item { Layout.fillWidth: true }
                             Rectangle {
                                 radius: 3
-                                implicitWidth: lockLabel.implicitWidth + 10
+                                implicitWidth: lockRow.implicitWidth + 10
                                 implicitHeight: 20
                                 color: "transparent"
                                 Rectangle {
@@ -171,13 +151,22 @@ Dialog {
                                     color: root.resultData.artifact.is_locked ? Theme.accent : Theme.success
                                     opacity: 0.12
                                 }
-                                Text {
-                                    id: lockLabel
+                                RowLayout {
+                                    id: lockRow
                                     anchors.centerIn: parent
-                                    text: (root.resultData.artifact.is_locked ? Icon.lock : Icon.lockOpen) + (root.resultData.artifact.is_locked ? " 已锁" : " 未锁")
-                                    font.family: Icon.fontSolid
-                                    font.pixelSize: 11
-                                    color: root.resultData.artifact.is_locked ? Theme.accent : Theme.success
+                                    spacing: 3
+                                    Text {
+                                        text: root.resultData.artifact.is_locked ? Icon.lock : Icon.lockOpen
+                                        font.family: Icon.fontSolid
+                                        font.pixelSize: 11
+                                        color: root.resultData.artifact.is_locked ? Theme.accent : Theme.success
+                                    }
+                                    Text {
+                                        text: root.resultData.artifact.lock_text
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: 11
+                                        color: root.resultData.artifact.is_locked ? Theme.accent : Theme.success
+                                    }
                                 }
                             }
                             Rectangle {
@@ -207,13 +196,13 @@ Dialog {
                             Layout.fillWidth: true
                             spacing: 16
                             Text {
-                                text: "套装: " + (root.resultData.artifact.set_name || "—")
+                                text: root.resultData.artifact.set_text
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 13
                                 color: Theme.textPrimary
                             }
                             Text {
-                                text: "部位: " + (root.resultData.artifact.piece_type || "—")
+                                text: root.resultData.artifact.piece_type_text
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 13
                                 color: Theme.textPrimary
@@ -221,7 +210,7 @@ Dialog {
                         }
 
                         Text {
-                            text: "主词条: " + (root.resultData.artifact.main_stat || "—")
+                            text: root.resultData.artifact.main_stat_text
                             font.family: Theme.fontFamily
                             font.pixelSize: 13
                             color: Theme.textPrimary
@@ -236,7 +225,7 @@ Dialog {
                                     color: modelData.activated ? Theme.success : Theme.textMuted
                                 }
                                 Text {
-                                    text: modelData.name + " +" + modelData.value
+                                    text: modelData.display
                                     font.family: Theme.fontFamily
                                     font.pixelSize: 12
                                     color: modelData.activated ? Theme.textPrimary : Theme.textMuted
@@ -259,7 +248,7 @@ Dialog {
                         RowLayout {
                             spacing: 8
                             Text {
-                                text: "规则: " + (root.resultData.rule_name || "")
+                                text: root.resultData.rule_text
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 14
                                 font.bold: true
@@ -295,8 +284,15 @@ Dialog {
                                 color: root.resultData.matched ? Theme.success : Theme.danger
                             }
                             Text {
-                                text: (root.resultData.matched ? Icon.check : Icon.close) + (root.resultData.matched ? " 规则匹配成功" : " 规则不匹配")
+                                text: root.resultData.matched ? Icon.check : Icon.close
                                 font.family: Icon.fontSolid
+                                font.pixelSize: 14
+                                font.bold: true
+                                color: root.resultData.matched ? Theme.success : Theme.danger
+                            }
+                            Text {
+                                text: root.resultData.match_text
+                                font.family: Theme.fontFamily
                                 font.pixelSize: 14
                                 font.bold: true
                                 color: root.resultData.matched ? Theme.success : Theme.danger
