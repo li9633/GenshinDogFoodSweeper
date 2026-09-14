@@ -44,7 +44,7 @@ def set_presenter(presenter: object) -> None:
 def start_task(key: str, message: str, *, name: str = "") -> None:
     """钉住一条任务消息到状态栏，同时写入文件日志。
 
-    线程安全，可在任意线程调用。
+    线程安全。
     状态栏直接显示，不受全局日志等级影响。
     """
     _emit = log.patch(lambda r: r.update(name=name)) if name else log

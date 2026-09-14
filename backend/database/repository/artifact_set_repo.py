@@ -1,4 +1,4 @@
-"""
+﻿"""
 圣遗物套装 Repository
 ======================
 对应 artifact_sets 表的 DDL 与 CRUD 操作。
@@ -16,7 +16,7 @@ class ArtifactSetRepo:
 
     DB_NAME = "artifacts.db"
 
-    # ---------- DDL ----------
+    # DDL
 
     @classmethod
     def create_table(cls) -> None:
@@ -37,7 +37,7 @@ class ArtifactSetRepo:
                 "ON artifact_sets(name)"
             )
 
-    # ---------- CRUD ----------
+    # CRUD
 
     @classmethod
     def find_all(cls) -> list[ArtifactSet]:

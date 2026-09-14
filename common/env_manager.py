@@ -1,8 +1,5 @@
 """
-环境管理器
-==========
-读取环境变量，支持 .env 文件自动加载，提供调试模式判断等便捷方法。
-所有静态方法无需实例化；QObject 实例可直接暴露给 QML。
+环境管理器 — 读取环境变量，支持 .env 文件自动加载，提供调试模式判断等便捷方法。
 """
 
 from __future__ import annotations
@@ -36,13 +33,9 @@ _load_dotenv()
 
 
 class EnvManager(QObject):
-    """环境变量管理器 — QObject 实现，可直接暴露给 QML"""
-
-    # ---------- 信号 ----------
+    """环境变量管理器 — QObject 实现，可暴露给 QML"""
 
     debugChanged = Signal()
-
-    # ---------- 环境变量键名 ----------
 
     DEBUG_KEY = "GDFS_DEBUG_MODE"
     INSTALLER_DEBUG_KEY = "GDFS_INSTALLER_DEBUG"
@@ -50,14 +43,13 @@ class EnvManager(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-    # ---------- QML 属性 ----------
+    # QML 属性
 
     @Property(bool, notify=debugChanged)
     def isDebug(self) -> bool:
-        """QML 绑定: EnvManager.isDebug"""
         return self.is_debug()
 
-    # ---------- 通用方法 ----------
+    # 通用方法
 
     @staticmethod
     def get(key: str, default: str = "") -> str:
@@ -80,14 +72,12 @@ class EnvManager(QObject):
             return False
         return default
 
-    # ---------- 快捷方法 ----------
+    # 快捷方法
 
     @staticmethod
     def is_debug() -> bool:
-        """主 App 调试模式"""
         return EnvManager.get_bool(EnvManager.DEBUG_KEY, default=False)
 
     @staticmethod
     def is_installer_debug() -> bool:
-        """安装器调试模式"""
         return EnvManager.get_bool(EnvManager.INSTALLER_DEBUG_KEY, default=False)

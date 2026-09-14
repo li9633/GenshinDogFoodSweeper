@@ -1,4 +1,4 @@
-"""
+﻿"""
 输入调试 Presenter
 ==================
 直接包装 WindowHelper 和 MouseController 底层模块，
@@ -59,7 +59,7 @@ class InputDebugPresenter(QObject):
         if changed:
             self.windowInfoChanged.emit()
 
-    # ========== WindowHelper Properties ==========
+    # WindowHelper Properties
 
     @Property(int, notify=windowInfoChanged)
     def winOriginX(self) -> int:
@@ -77,7 +77,7 @@ class InputDebugPresenter(QObject):
     def isWindowFound(self) -> bool:
         return self._win_origin_x > 0 or self._win_origin_y > 0
 
-    # ========== MouseController Properties ==========
+    # MouseController Properties
 
     @Property(int, constant=True)
     def screenWidth(self) -> int:
@@ -91,7 +91,7 @@ class InputDebugPresenter(QObject):
     def isAdmin(self) -> bool:
         return self._is_admin
 
-    # ========== WindowHelper Slots ==========
+    # WindowHelper Slots
 
     @Slot()
     def focusWindow(self) -> None:
@@ -107,7 +107,7 @@ class InputDebugPresenter(QObject):
         """手动刷新窗口信息"""
         self._refresh_window_info()
 
-    # ========== MouseController Slots ==========
+    # MouseController Slots
 
     @Slot(int, int)
     def moveTo(self, x: int, y: int) -> None:

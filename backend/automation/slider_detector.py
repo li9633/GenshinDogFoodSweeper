@@ -1,10 +1,5 @@
-"""
-滑块检测器 — 纯逻辑层，无 Qt 依赖
-===============================
-基于颜色采样匹配，双向搜索定位原神背包界面中的滚动条滑块位置。
-支持滑块存在性检测、滑轨颜色验证、拖拽到位判定。
-
-所有方法均为静态方法，可在任意线程中安全调用。
+﻿"""
+滑块检测器 — 基于颜色采样匹配，双向搜索定位原神背包界面中的滚动条滑块位置
 """
 
 from __future__ import annotations
@@ -13,24 +8,20 @@ import cv2
 import numpy as np
 from utils.logger import log
 
-# ---- 滑块检测 ROI 参数 ----
-_SLIDER_DETECT_W = 10  # 检测窗口宽度
-_SLIDER_DETECT_H = 10  # 检测窗口高度
+# 滑块检测 ROI 参数
+_SLIDER_DETECT_W = 10
+_SLIDER_DETECT_H = 10
 
-# ---- 滑块颜色参数 ----
-# 目标灰度值（滑块有两种状态：
-#   不hover: #C7C7C7/#C6C6C6 → 灰度 199/198
-#   hover/点击: #E2E2E2 → 灰度 226
-# 拖拽时鼠标在滑轨附近必触发hover，需同时匹配两种颜色）
+# 滑块颜色参数（两种状态：不hover灰度198/199，hover/点击灰度226）
 _SLIDER_TARGET_GRAY: tuple[int, ...] = (198, 199, 226)
 _SLIDER_GRAY_THRESHOLD: int = 15
 _SLIDER_MATCH_RATIO: float = 0.5
 _SLIDER_SEARCH_STEP: int = 5
 _SLIDER_MAX_SEARCH: int = 800
 _SLIDER_PROXIMITY: int = 30
-_SLIDER_TRACK_GRAY: int = 169  # 滑轨颜色 #A9A9A9 的灰度值
+_SLIDER_TRACK_GRAY: int = 169
 
-# ---- 拖拽参数 ----
+# 拖拽参数
 _SLIDER_DRAG_DIST: int = 80
 _SLIDER_DRAG_STEPS: int = 8
 _SLIDER_DRAG_DELAY: int = 15
@@ -39,7 +30,7 @@ _SLIDER_VERIFY_MAX: int = 15
 
 
 class SliderDetector:
-    """滑块检测器 — 纯函数，无状态，无 Qt 依赖"""
+    """滑块检测器"""
 
     # 公开常量（供外部引用）
     TARGET_GRAY = _SLIDER_TARGET_GRAY
@@ -57,7 +48,7 @@ class SliderDetector:
     EXTRA_TICKS = _SLIDER_EXTRA_TICKS
     VERIFY_MAX = _SLIDER_VERIFY_MAX
 
-    # ---- 核心检测 ----
+    # 核心检测
 
     @staticmethod
     def find_slider(
@@ -177,7 +168,7 @@ class SliderDetector:
         )
         return match_count / len(samples) >= _SLIDER_MATCH_RATIO
 
-    # ---- 调试预览 ----
+    # 调试预览
 
     @staticmethod
     def generate_debug_preview(
@@ -200,7 +191,7 @@ class SliderDetector:
         search_x = region_x + region_w // 2
         step = _SLIDER_SEARCH_STEP
 
-        # === 向下搜索线（绿色） ===
+        # 向下搜索线（绿色）
         down_end = min(ih - 1, top_y + _SLIDER_MAX_SEARCH)
         cv2.line(debug, (search_x, top_y), (search_x, down_end), (0, 255, 0), 1)
         cv2.rectangle(
@@ -210,7 +201,7 @@ class SliderDetector:
         for check_y in range(top_y, down_end + 1, step):
             cv2.circle(debug, (search_x, check_y), 1, (0, 180, 0), -1)
 
-        # === 向上搜索线（蓝色） ===
+        # 向上搜索线（蓝色）
         up_end = max(0, bottom_y - _SLIDER_MAX_SEARCH)
         cv2.line(debug, (search_x, bottom_y), (search_x, up_end), (255, 0, 0), 1)
         cv2.rectangle(
@@ -220,7 +211,7 @@ class SliderDetector:
         for check_y in range(bottom_y, up_end - 1, -step):
             cv2.circle(debug, (search_x, check_y), 1, (180, 0, 0), -1)
 
-        # === 最佳匹配点（黄色） ===
+        # 最佳匹配点（黄色）
         if best_y >= 0:
             cv2.circle(debug, (search_x, best_y), 4, (0, 255, 255), -1)
             cv2.putText(
@@ -228,7 +219,7 @@ class SliderDetector:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 255), 1,
             )
 
-        # === 当前滑块位置（红色） ===
+        # 当前滑块位置（红色）
         if slider_y is not None:
             cv2.circle(debug, (search_x, slider_y), 5, (0, 0, 255), -1)
             cv2.putText(
@@ -236,7 +227,7 @@ class SliderDetector:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1,
             )
 
-        # === 标题 ===
+        # 标题
         cv2.putText(
             debug, label, (10, 20),
             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1,

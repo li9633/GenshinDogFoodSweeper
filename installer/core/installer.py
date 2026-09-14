@@ -143,10 +143,10 @@ def run_uninstall(
 ) -> None:
     """卸载核心流程：终止主程序 → 删快捷方式 → 删注册表 → 延迟删除目录
 
-    通过创建临时批处理脚本解决自删除问题：
-    uninst.exe 自身运行在安装目录中，无法直接删除自己。
-    将删除命令写入 %TEMP% 下的 bat 文件，由独立的 cmd 进程
-    在 uninst.exe 退出后执行删除。
+通过创建临时批处理脚本解决自删除问题：
+uninst.exe 自身运行在安装目录中，无法直接删除自己。
+将删除命令写入 %TEMP% 下的 bat 文件，由独立的 cmd 进程
+在 uninst.exe 退出后执行删除。
     """
     progress_cb and progress_cb(0, "正在关闭主程序...")
     _kill_main_app()
@@ -158,10 +158,7 @@ def run_uninstall(
 
     batch = _generate_cleanup_batch(install_dir, os.getpid())
 
-    # 关键：设置 cwd 为 %TEMP%，避免外层 cmd.exe 继承安装目录作为工作目录，
-    # 从而持有安装目录句柄，导致 del/rmdir 失败（文件被占用）。
-    # 详见 _generate_cleanup_batch 中 cd /d %TEMP% 仅改变内层 cmd 的 cwd，
-    # 外层 shell=True 的 cmd.exe 仍持有安装目录句柄。
+    # cwd 设为 %TEMP%，避免外层 cmd.exe 持有安装目录句柄导致删除失败
     subprocess.Popen(
         ["cmd", "/c", str(batch)],
         cwd=str(Path(tempfile.gettempdir())),
@@ -173,17 +170,7 @@ def run_uninstall(
 
 
 def _generate_cleanup_batch(install_dir: Path, parent_pid: int) -> Path:
-    """在 %TEMP% 下生成延迟删除的批处理脚本
-
-    等待 uninst.exe 退出后再删除安装目录，避免因进程未退出导致删除失败。
-
-    删除策略：
-    1. del /f /s /q 先逐个删除文件（更细粒度，能定位被锁定的文件）
-    2. rmdir /s /q 清空剩余空目录
-    3. 重试 5 次，每次间隔 3 秒
-    4. 失败时列出残留文件 + wmic 诊断
-    5. 兜底：PowerShell MoveFileEx 安排重启后删除
-    """
+    """生成延迟删除批处理脚本到 %TEMP%，等待 uninst.exe 退出后删除安装目录"""
     batch = Path(tempfile.gettempdir()) / "gdf_cleanup.bat"
     log = Path(tempfile.gettempdir()) / "gdf_cleanup.log"
     keyword = APP_EXE.replace(".exe", "")

@@ -1,4 +1,4 @@
-"""
+﻿"""
 系统托盘管理器
 ==============
 负责系统托盘图标、右键菜单、状态切换。
@@ -15,11 +15,7 @@ from common.resources import Resource
 
 
 class TrayManager(QObject):
-    """系统托盘管理器
-
-    用法：
-        _tray = TrayManager(app=app, engine=engine)
-    """
+    """系统托盘管理器"""
 
     def __init__(
         self,
@@ -45,7 +41,7 @@ class TrayManager(QObject):
 
         self._tray.show()
 
-    # ---------- 公开方法 ----------
+    # 公开方法
 
     def show_message(self, title: str, message: str, duration_ms: int = 3000):
         """弹出气泡提示"""
@@ -61,7 +57,7 @@ class TrayManager(QObject):
         self._tray.hide()
         self._tray.deleteLater()
 
-    # ---------- 内部 ----------
+    # 内部
 
     def _set_icon(self):
         """设置托盘图标"""

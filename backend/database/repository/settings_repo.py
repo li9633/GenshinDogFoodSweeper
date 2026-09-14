@@ -1,4 +1,4 @@
-"""
+﻿"""
 应用设置 Repository
 ===================
 键值对存储，对应 app_settings 表。
@@ -19,7 +19,7 @@ class SettingsRepo:
 
     DB_NAME = "settings.db"
 
-    # ---------- DDL ----------
+    # DDL
 
     @classmethod
     def create_table(cls) -> None:
@@ -34,7 +34,7 @@ class SettingsRepo:
                 )
             """)
 
-    # ---------- 读 ----------
+    # 读
 
     @classmethod
     def get(cls, key: str, default: str | None = None) -> str | None:
@@ -58,7 +58,7 @@ class SettingsRepo:
         except sqlite3.OperationalError:
             return {}
 
-    # ---------- 写 ----------
+    # 写
 
     @classmethod
     def set(cls, key: str, value: str, type_: str = "string") -> None:

@@ -1,4 +1,4 @@
-"""狗粮清理 Presenter"""
+﻿"""狗粮清理 Presenter"""
 
 from __future__ import annotations
 
@@ -60,13 +60,13 @@ class ArtifactDecomposePresenter(QObject):
         self._load_default_action()
         self._load_max_discard_count()
 
-    # ========== 常量 ==========
+    # 常量
 
     @Property(int, constant=True)
     def maxRuleSelection(self) -> int:
         return self.MAX_RULE_SELECTION
 
-    # ========== 规则列表 ==========
+    # 规则列表
 
     def _load_rules(self) -> None:
         """从数据库加载规则列表"""
@@ -105,7 +105,7 @@ class ArtifactDecomposePresenter(QObject):
             for r in self._rules
         ]
 
-    # ========== 多选规则名 ==========
+    # 多选规则名
 
     @Property("QVariantList", notify=selectedRuleNamesChanged)
     def selectedRuleNames(self) -> list[str]:
@@ -123,7 +123,7 @@ class ArtifactDecomposePresenter(QObject):
             self._selected_rule_names.append(name)
         self.selectedRuleNamesChanged.emit()
 
-    # ========== 默认行为 ==========
+    # 默认行为
 
     @Property("QVariantList", constant=True)
     def defaultActionLabels(self) -> list[str]:
@@ -152,7 +152,7 @@ class ArtifactDecomposePresenter(QObject):
         settings.set("dogfood.default_action", action)
         self.defaultActionChanged.emit()
 
-    # ========== 每批分解数量上限 ==========
+    # 每批分解数量上限
 
     def _load_max_discard_count(self) -> None:
         val = settings.get("dogfood.max_discard_count")
@@ -174,7 +174,7 @@ class ArtifactDecomposePresenter(QObject):
         settings.set("dogfood.max_discard_count", count)
         self.maxDiscardCountChanged.emit()
 
-    # ========== 选择确认状态 ==========
+    # 选择确认状态
 
     @Property(bool, notify=selectionDoneChanged)
     def selectionDone(self) -> bool:
@@ -196,7 +196,7 @@ class ArtifactDecomposePresenter(QObject):
     def totalDiscard(self) -> int:
         return self._total_discard
 
-    # ========== 运行状态 ==========
+    # 运行状态
 
     @Property(bool, notify=runningChanged)
     def running(self) -> bool:
@@ -206,7 +206,7 @@ class ArtifactDecomposePresenter(QObject):
     def status(self) -> str:
         return self._status
 
-    # ========== 分解入口 ==========
+    # 分解入口
 
     @Slot()
     def startDecompose(self) -> None:

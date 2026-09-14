@@ -1,15 +1,7 @@
-"""PNG → ICO 转换脚本
-====================
-将 AI 生成的 PNG 图标转换为多尺寸 ICO 文件。
-
-- PNG：放在 resources/image/，运行时直接使用（更高清）
-- ICO：输出到 resources/icons/，仅 PyInstaller 打包 EXE 图标时使用
+"""PNG → ICO 转换脚本，将 PNG 图标转换为多尺寸 ICO 文件
 
 用法：
-    # 单文件转换
-    python generate_icon.py --source image/app-main-icon-v2.png --output icons/app-main-icon-v2.ico
-
-    # 批量转换
+    python generate_icon.py --source image/app.png --output icons/app.ico
     python generate_icon.py --dir ./image --outdir ./icons
 """
 

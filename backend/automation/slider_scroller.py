@@ -1,8 +1,5 @@
-"""
-滑块滚动验证器 — 纯逻辑层，无 Qt 依赖
-===================================
-封装滑块"闯关验证"循环：滑块检测 → 拖拽 → 再检测 → 判定到底/到顶。
-使用回调模式解耦调试预览，可在任意线程中安全调用。
+﻿"""
+滑块滚动验证器 — 封装滑块拖拽验证循环，使用回调模式解耦调试预览
 """
 
 from __future__ import annotations
@@ -21,10 +18,7 @@ from backend.utils.screen_capture import ScreenshotCapture
 
 
 class SliderScroller:
-    """滑块滚动验证器 — 纯逻辑，无 Qt 依赖
-
-    通过 debug_callback 回调注入调试预览生成，解耦 UI 层。
-    """
+    """滑块滚动验证器，通过 debug_callback 回调注入调试预览生成，解耦 UI 层"""
 
     def __init__(
         self,
@@ -56,9 +50,8 @@ class SliderScroller:
             region_w, region_h, slider_y, label, best_ratio, best_y,
         )
 
-    # ==================================================================
-    # 确保滑块在顶部
-    # ==================================================================
+    # # 确保滑块在顶部
+    #
 
     def ensure_at_top(self, force: bool = False) -> int | None:
         """检测滑块位置，不在顶部则闯关拖拽到顶。
@@ -103,9 +96,8 @@ class SliderScroller:
         log.info(f"确保到顶: 已确认在顶部 (slider_y={slider_y})")
         return slider_y
 
-    # ==================================================================
-    # 颜色检测是否到底
-    # ==================================================================
+    # # 颜色检测是否到底
+    #
 
     def check_bottom_by_color(self) -> tuple[int | None, bool]:
         """颜色检测是否到底。
@@ -156,14 +148,10 @@ class SliderScroller:
         )
         return (slider_y, False)
 
-    # ==================================================================
     # 3 段拖拽到底
-    # ==================================================================
 
     def scroll_to_bottom(self, initial_slider_y: int) -> int | None:
         """3 段拖拽到底 + 闯关验证 + 滚轮微调。
-
-        纯逻辑方法，无 Qt 依赖，可在任意线程调用。
 
         Args:
             initial_slider_y: 滑块当前 Y 坐标
@@ -242,9 +230,8 @@ class SliderScroller:
         log.info(f"滚动到底: 完成, slider_y={prev_y}")
         return prev_y
 
-    # ==================================================================
-    # 闯关验证：到底
-    # ==================================================================
+    # # 闯关验证：到底
+    #
 
     def verify_bottom(self, initial_slider_y: int) -> int | None:
         """闯关验证到底。
@@ -318,9 +305,8 @@ class SliderScroller:
 
         return None
 
-    # ==================================================================
-    # 闯关验证：到顶
-    # ==================================================================
+    # # 闯关验证：到顶
+    #
 
     def verify_top(self, initial_slider_y: int) -> int | None:
         """闯关验证到顶。

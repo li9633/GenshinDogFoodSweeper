@@ -1,6 +1,4 @@
-r"""安装程序入口
-============
-PySide6 + QML 安装向导。
+r"""安装程序入口 — PySide6 + QML 安装向导
 
 用法:
     GenshinDogFoodSweeper-setup.exe                            # 自动检测：有注册表→更新，无→安装
@@ -110,7 +108,6 @@ def _is_uninstaller_exe() -> bool:
 def main() -> None:
     args = _parse_args()
 
-    # -- 三级级联解析安装目录 --
     mode = args.mode
     quick_update = args.quick_update
     install_dir, old_version = resolve_directory(
@@ -118,11 +115,10 @@ def main() -> None:
         strict=not quick_update,
     )
 
-    # 命令行传入的旧版本号优先
     if args.old_version:
         old_version = args.old_version
 
-    # -- 模式修正 --
+    # 模式修正
     if quick_update:
         mode = "update"
 
@@ -141,7 +137,7 @@ def main() -> None:
     if mode == "install" and install_dir is None:
         install_dir = get_default_install_dir()
 
-    # -- 创建 App --
+    # 创建 App
     log_path = _setup_log()
     logger.info("Installer started, version=%s", VERSION)
     _install_success = False
@@ -160,7 +156,7 @@ def main() -> None:
     # 全局文本渲染 — Windows ClearType
     QQuickWindow.setTextRenderType(QQuickWindow.NativeTextRendering)
 
-    # -- 创建 Coordinator + Presenters --
+    # 创建 Coordinator + Presenters
     engine = QQmlApplicationEngine()
     coord = AppCoordinator()
     coord.mode = mode
@@ -194,7 +190,7 @@ def main() -> None:
 
     coord.installFinished.connect(lambda ok, _msg: _on_install_finished(ok))
 
-    # -- 调试模式（环境变量 GDFS_INSTALLER_DEBUG） --
+    # 调试模式（环境变量 GDFS_INSTALLER_DEBUG）
     is_debug = EnvManager.is_installer_debug()
     debug_panel_presenter = None
     if is_debug:
@@ -202,7 +198,7 @@ def main() -> None:
         debug_panel_presenter = DebugPanelPresenter(debug_presenter)
         logger.info("Debug mode enabled via GDFS_INSTALLER_DEBUG")
 
-    # -- 加载 QML --
+    # 加载 QML
     ctx = engine.rootContext()
     ctx.setContextProperty("WelcomePresenter", welcome_presenter)
     ctx.setContextProperty("DirectoryPresenter", directory_presenter)

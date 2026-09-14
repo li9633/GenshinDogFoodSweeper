@@ -1,4 +1,4 @@
-"""
+﻿"""
 模板管理器
 ==========
 所有 images/*.png 即为全部模板，templates.json 仅提供可选的显示名和区域。
@@ -34,7 +34,7 @@ class TemplateManager:
     _registry: ClassVar[list[dict[str, object]]] = []
     _index: ClassVar[dict[str, dict[str, object]]] = {}
 
-    # ---------- 内部 ----------
+    # 内部
 
     @classmethod
     def _load(cls) -> None:
@@ -77,7 +77,7 @@ class TemplateManager:
         cls._index.clear()
         cls._load()
 
-    # ---------- 查询 ----------
+    # 查询
 
     @classmethod
     def get(cls, key: str) -> Template | None:
@@ -155,7 +155,7 @@ class TemplateManager:
         kw = keyword.lower()
         return {k: v for k, v in cls.list_all().items() if kw in k.lower()}
 
-    # ---------- 注册 ----------
+    # 注册
 
     @classmethod
     def register(

@@ -1,7 +1,4 @@
-"""应用协调器
-=========
-共享状态与核心操作逻辑。每个页面 Presenter 通过协调器获取状态并触发操作。
-"""
+"""应用协调器 — 共享状态与核心操作逻辑"""
 
 from __future__ import annotations
 
@@ -36,17 +33,10 @@ except ImportError:
 
 
 class AppCoordinator(QObject):
-    """共享状态与操作协调器。一个 App 实例只有一个。"""
-
-    # -- 页面导航 --
     navigateRequested = Signal(str)
-
-    # -- 安装进度 --
     installStarted = Signal()
     installProgress = Signal(int, str)
     installFinished = Signal(bool, str)
-
-    # -- 属性变更通知 --
     modeChanged = Signal()
     installDirChanged = Signal()
     oldVersionChanged = Signal()
@@ -67,7 +57,7 @@ class AppCoordinator(QObject):
         self._required_space: int = self._calc_required_space()
         self._update_free_space(self._install_dir)
 
-    # ========== 共享状态属性 ==========
+    # 共享状态属性
 
     @property
     def install_dir(self) -> str:
@@ -136,7 +126,7 @@ class AppCoordinator(QObject):
     def required_space(self) -> int:
         return self._required_space
 
-    # ========== 模式相关 UI 属性 ==========
+    # 模式相关 UI 属性
 
     @Property(str, notify=modeChanged)
     def windowTitle(self) -> str:
@@ -173,12 +163,12 @@ class AppCoordinator(QObject):
         icon = icons.get(self._mode, Resource.INSTALL_ICON_PNG)
         return f"file:///{icon.as_posix()}"
 
-    # ========== 导航 ==========
+    # 导航
 
     def navigate_to(self, page: str) -> None:
         self.navigateRequested.emit(page)
 
-    # ========== 目录选择 ==========
+    # 目录选择
 
     def set_install_dir(self, path: str) -> None:
         self.install_dir = path
@@ -198,7 +188,7 @@ class AppCoordinator(QObject):
         self._update_free_space(str(p))
         self.installDirChanged.emit()
 
-    # ========== 磁盘空间检查 ==========
+    # 磁盘空间检查
 
     @staticmethod
     def _calc_required_space() -> int:
@@ -231,7 +221,7 @@ class AppCoordinator(QObject):
         except (OSError, FileNotFoundError, PermissionError):
             self._free_space = -1
 
-    # ========== 核心操作 ==========
+    # 核心操作
 
     def start_action(self) -> None:
         self._log_lines.clear()
@@ -279,7 +269,7 @@ class AppCoordinator(QObject):
         self._log_lines.append(status)
         self.installLogChanged.emit()
 
-    # ========== 启动 App ==========
+    # 启动 App
 
     def launch_app(self) -> None:
         if restart_app(Path(self._install_dir)):
@@ -291,7 +281,7 @@ class AppCoordinator(QObject):
                 False, f"无法启动主程序，请检查安装目录:\n{self._install_dir}"
             )
 
-    # ========== 退出 ==========
+    # 退出
 
     @staticmethod
     def quit() -> None:

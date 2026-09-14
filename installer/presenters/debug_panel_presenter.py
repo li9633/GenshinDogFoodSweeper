@@ -1,13 +1,4 @@
-"""调试面板 Presenter
-=================
-DebugPanel.qml 的专属 Presenter，负责：
-- 页面列表（含可用性计算）
-- 模式列表
-- 调试信息格式化
-- 所有操作代理到 DebugPresenter
-
-QML 层只做数据绑定，零业务逻辑。
-"""
+"""调试面板 Presenter — DebugPanel.qml 的专属 Presenter"""
 
 from __future__ import annotations
 
@@ -38,7 +29,7 @@ _MODE_DEFS: list[tuple[str, str, str]] = [
 
 
 class DebugPanelPresenter(QObject):
-    """调试面板专属 Presenter — QML 只绑定此类属性，不做任何计算。"""
+    """调试面板专属 Presenter"""
 
     panelsChanged = Signal()
 
@@ -47,15 +38,11 @@ class DebugPanelPresenter(QObject):
         self._dp = dp
         dp.stateChanged.connect(self._refresh)
 
-        # 构建页面数据（key, label, enabled）
         self._pages: list[dict] = []
-        # 构建模式数据（key, label, color）
         self._modes = [
             {"key": k, "label": l, "color": c} for k, l, c in _MODE_DEFS
         ]
         self._refresh()
-
-    # ========== 内部逻辑 ==========
 
     def _refresh(self) -> None:
         mode = self._dp.mode
@@ -77,19 +64,19 @@ class DebugPanelPresenter(QObject):
             return mode != "uninstall"
         return True
 
-    # ========== 页面列表（QML 绑定） ==========
+    # 页面列表（QML 绑定）
 
     @Property("QVariantList", notify=panelsChanged)
     def pages(self) -> list[dict]:
         return self._pages
 
-    # ========== 模式列表（QML 绑定） ==========
+    # 模式列表（QML 绑定）
 
     @Property("QVariantList", notify=panelsChanged)
     def modes(self) -> list[dict]:
         return self._modes
 
-    # ========== 当前状态 ==========
+    # 当前状态
 
     @Property(str, notify=panelsChanged)
     def currentPage(self) -> str:
@@ -103,7 +90,7 @@ class DebugPanelPresenter(QObject):
     def quickUpdate(self) -> bool:
         return self._dp.quick_update
 
-    # ========== 调试信息（格式化在 Python 侧） ==========
+    # 调试信息（格式化在 Python 侧）
 
     @Property(str, notify=panelsChanged)
     def debugInfo(self) -> str:
@@ -119,7 +106,7 @@ class DebugPanelPresenter(QObject):
             f"allowClose: {dp.allow_close}"
         )
 
-    # ========== 操作（代理到 DebugPresenter） ==========
+    # 操作（代理到 DebugPresenter）
 
     @Slot(str)
     def navigateTo(self, page: str) -> None:

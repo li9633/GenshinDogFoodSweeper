@@ -1,14 +1,5 @@
-"""
+﻿"""
 SmartScroller — 基于 SlotDetector.bottom_y 校准的精准翻页器
-=============================================================
-通过 SlotDetector.detect() 返回的 bottom_y 计算 pixels_per_scroll，
-不受滑块大小影响，比像素标尺匹配更可靠。
-
-核心逻辑：
-  1. calibrate()     → detect() 两次 bottom_y 差值 → pixels_per_scroll
-  2. scroll_rows(n)  → 总像素 = n × row_height → ticks → 连续 scroll
-  3. wait_until_settled() → 监测画面哈希，连续 3 帧稳定即结束
-  4. scroll_to_top() → 持续上滚直到画面不再变化
 """
 
 from __future__ import annotations
@@ -78,9 +69,7 @@ class SmartScroller:
         det = SlotDetector.detect(result.image, config=self._config)
         return det.row_height if det.row_height > 0 else self._DEFAULT_ROW_HEIGHT
 
-    # ==================================================================
     # 属性
-    # ==================================================================
 
     @property
     def pixels_per_scroll(self) -> float:
@@ -94,9 +83,7 @@ class SmartScroller:
     def is_calibrated(self) -> bool:
         return self._calibrated
 
-    # ==================================================================
     # 校准（基于 SlotDetector.bottom_y）
-    # ==================================================================
 
     def calibrate(self) -> float:
         """执行一次滚动，通过 SlotDetector 的 bottom_y 计算 pixels_per_scroll。
@@ -151,9 +138,7 @@ class SmartScroller:
         )
         return self._pixels_per_scroll
 
-    # ==================================================================
     # 滚动到顶部
-    # ==================================================================
 
     def scroll_to_top(self, force: bool = False) -> bool:
         """通过滑块拖拽滚动到顶部。
@@ -171,15 +156,10 @@ class SmartScroller:
             return True
         return False
 
-    # ==================================================================
     # 翻行
-    # ==================================================================
 
     def scroll_rows(self, rows: int, tick_interval_ms: int = 15) -> None:
-        """翻指定行数。
-
-        total_px = rows × row_height → ticks = ceil(total_px / pixels_per_scroll)
-        """
+        """翻指定行数。total_px = rows × row_height → ticks = ceil(total_px / pixels_per_scroll)"""
         if not self._calibrated:
             self.calibrate()
 
@@ -206,9 +186,7 @@ class SmartScroller:
         self._current_row += rows
         self._wait_until_settled()
 
-    # ==================================================================
     # 稳定检测
-    # ==================================================================
 
     def _wait_until_settled(
         self, timeout_ms: int = 500, stable_frames: int = 3
@@ -249,9 +227,8 @@ class SmartScroller:
 
         return False
 
-    # ==================================================================
-    # 重置
-    # ==================================================================
+    # # 重置
+    #
 
     def reset(self) -> None:
         self._current_row = 0

@@ -1,4 +1,4 @@
-"""GitHub Release API 模拟服务器
+﻿"""GitHub Release API 模拟服务器
 ================================
 提供可编程控制的 HTTP 模拟服务器，用于测试 AppUpdater 更新流程。
 
@@ -24,9 +24,8 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
-# ============================================================
-# 场景预设
-# ============================================================
+# # 场景预设
+#
 
 CURRENT_MAJOR, CURRENT_MINOR, CURRENT_PATCH = 0, 9, 40
 
@@ -105,9 +104,8 @@ SCENARIO_500_LABELS = {
     "timeout": "超时无响应",
 }
 
-# ============================================================
-# 全局可变状态（线程安全：所有读写通过 _state_lock 保护）
-# ============================================================
+# # 全局可变状态（线程安全：所有读写通过 _state_lock 保护）
+#
 
 _state_lock = threading.Lock()
 
@@ -129,9 +127,8 @@ def _append_log(entry: str) -> None:
         cb(entry)
 
 
-# ============================================================
-# FastAPI 应用
-# ============================================================
+# # FastAPI 应用
+#
 
 
 def _create_app() -> FastAPI:
@@ -216,9 +213,8 @@ def _create_app() -> FastAPI:
     return app
 
 
-# ============================================================
-# 服务器控制
-# ============================================================
+# # 服务器控制
+#
 
 
 class MockGitHubServer:
@@ -254,9 +250,8 @@ class MockGitHubServer:
             _download_file_path = None
             _bandwidth_limit = 0
 
-    # ============================================================
-    # 属性
-    # ============================================================
+    # # 属性
+    #
 
     @property
     def base_url(self) -> str:
@@ -282,9 +277,8 @@ class MockGitHubServer:
     def error_scenario(self) -> str:
         return self._error_scenario
 
-    # ============================================================
-    # 日志回调
-    # ============================================================
+    # # 日志回调
+    #
 
     def set_log_callback(self, cb) -> None:
         """设置请求日志回调。
@@ -298,9 +292,8 @@ class MockGitHubServer:
         with _state_lock:
             _log_callback = cb
 
-    # ============================================================
-    # 场景控制
-    # ============================================================
+    # # 场景控制
+    #
 
     def set_error_scenario(self, scenario: str) -> None:
         self._error_scenario = scenario
@@ -332,9 +325,8 @@ class MockGitHubServer:
         with _state_lock:
             return "\n".join(_request_log)
 
-    # ============================================================
-    # 下载配置
-    # ============================================================
+    # # 下载配置
+    #
 
     @property
     def download_file_path(self) -> str | None:
@@ -358,9 +350,8 @@ class MockGitHubServer:
         with _state_lock:
             _bandwidth_limit = limit
 
-    # ============================================================
-    # 生命周期
-    # ============================================================
+    # # 生命周期
+    #
 
     def start(self) -> bool:
         if self._running:

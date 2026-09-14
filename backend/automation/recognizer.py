@@ -1,4 +1,4 @@
-"""圣遗物识别器 — OCR 文本提取 + BBS 数据匹配 + 星级/锁定检测"""
+﻿"""圣遗物识别器 — OCR 文本提取 + BBS 数据匹配 + 星级/锁定检测"""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ class ArtifactRecognizer:
         (188, 105, 50),  # 5★ #BC6932
     )
 
-    # ---------- 数据库工具 ----------
+    # 数据库工具
 
     @staticmethod
     def is_db_empty() -> bool:
@@ -47,7 +47,7 @@ class ArtifactRecognizer:
         except Exception:
             return True
 
-    # ---------- 星级分类 ----------
+    # 星级分类
 
     @classmethod
     def classify_rarity(cls, rgb: tuple[int, int, int]) -> int | None:
@@ -69,7 +69,7 @@ class ArtifactRecognizer:
         rgb = sample_roi_color(image, x, y, w, h)
         return cls.classify_rarity(rgb)
 
-    # ---------- BBS 套装匹配 ----------
+    # BBS 套装匹配
 
     @staticmethod
     def match_set_name(
@@ -161,7 +161,7 @@ class ArtifactRecognizer:
         except Exception:
             return None
 
-    # ---------- 锁定状态 ----------
+    # 锁定状态
 
     @staticmethod
     def match_lock_status(
@@ -248,7 +248,7 @@ class ArtifactRecognizer:
 
         return None
 
-    # ---------- 完整识别流水线 ----------
+    # 完整识别流水线
 
     @staticmethod
     def recognize(
@@ -539,7 +539,7 @@ class ArtifactRecognizer:
 
         return artifact
 
-    # ---------- OCR 结果解析 ----------
+    # OCR 结果解析
 
     @staticmethod
     def _extract_roi_texts(
@@ -610,7 +610,7 @@ class ArtifactRecognizer:
                 log.warning(f"未知 OCR 结果类型: {type(result)}")
         return texts, dt_count
 
-    # ---------- ROI 临时文件（调试用） ----------
+    # ROI 临时文件（调试用）
 
     @staticmethod
     def save_roi_temp(roi: np.ndarray, name: str) -> Path:

@@ -1,4 +1,4 @@
-"""
+﻿"""
 导航路由 Presenter
 ==================
 提供类似 Vue Router 的统一导航功能。各模块在启动时注册自己的路由，
@@ -38,7 +38,7 @@ class NavigationPresenter(QObject):
         super().__init__(parent)
         NavigationPresenter._instance = self
 
-    # ========== 公开 API ==========
+    # 公开 API
 
     @classmethod
     def register(cls, path: str, page: str, tab: str = "") -> None:

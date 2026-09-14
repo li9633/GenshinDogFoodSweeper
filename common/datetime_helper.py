@@ -1,7 +1,5 @@
 """
-日期时间工具类
-==============
-项目中所有时间操作统一入口，集中管理时区与格式。
+日期时间工具类 — 项目中所有时间操作统一入口
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -13,19 +11,11 @@ _TZ = timezone(timedelta(hours=8))
 FMT_DATETIME = "%Y-%m-%d %H:%M:%S"
 FMT_DATE = "%Y-%m-%d"
 FMT_TIME = "%H:%M:%S"
-FMT_FILE = "%Y%m%d_%H%M%S"  # 用于文件名
+FMT_FILE = "%Y%m%d_%H%M%S"
 
 
 class DateTimeHelper:
-    """
-    日期时间工具类，所有方法均为静态方法。
-
-    使用示例:
-        now = DateTimeHelper.now()           # datetime(2026, 8, 9, 22, 30, 0)
-        s   = DateTimeHelper.now_str()       # "2026-08-09 22:30:00"
-        d   = DateTimeHelper.today_str()     # "2026-08-09"
-        ts  = DateTimeHelper.file_timestamp() # "20260809_223000"
-    """
+    """日期时间工具类"""
 
     @staticmethod
     def now() -> datetime:

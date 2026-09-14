@@ -1,4 +1,4 @@
-"""
+﻿"""
 通用截图工具类
 ==============
 纯截图模块，不关心"哪个窗口"——窗口查找逻辑已移至 window_helper。
@@ -36,7 +36,7 @@ import numpy as np
 from backend.automation.window_helper import WindowInfo
 from common.datetime_helper import DateTimeHelper
 
-# ===================== 可选依赖检测 =====================
+# 可选依赖检测
 
 _HAS_WIN32 = False
 try:
@@ -57,7 +57,7 @@ except ImportError:
     pass
 
 
-# ===================== 枚举 & 数据类 =====================
+# 枚举 & 数据类
 
 
 class CaptureMethod(Enum):
@@ -233,16 +233,16 @@ class CaptureResult:
         return new_result.draw_rect(x, y, width, height, color, thickness, label)
 
 
-# ===================== ScreenshotCapture 类 =====================
+# ScreenshotCapture 类
 
 
 class ScreenshotCapture:
-    """纯截图工具类 — 接受 WindowInfo 作为输入，不自己查找窗口"""
+    """截图工具类 — 接受 WindowInfo 作为输入"""
 
     def __init__(self, default_method: CaptureMethod = CaptureMethod.WIN32):
         self.default_method = default_method
 
-    # ---------- 截图入口 ----------
+    # 截图入口
 
     def capture(
         self,
@@ -304,7 +304,7 @@ class ScreenshotCapture:
             region=(window.left, window.top, window.width, window.height),
         )
 
-    # ---------- 内部实现 ----------
+    # 内部实现
 
     @staticmethod
     def _capture_win32(window: WindowInfo) -> np.ndarray:
@@ -374,7 +374,7 @@ class ScreenshotCapture:
 
             return np.array(ImageGrab.grab(all_screens=True))
 
-    # ---------- 静态工具方法 ----------
+    # 静态工具方法
 
     @staticmethod
     def numpy_to_qpixmap(img: np.ndarray) -> QPixmap:

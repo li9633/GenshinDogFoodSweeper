@@ -1,4 +1,4 @@
-"""
+﻿"""
 圣遗物套装实体
 ==============
 对应 artifacts.db 中的 artifact_sets 表。
@@ -37,7 +37,7 @@ class ArtifactSet:
         self.rarity = rarity or []
         self.set_effects = set_effects or {}
 
-    # ---------- 序列化 ----------
+    # 序列化
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "ArtifactSet":

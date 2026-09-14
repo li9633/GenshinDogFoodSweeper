@@ -1,4 +1,4 @@
-"""
+﻿"""
 圣遗物更新检查 Presenter
 ==================
 启动时在后台线程检查原神圣遗物是否有新版本，通过信号通知 UI。
@@ -55,7 +55,7 @@ class VersionCheckPresenter(QObject, OnWindowReady):
         """窗口就绪后自动检查版本"""
         self.checkVersion()
 
-    # ========== 间隔判断 ==========
+    # 间隔判断
 
     def _should_check(self) -> bool:
         """根据配置判断是否需要执行检查"""
@@ -70,7 +70,7 @@ class VersionCheckPresenter(QObject, OnWindowReady):
             return True
         return (DateTimeHelper.now_ts() - last_ts) >= interval_sec
 
-    # ========== 公开 Slot ==========
+    # 公开 Slot
 
     @Slot()
     def checkVersion(self) -> None:

@@ -1,4 +1,4 @@
-"""GitHub Release API 模拟器（GUI）
+﻿"""GitHub Release API 模拟器（GUI）
 =================================
 使用本地 HTTP Server 模拟 GitHub Release API，通过 GUI 控制场景，
 方便调试 AppUpdater 更新流程。
@@ -61,9 +61,8 @@ from tests.mocks.mock_github_api import (
     MockGitHubServer,
 )
 
-# ============================================================
-# Worker: 异步执行 AppUpdater.check()，避免阻塞 GUI 线程
-# ============================================================
+# # Worker: 异步执行 AppUpdater.check()，避免阻塞 GUI 线程
+#
 
 class CheckWorker(QThread):
     """在子线程执行 AppUpdater.check()"""
@@ -121,9 +120,8 @@ class CheckWorker(QThread):
             })
 
 
-# ============================================================
-# 主窗口
-# ============================================================
+# # 主窗口
+#
 
 class MockApiWindow(QWidget):
     def __init__(self):
@@ -146,9 +144,8 @@ class MockApiWindow(QWidget):
         self._log_timer.timeout.connect(self._flush_logs)
         self._log_timer.start()
 
-    # ============================================================
-    # UI 构建
-    # ============================================================
+    # # UI 构建
+    #
 
     def _setup_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -332,9 +329,8 @@ class MockApiWindow(QWidget):
         info_label.setStyleSheet("color: #888;")
         main_layout.addWidget(info_label)
 
-    # ============================================================
-    # 事件处理 — 服务器
-    # ============================================================
+    # # 事件处理 — 服务器
+    #
 
     def _toggle_server(self) -> None:
         if self._server.is_running:
@@ -442,9 +438,8 @@ class MockApiWindow(QWidget):
         if running:
             self._update_json_display()
 
-    # ============================================================
-    # 事件处理 — 场景
-    # ============================================================
+    # # 事件处理 — 场景
+    #
 
     def _on_scenario_changed(self, idx: int) -> None:
         key = self._scenario_combo.itemData(idx)
@@ -510,9 +505,8 @@ class MockApiWindow(QWidget):
         except json.JSONDecodeError:
             pass
 
-    # ============================================================
-    # 事件处理 — 日志
-    # ============================================================
+    # # 事件处理 — 日志
+    #
 
     @staticmethod
     def _ts() -> str:
@@ -547,9 +541,8 @@ class MockApiWindow(QWidget):
         )
         self._append_log(f"[{self._ts()}] 📋 API 地址已复制到剪贴板")
 
-    # ============================================================
-    # 事件处理 — 下载配置
-    # ============================================================
+    # # 事件处理 — 下载配置
+    #
 
     def _pick_download_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -596,9 +589,8 @@ class MockApiWindow(QWidget):
     def _on_bandwidth_changed(self, value: int) -> None:
         self._server.bandwidth_limit = value * 1024
 
-    # ============================================================
-    # 事件处理 — 更新检查（异步）
-    # ============================================================
+    # # 事件处理 — 更新检查（异步）
+    #
 
     def _test_update_check(self) -> None:
         if not self._server.is_running:
@@ -706,9 +698,8 @@ class MockApiWindow(QWidget):
     def _clear_batch_results(self) -> None:
         self._batch_table.setRowCount(0)
 
-    # ============================================================
-    # 生命周期
-    # ============================================================
+    # # 生命周期
+    #
 
     def closeEvent(self, event) -> None:
         for w in self._check_workers:

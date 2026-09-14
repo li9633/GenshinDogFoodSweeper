@@ -1,4 +1,4 @@
-"""
+﻿"""
 圣遗物扫描 Presenter
 ====================
 全量圣遗物扫描的主流程 Presenter。
@@ -29,7 +29,7 @@ from common.paths import ENGINES, SCAN_RESULT
 class ArtifactScanPresenter(QObject, OnWindowReady):
     """圣遗物扫描 — 注册为 QML context property `ArtifactScan`"""
 
-    # ========== 信号 ==========
+    # 信号
 
     # 全量扫描
     fullScanStepChanged = Signal()
@@ -61,9 +61,8 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         self._full_scan_results: list[ArtifactInfo] = []
         self._full_scan_saved_path: str = ""
 
-    # ==================================================================
-    # 扫描选项（扫描前设置，同步到 settings）
-    # ==================================================================
+    # # 扫描选项（扫描前设置，同步到 settings）
+    #
 
     @Property(bool, notify=scanOptionsChanged)
     def scanEnableDedup(self) -> bool:
@@ -107,9 +106,8 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
         settings.set("scan.fixed_count", str(value))
         self.scanOptionsChanged.emit()
 
-    # ==================================================================
-    # 全量扫描
-    # ==================================================================
+    # # 全量扫描
+    #
 
     @Property(str, notify=fullScanStepChanged)
     def fullScanStep(self) -> str:

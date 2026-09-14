@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from time import sleep
 
@@ -43,9 +43,8 @@ class PageScroller:
         """运行时切换格子检测配置（调试面板切换页面时使用）。"""
         self._config = config
 
-    # ==================================================================
-    # 翻页
-    # ==================================================================
+    # # 翻页
+    #
 
     def scroll_to_next_page(
         self,
@@ -88,9 +87,8 @@ class PageScroller:
         sleep(page_settle_ms / 1000.0)
         return True
 
-    # ==================================================================
-    # 循环翻到底
-    # ==================================================================
+    # # 循环翻到底
+    #
 
     def scroll_to_bottom(
         self,
@@ -128,9 +126,8 @@ class PageScroller:
                 log.info(f"翻页中... 当前第{pages + 1}页")
         return pages
 
-    # ==================================================================
-    # 格子信息（调试用）
-    # ==================================================================
+    # # 格子信息（调试用）
+    #
 
     def get_grid_info(self) -> tuple[list, int] | None:
         """截图 → 检测格子 → 返回 (slots, bottom_y)。

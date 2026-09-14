@@ -1,4 +1,4 @@
-"""
+﻿"""
 圣遗物扫描调试 Presenter
 =========================
 独立的调试面板 Presenter，聚焦于单个小模块的调试：
@@ -72,7 +72,7 @@ class _DebugWorker(QThread):
 class ArtifactScanDebugPresenter(QObject, OnWindowReady):
     """圣遗物扫描调试 — 注册为 QML context property `ArtifactScanDebug`"""
 
-    # ========== 信号 ==========
+    # 信号
 
     batchProgressChanged = Signal()
     batchRunningChanged = Signal()
@@ -154,9 +154,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
         worker.start()
         return worker
 
-    # ==================================================================
-    # 配置管理
-    # ==================================================================
+    # # 配置管理
+    #
 
     @Property("QVariantList", notify=activeConfigChanged)
     def availableConfigNames(self) -> list[str]:
@@ -240,9 +239,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
             log.info(f"[调试面板] 格子检测配置切换: {self._active_config.name}")
             self.activeConfigChanged.emit()
 
-    # ==================================================================
-    # 批量点击（基于 SlotIterator）
-    # ==================================================================
+    # # 批量点击（基于 SlotIterator）
+    #
 
     @Property(str, notify=batchProgressChanged)
     def batchProgress(self) -> str:
@@ -308,9 +306,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
         self.batchRunningChanged.emit()
         log.info("[调试面板] 批量点击完成")
 
-    # ==================================================================
-    # 格子定位
-    # ==================================================================
+    # # 格子定位
+    #
 
     @Slot(int, int, int)
     def navigateToSlot(self, page: int, row: int, col: int) -> None:
@@ -363,9 +360,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
 
         self._run_in_background(_task).done.connect(_on_done)
 
-    # ==================================================================
-    # 格子翻页
-    # ==================================================================
+    # # 格子翻页
+    #
 
     @Slot(int, int, int)
     def scrollPageByDetection(
@@ -418,9 +414,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
 
         self._run_in_background(_task).done.connect(_on_done)
 
-    # ==================================================================
-    # 首尾锚点定位
-    # ==================================================================
+    # # 首尾锚点定位
+    #
 
     @Property(int, notify=anchorFirstMarked)
     def anchorFirstX(self) -> int:
@@ -621,9 +616,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
     def _on_anchor_ocr_error(self, error: str, callback_data: object) -> None:
         log.error(f"[调试面板] 锚点OCR识别失败({callback_data}): {error}")
 
-    # ==================================================================
-    # 滚动条拖拽到底
-    # ==================================================================
+    # # 滚动条拖拽到底
+    #
 
     @Property(int, notify=scrollbarTrackHeightChanged)
     def scrollbarTrackHeight(self) -> int:
@@ -685,9 +679,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
 
         self._run_in_background(_task).done.connect(_on_done)
 
-    # ==================================================================
-    # 颜色检测到底
-    # ==================================================================
+    # # 颜色检测到底
+    #
 
     @Slot()
     def checkScrollBottomByColor(self) -> None:
@@ -715,9 +708,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
 
         self._run_in_background(_task).done.connect(_on_done)
 
-    # ==================================================================
-    # 调试预览
-    # ==================================================================
+    # # 调试预览
+    #
 
     def _emit_slider_debug(
         self,

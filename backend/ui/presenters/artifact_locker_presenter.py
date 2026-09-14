@@ -1,4 +1,4 @@
-"""圣遗物锁定 Presenter"""
+﻿"""圣遗物锁定 Presenter"""
 
 from __future__ import annotations
 
@@ -50,13 +50,13 @@ class ArtifactLockerPresenter(QObject):
         self._load_re_unlock()
         self._load_limit_count()
 
-    # ========== 常量 ==========
+    # 常量
 
     @Property(int, constant=True)
     def maxRuleSelection(self) -> int:
         return self.MAX_RULE_SELECTION
 
-    # ========== 规则列表 ==========
+    # 规则列表
 
     def _load_rules(self) -> None:
         try:
@@ -92,7 +92,7 @@ class ArtifactLockerPresenter(QObject):
             for r in self._rules
         ]
 
-    # ========== 多选规则名 ==========
+    # 多选规则名
 
     @Property("QVariantList", notify=selectedRuleNamesChanged)
     def selectedRuleNames(self) -> list[str]:
@@ -109,7 +109,7 @@ class ArtifactLockerPresenter(QObject):
             self._selected_rule_names.append(name)
         self.selectedRuleNamesChanged.emit()
 
-    # ========== 默认行为 ==========
+    # 默认行为
 
     @Property("QVariantList", constant=True)
     def defaultActionLabels(self) -> list[str]:
@@ -138,7 +138,7 @@ class ArtifactLockerPresenter(QObject):
         settings.set("dogfood.default_action", action)
         self.defaultActionChanged.emit()
 
-    # ========== 重新解锁选项 ==========
+    # 重新解锁选项
 
     def _load_re_unlock(self) -> None:
         val = settings.get("locker.re_unlock")
@@ -156,7 +156,7 @@ class ArtifactLockerPresenter(QObject):
         settings.set("locker.re_unlock", "true" if value else "false")
         self.reUnlockChanged.emit()
 
-    # ========== 限制处理数量 ==========
+    # 限制处理数量
 
     def _load_limit_count(self) -> None:
         val = settings.get("locker.limit_count_enabled")
@@ -192,7 +192,7 @@ class ArtifactLockerPresenter(QObject):
         settings.set("locker.max_count", count)
         self.maxCountChanged.emit()
 
-    # ========== 统计 ==========
+    # 统计
 
     @Property(int, notify=statsChanged)
     def lockedCount(self) -> int:
@@ -206,7 +206,7 @@ class ArtifactLockerPresenter(QObject):
     def skippedCount(self) -> int:
         return self._skipped_count
 
-    # ========== 运行状态 ==========
+    # 运行状态
 
     @Property(bool, notify=runningChanged)
     def running(self) -> bool:
@@ -216,7 +216,7 @@ class ArtifactLockerPresenter(QObject):
     def status(self) -> str:
         return self._status
 
-    # ========== 锁定入口 ==========
+    # 锁定入口
 
     @Slot()
     def startLock(self) -> None:

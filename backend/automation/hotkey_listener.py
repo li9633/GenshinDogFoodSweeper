@@ -1,4 +1,4 @@
-"""
+﻿"""
 全局热键监听器
 ==============
 基于 pynput 实现全局键盘热键，支持窗口失焦时触发。
@@ -28,13 +28,8 @@ _KEY_TO_STR: dict = {
 }
 
 
-class HotkeyListener(QObject):
-    """全局热键监听器（Singleton）
-
-    用法：
-        listener = HotkeyListener.instance()
-        listener.stopRequested.connect(presenter.stop_all)
-    """
+class HotkeyListener:
+    """全局热键监听器（Singleton）"""
 
     _instance: HotkeyListener | None = None
     _stop_callbacks: ClassVar[list] = []
@@ -86,9 +81,8 @@ class HotkeyListener(QObject):
         self._last_trigger = 0.0
         self._start()
 
-    # ------------------------------------------------------------------
-    # 公开 API
-    # ------------------------------------------------------------------
+    # # 公开 API
+    #
 
     @staticmethod
     def get_hotkey() -> str:
@@ -167,9 +161,8 @@ class HotkeyListener(QObject):
         if cls._instance is not None:
             cls._instance._stop_capture()
 
-    # ------------------------------------------------------------------
-    # 内部实现
-    # ------------------------------------------------------------------
+    # # 内部实现
+    #
 
     def _stop_capture(self) -> None:
         if self._capture_listener is not None:

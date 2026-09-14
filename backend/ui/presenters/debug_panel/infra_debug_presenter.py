@@ -1,4 +1,4 @@
-"""
+﻿"""
 基础设施调试 Presenter
 =====================
 为调试面板提供基础设施组件的测试方法：状态栏、GMessageBox 等。
@@ -68,9 +68,8 @@ class InfraDebugPresenter(QObject):
 
         QTimer.singleShot(delay_sec * 1000, _do_show)
 
-    # ============================================================
-    # GProgressBar 调试
-    # ============================================================
+    # # GProgressBar 调试
+    #
 
     _debug_progress_value: float = 0.38
     _debug_progress_text: str = "翠绿之影  24 / 63"
@@ -113,9 +112,8 @@ class InfraDebugPresenter(QObject):
         self._debug_progress_text = "同步完成"
         self.debugProgressChanged.emit()
 
-    # ============================================================
-    # 数据库 & 模型清理
-    # ============================================================
+    # # 数据库 & 模型清理
+    #
 
     @Slot()
     def clearArtifactSets(self) -> None:

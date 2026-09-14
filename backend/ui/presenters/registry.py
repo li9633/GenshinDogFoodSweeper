@@ -1,4 +1,4 @@
-"""
+﻿"""
 Presenter 注册表
 ================
 所有 QML ContextProperty 在此集中声明，main.py 只需调用 register_all(engine)。
@@ -13,7 +13,7 @@ from typing import Any
 from PySide6.QtQml import QQmlApplicationEngine
 from utils.logger import log
 
-# ---- 注册表条目 ----
+# 注册表条目
 # 格式: (ContextProperty 名称, 工厂函数, [可选的信号连接函数])
 # 全部使用延迟导入，避免单个 Presenter 的依赖缺失导致整个应用崩溃
 
@@ -27,17 +27,17 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
         ("EnvManager", EnvManager, []),
     ]
 
-    # ---- GMessageBoxBridge（信号桥，Python → QML 弹窗）----
+    # GMessageBoxBridge（信号桥，Python → QML 弹窗）
     from ui.gmessagebox import GMessageBoxBridge
 
     registry.append(("GMessageBoxBridge", GMessageBoxBridge, []))
 
-    # ---- NavigationPresenter（路由导航）----
+    # NavigationPresenter（路由导航）
     from ui.presenters.navigation_presenter import NavigationPresenter
 
     registry.append(("NavigationPresenter", NavigationPresenter, []))
 
-    # ---- SettingsPresenter ----
+    # SettingsPresenter
     from ui.presenters.settings_presenter import SettingsPresenter
 
     from backend.automation.hotkey_listener import HotkeyListener
@@ -47,26 +47,26 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("SettingsPresenter", SettingsPresenter, [_wire_settings]))
 
-    # ---- RegionMarker ----
+    # RegionMarker
     from ui.presenters.debug_panel.region_marker_presenter import RegionMarkerPresenter
 
     registry.append(("RegionMarker", RegionMarkerPresenter, []))
 
-    # ---- ElementDetection ----
+    # ElementDetection
     from ui.presenters.debug_panel.element_detection_presenter import (
         ElementDetectionPresenter,
     )
 
     registry.append(("ElementDetection", ElementDetectionPresenter, []))
 
-    # ---- ArtifactRecognition ----
+    # ArtifactRecognition
     from ui.presenters.debug_panel.artifact_recognition_presenter import (
         ArtifactRecognitionPresenter,
     )
 
     registry.append(("ArtifactRecognition", ArtifactRecognitionPresenter, []))
 
-    # ---- StatusBar ----
+    # StatusBar
     from ui.presenters.status_bar_presenter import StatusBarPresenter
     from utils.log_bridge import set_presenter, set_status_callback
 
@@ -76,17 +76,17 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("StatusBarPresenter", StatusBarPresenter, [_wire_status]))
 
-    # ---- InputDebug ----
+    # InputDebug
     from ui.presenters.debug_panel.input_debug_presenter import InputDebugPresenter
 
     registry.append(("InputDebug", InputDebugPresenter, []))
 
-    # ---- InfraDebug ----
+    # InfraDebug
     from ui.presenters.debug_panel.infra_debug_presenter import InfraDebugPresenter
 
     registry.append(("InfraDebug", InfraDebugPresenter, []))
 
-    # ---- ArtifactScan ----
+    # ArtifactScan
     from ui.presenters.artifact_scan_presenter import ArtifactScanPresenter
 
     def _wire_scan(p: ArtifactScanPresenter) -> None:
@@ -94,41 +94,41 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("ArtifactScan", ArtifactScanPresenter, [_wire_scan]))
 
-    # ---- ArtifactScanDebug ----
+    # ArtifactScanDebug
     from ui.presenters.debug_panel.artifact_scan_debug_presenter import (
         ArtifactScanDebugPresenter,
     )
 
     registry.append(("ArtifactScanDebug", ArtifactScanDebugPresenter, []))
 
-    # ---- SmartScrollDebug ----
+    # SmartScrollDebug
     from ui.presenters.debug_panel.smart_scroll_debug_presenter import (
         SmartScrollDebugPresenter,
     )
 
     registry.append(("SmartScrollDebug", SmartScrollDebugPresenter, []))
 
-    # ---- GameDetector ----
+    # GameDetector
     from ui.presenters.game_detector import GameDetector
 
     registry.append(("GameDetector", GameDetector, []))
 
-    # ---- TitleBar ----
+    # TitleBar
     from ui.presenters.title_bar_presenter import TitleBarPresenter
 
     registry.append(("TitleBarPresenter", TitleBarPresenter, []))
 
-    # ---- VersionCheck ----
+    # VersionCheck
     from ui.presenters.version_check_presenter import VersionCheckPresenter
 
     registry.append(("VersionCheck", VersionCheckPresenter, []))
 
-    # ---- RulePresenter ----
+    # RulePresenter
     from ui.presenters.rule_presenter import RulePresenter
 
     registry.append(("RulePresenter", RulePresenter, []))
 
-    # ---- ArtifactDecompose ----
+    # ArtifactDecompose
     from ui.presenters.artifact_decompose_presenter import ArtifactDecomposePresenter
 
     def _wire_decompose(p: ArtifactDecomposePresenter) -> None:
@@ -136,7 +136,7 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("ArtifactDecompose", ArtifactDecomposePresenter, [_wire_decompose]))
 
-    # ---- ArtifactLocker ----
+    # ArtifactLocker
     from ui.presenters.artifact_locker_presenter import ArtifactLockerPresenter
 
     def _wire_locker(p: ArtifactLockerPresenter) -> None:
@@ -144,7 +144,7 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
 
     registry.append(("ArtifactLocker", ArtifactLockerPresenter, [_wire_locker]))
 
-    # ---- UpdatePresenter (App 更新) ----
+    # UpdatePresenter (App 更新)
     from ui.presenters.update_presenter import UpdatePresenter
 
     registry.append(("UpdatePresenter", UpdatePresenter, []))
@@ -152,7 +152,7 @@ def _make_registry() -> list[tuple[str, Callable[[], Any], list[Callable]]]:
     return registry
 
 
-# ---- 公开 API ----
+# 公开 API
 
 
 def register_all(engine: QQmlApplicationEngine) -> list:

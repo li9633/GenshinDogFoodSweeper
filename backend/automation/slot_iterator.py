@@ -1,12 +1,4 @@
-"""
-圣遗物格子遍历器 — 纯逻辑，无 Qt 依赖
-=====================================
-统一所有圣遗物批量操作（扫描、锁定、分解）的格子遍历逻辑。
-输入 SlotDetector.detect() 的 DetectResult，
-对每个格子点击并回调，支持点击前过滤和提前停止。
-
-可在任意上下文中使用：QThread / QObject+QEventLoop / 同步脚本。
-"""
+"""圣遗物格子遍历器 — 统一所有圣遗物批量操作的格子遍历逻辑"""
 
 from __future__ import annotations
 
@@ -18,20 +10,7 @@ from backend.models.slot_models import DetectResult, SlotObject
 
 
 class SlotIterator:
-    """圣遗物格子遍历器
-
-    职责：接收 DetectResult，遍历格子，点击并执行用户回调。
-    不负责：截图、OCR、规则评估、翻页。
-l
-    使用方式：
-        iterator = SlotIterator(mouse)
-        iterator.iter_slots(
-            det_result,
-            on_slot=lambda slot, idx, total: handle(slot),
-            stop_check=lambda: self._stop,
-            pre_check=lambda slot: not slot.locked,
-        )
-    """
+    """圣遗物格子遍历器，接收 DetectResult 并遍历格子"""
 
     def __init__(self, mouse: MouseController) -> None:
         self._mouse = mouse

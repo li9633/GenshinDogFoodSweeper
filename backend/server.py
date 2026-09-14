@@ -1,4 +1,4 @@
-"""
+﻿"""
 FastAPI 应用
 ============
 提供 REST API + 静态文件服务。
@@ -37,7 +37,7 @@ app.add_middleware(
 )
 
 
-# ===================== 基础路由 =====================
+# 基础路由
 
 
 @app.get("/api/health")
@@ -57,7 +57,7 @@ async def get_stats():
     }
 
 
-# ===================== 子路由（后续接入） =====================
+# 子路由（后续接入）
 # from api.artifacts import router as artifacts_router
 # from api.scan import router as scan_router
 # from api.settings import router as settings_router

@@ -1,14 +1,4 @@
-"""资源文件路径
-
-调用方不需要关心具体文件名，只需要知道"我要什么资源"。
-所有文件名集中在此处定义，修改时只改这一个文件。
-
-用法：
-    from common.resources import Resource
-
-    icon = str(Resource.APP_ICON_PNG)              # 应用图标 PNG
-    stats = Resource.ARTIFACT_STATS_JSON.read_text() # 词条模板 JSON
-"""
+"""资源文件路径 — 所有文件名集中定义，调用方只需知道"要什么资源"。"""
 
 from pathlib import Path
 

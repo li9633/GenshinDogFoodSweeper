@@ -1,4 +1,4 @@
-"""
+﻿"""
 圣遗物扫描器 — 包含所有扫描工作线程和高层协调器
 =============================================
 从 ArtifactScanPresenter 中提取的 QThread Worker 类，
@@ -49,9 +49,8 @@ _SCAN_FIELDS: frozenset[ArtifactRecognitionField] = frozenset(
 
 from backend.automation.artifact_count_ocr import ocr_artifact_count
 
-# ====================================================================
-# 全量扫描 Worker
-# ====================================================================
+# # 全量扫描 Worker
+#
 
 
 class FullScanWorker(QThread):
@@ -128,7 +127,7 @@ class FullScanWorker(QThread):
     def results(self) -> list[ArtifactInfo]:
         return self._results
 
-    # ========== 主流程 ==========
+    # 主流程
 
     def run(self) -> None:
         try:
@@ -452,17 +451,17 @@ class FullScanWorker(QThread):
 
             self.errorOccurred.emit(f"{exc}\n{traceback.format_exc()}")
 
-    # ========== 窗口工具 ==========
+    # 窗口工具
 
     def _focus_game(self) -> None:
         WindowHelper.focus()
 
-    # ========== OCR 数量识别 ==========
+    # OCR 数量识别
 
     def _ocr_count(self, ocr) -> int:
         return ocr_artifact_count(self._capture, ocr)
 
-    # ========== 滑块操作 ==========
+    # 滑块操作
 
     def _scroll_to_top(self) -> None:
         self._slider_scroller.ensure_at_top()
@@ -501,7 +500,7 @@ class FullScanWorker(QThread):
 
         return self._slider_scroller.scroll_to_bottom(slider_y)
 
-    # ========== 圣遗物识别 ==========
+    # 圣遗物识别
 
     def _click_and_recognize_artifact(
         self, cx: int, cy: int, ocr
@@ -529,7 +528,7 @@ class FullScanWorker(QThread):
             log.error(f"圣遗物识别失败: {exc}")
             return None
 
-    # ========== 翻页 ==========
+    # 翻页
 
     def _scroll_one_page(self) -> None:
         window = WindowHelper.find_genshin_window()

@@ -1,4 +1,4 @@
-"""OCR 模型下载管理器 — 管理 PaddleOCR 模型的本地下载、版本追踪"""
+﻿"""OCR 模型下载管理器 — 管理 PaddleOCR 模型的本地下载、版本追踪"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from common.paths import ENGINES
 # 抑制 modelscope 下载时的 INFO 日志（进度条噪音）
 logging.getLogger("modelscope_hub.download").setLevel(logging.WARNING)
 
-# ---- 模型定义 ----
+# 模型定义
 _MODELS: list[dict] = [
     {
         "name": "PP-OCRv5_mobile_det",

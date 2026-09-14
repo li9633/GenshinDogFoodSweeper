@@ -1,8 +1,5 @@
 """
-网格坐标计算器 — 纯逻辑层，无 Qt 依赖
-=====================================
-根据行列参数计算圣遗物背包网格中每个格子的中心坐标。
-所有方法均为静态方法，可在任意线程中安全调用。
+网格坐标计算器 — 根据行列参数计算圣遗物背包网格中每个格子的中心坐标
 """
 
 from __future__ import annotations
@@ -11,7 +8,7 @@ from collections.abc import Iterator
 
 
 class GridCalculator:
-    """网格坐标计算器 — 纯函数，无状态，无 Qt 依赖"""
+    """网格坐标计算器"""
 
     @staticmethod
     def cell_center(

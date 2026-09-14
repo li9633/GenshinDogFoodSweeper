@@ -1,4 +1,4 @@
-"""OCR Worker — 在专用线程中执行 PaddleOCR 推理，解决线程安全问题并避免阻塞 UI
+﻿"""OCR Worker — 在专用线程中执行 PaddleOCR 推理，解决线程安全问题并避免阻塞 UI
 
 PaddleOCR 要求初始化和推理必须在同一线程中执行。
 本模块提供 OcrWorker（QThread 子类），在 run() 中初始化模型，
@@ -80,7 +80,7 @@ class OcrWorker(QThread):
                 self._ocr = OcrEngine.create_ocr(self._engines_dir)
             self.ready.emit()
 
-            # ---- 任务处理循环 ----
+            # 任务处理循环
             while True:
                 try:
                     task = self._queue.get(timeout=0.5)

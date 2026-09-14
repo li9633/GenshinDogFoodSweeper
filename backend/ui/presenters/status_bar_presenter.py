@@ -1,4 +1,4 @@
-"""
+﻿"""
 状态栏 Presenter
 ===============
 将日志消息桥接到 QML 状态栏组件，支持颜色编码、线程安全和优先级队列。
@@ -49,7 +49,7 @@ class StatusBarPresenter(QObject):
         self._signal.connect(self._do_show)
         self._task_signal.connect(self._do_task)
 
-    # ========== QML 属性 ==========
+    # QML 属性
 
     @Property(str, notify=messageChanged)
     def message(self) -> str:
@@ -67,7 +67,7 @@ class StatusBarPresenter(QObject):
     def dismissable(self) -> bool:
         return self._level.upper() in ("ERROR", "CRITICAL")
 
-    # ========== 公开方法 ==========
+    # 公开方法
 
     def show(self, level: str, message: str, duration: int = 0) -> None:
         """线程安全：通过信号调度到主线程
@@ -79,7 +79,7 @@ class StatusBarPresenter(QObject):
     def start_task(self, key: str, message: str) -> None:
         """钉住一条任务消息。即使期间有其他日志，任务完成后也会回退显示。
 
-        线程安全，可在任意线程调用。消息始终以 INFO 级别显示。
+        线程安全。消息始终以 INFO 级别显示。
         """
         self._task_signal.emit("start", key, message, None, "")
 
@@ -100,7 +100,7 @@ class StatusBarPresenter(QObject):
         self._error_info = None
         self._refresh()
 
-    # ========== 内部实现 ==========
+    # 内部实现
 
     def _do_show(self, level: str, message: str, duration: int) -> None:
         """接收 log_bridge 转发的消息，存入对应槽位。"""

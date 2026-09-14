@@ -1,4 +1,4 @@
-"""狗粮规则 Repository
+﻿"""狗粮规则 Repository
 ====================
 在 artifacts.db 中管理 dogfood_rules 表。
 """
@@ -16,7 +16,7 @@ class DogfoodRuleRepo:
 
     DB_NAME = "artifacts.db"
 
-    # ---------- DDL ----------
+    # DDL
 
     @classmethod
     def create_table(cls) -> None:
@@ -40,7 +40,7 @@ class DogfoodRuleRepo:
                 )
             """)
 
-    # ---------- 读 ----------
+    # 读
 
     @classmethod
     def find_all(cls) -> list[DogfoodRule]:
@@ -58,7 +58,7 @@ class DogfoodRuleRepo:
                 rules.append(DogfoodRule.from_dict(d))
             return rules
 
-    # ---------- 写 ----------
+    # 写
 
     @classmethod
     def upsert(cls, rule: DogfoodRule) -> None:

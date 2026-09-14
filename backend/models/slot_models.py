@@ -1,4 +1,4 @@
-"""
+﻿"""
 圣遗物格子检测 — 数据模型
 ==========================
 纯数据定义，与检测逻辑无关。包括：
@@ -82,7 +82,7 @@ class RarityThreshold:
         return votes >= min_votes
 
 
-# === 稀有度阈值（基于实测数据） ===
+# 稀有度阈值（基于实测数据）
 
 FIVE_STAR_GOLDEN = RarityThreshold(
     rarity=ArtifactRarity.FIVE,
@@ -376,7 +376,7 @@ class SlotDetectorConfig:
         )
 
 
-# === 预定义配置实例 ===
+# 预定义配置实例
 
 # 背包圣遗物列表格子配置
 BAG_SLOT_CONFIG = SlotDetectorConfig(

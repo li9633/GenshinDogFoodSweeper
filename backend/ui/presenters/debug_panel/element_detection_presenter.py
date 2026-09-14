@@ -1,4 +1,4 @@
-"""元素检测 Presenter — QObject 封装，供 QML 绑定
+﻿"""元素检测 Presenter — QObject 封装，供 QML 绑定
 
 模板列表查询、检测条件管理、多尺度模板匹配、区域注册。
 """
@@ -80,7 +80,7 @@ class Condition:
 class ElementDetectionPresenter(QObject):
     """元素检测 Presenter — QML 可绑定"""
 
-    # -- 信号 --
+    # 信号
     templatesChanged = Signal()
     conditionsChanged = Signal()
     templateSelected = Signal(str, str, int, int, int, int, bool)
@@ -101,7 +101,7 @@ class ElementDetectionPresenter(QObject):
         self._detecting: bool = False
         self._refresh_templates()
 
-    # ========== 模板列表 ==========
+    # 模板列表
 
     def _refresh_templates(self, keyword: str = "") -> None:
         d = TemplateManager.search(keyword) if keyword else TemplateManager.list_all()
@@ -143,7 +143,7 @@ class ElementDetectionPresenter(QObject):
         else:
             self.templateSelected.emit(key, preview_path, 0, 0, 0, 0, False)
 
-    # ========== 条件管理 ==========
+    # 条件管理
 
     @Property(list, notify=conditionsChanged)
     def conditions(self) -> list[dict]:
@@ -208,7 +208,7 @@ class ElementDetectionPresenter(QObject):
     def detecting(self) -> bool:
         return self._detecting
 
-    # ========== 检测 ==========
+    # 检测
 
     @Slot()
     def detect(self) -> None:
@@ -294,7 +294,7 @@ class ElementDetectionPresenter(QObject):
             self._detecting = False
             self.detectingChanged.emit()
 
-    # ========== 注册 ==========
+    # 注册
 
     @Slot(str, str)
     def registerRegion(self, selected_key: str, display_name: str) -> None:

@@ -1,4 +1,4 @@
-"""圣遗物 OCR 文本解析器 — 将识别结果转换为结构化数据"""
+﻿"""圣遗物 OCR 文本解析器 — 将识别结果转换为结构化数据"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from utils.logger import log
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
 from common.resources import Resource
 
-# ========== 加载词条模板 ==========
+# 加载词条模板
 
 _STATS_JSON = Resource.ARTIFACT_STATS_JSON
 with open(_STATS_JSON, encoding="utf-8") as _f:
@@ -31,7 +31,7 @@ _ALWAYS_PCT: frozenset[str] = frozenset(
 )
 
 
-# ========== 解析器 ==========
+# 解析器
 
 
 class ArtifactTextParser:
@@ -100,7 +100,7 @@ class ArtifactTextParser:
         info = cls._validate(info)
         return info
 
-    # ---------- 等级 & 锁定状态 ----------
+    # 等级 & 锁定状态
 
     @staticmethod
     def _parse_level(text: str) -> int | None:
@@ -123,7 +123,7 @@ class ArtifactTextParser:
                 return False
         return None
 
-    # ---------- 校验 ----------
+    # 校验
 
     @classmethod
     def _validate(cls, info: ArtifactInfo) -> ArtifactInfo:
@@ -157,7 +157,7 @@ class ArtifactTextParser:
 
         return info
 
-    # ---------- 套装效果 ----------
+    # 套装效果
 
     @staticmethod
     def _lookup_set_effects(set_id: int) -> dict[str, str] | None:
@@ -178,7 +178,7 @@ class ArtifactTextParser:
             log.warning(f"[套装效果] set_id={set_id} 查询失败")
             return None
 
-    # ---------- 主词条 ----------
+    # 主词条
 
     @classmethod
     def _parse_main_stat(cls, text: str, piece_type: str) -> ArtifactStat | None:
@@ -192,7 +192,7 @@ class ArtifactTextParser:
                 return cls._build_stat(name, value_str)
         return None
 
-    # ---------- 副词条 ----------
+    # 副词条
 
     @classmethod
     def _parse_sub_stats(cls, text: str) -> list[SubStat]:
@@ -240,7 +240,7 @@ class ArtifactTextParser:
             return cls._build_stat(m.group(1).strip(), m.group(2).strip(), is_activated)
         return None
 
-    # ---------- 工具 ----------
+    # 工具
 
     @classmethod
     def _build_stat(

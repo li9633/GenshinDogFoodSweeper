@@ -1,4 +1,4 @@
-"""GMessageBox Python API
+﻿"""GMessageBox Python API
 =======================
 通过信号桥接触发 QML 侧的 GMessageBox 弹窗，提供简洁的静态方法调用：
 
@@ -29,7 +29,7 @@ from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtQml import QQmlApplicationEngine
 from utils.logger import log
 
-# ---- Windows API 常量 ----
+# Windows API 常量
 _SWP_NOMOVE = 0x0002
 _SWP_NOSIZE = 0x0001
 _SWP_SHOWWINDOW = 0x0040
@@ -182,9 +182,8 @@ class GMessageBox:
     def success(cls, msg: str, bring_to_front: bool = False) -> None:
         cls._show("success", msg, bring_to_front)
 
-    # ============================================================
-    # 自定义按钮 API
-    # ============================================================
+    # # 自定义按钮 API
+    #
 
     @classmethod
     def show(
@@ -267,7 +266,7 @@ class GMessageBox:
             on_button=_make_dispatch(on_confirm, on_cancel),
         )
 
-    # ---------- 内部实现 ----------
+    # 内部实现
 
     @classmethod
     def _show(cls, msg_type: str, msg: str, bring_to_front: bool) -> None:

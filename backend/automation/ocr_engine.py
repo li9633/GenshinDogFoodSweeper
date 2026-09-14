@@ -1,4 +1,4 @@
-"""OCR 引擎 — PaddleOCR 懒加载封装"""
+﻿"""OCR 引擎 — PaddleOCR 懒加载封装"""
 
 from __future__ import annotations
 
@@ -22,25 +22,11 @@ class OcrEngine:
         self._engines_dir = engines_dir
         self._model_manager = OcrModelManager(engines_dir)
 
-    # ---------- PaddleOCR 实例创建（唯一入口） ----------
+    # PaddleOCR 实例创建
 
     @staticmethod
     def create_ocr(engines_dir: Path):
-        """创建 PaddleOCR 实例（公开 API）。
-
-        设置所需环境变量并初始化模型。此方法可在任意线程中调用，
-        OcrEngine 和 OcrWorker 均通过此方法创建各自的 OCR 实例。
-
-        调用前会检查模型是否已下载，未下载时抛出 OcrModelNotReadyError
-        （自动完成 log.error + GMessageBox 弹窗）。
-
-        外部调用者使用示例：
-            try:
-                ocr = OcrEngine.create_ocr(engines_dir)
-                result = ocr.ocr(image)
-            except OcrModelNotReadyError:
-                return  # 异常已自动处理日志和弹窗
-        """
+        """创建 PaddleOCR 实例。模型未就绪时抛出 OcrModelNotReadyError"""
         # 模型就绪检查
         OcrEngine._check_models(engines_dir)
 
@@ -65,7 +51,7 @@ class OcrEngine:
             text_recognition_model_dir=str(models_dir / "PP-OCRv5_mobile_rec"),
         )
 
-    # ---------- 公开 API ----------
+    # 公开 API
 
     @property
     def is_ready(self) -> bool:
@@ -89,7 +75,7 @@ class OcrEngine:
             log.info("OCR 引擎就绪")
         return OcrEngine._ocr
 
-    # ---------- 内部方法 ----------
+    # 内部方法
 
     @staticmethod
     def _check_models(engines_dir: Path) -> None:

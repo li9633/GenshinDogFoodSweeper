@@ -1,4 +1,4 @@
-"""自动锁定/解锁圣遗物模块
+﻿"""自动锁定/解锁圣遗物模块
 
 流程与分解流程基本一致：
 1. 截图 → SlotDetector 检测格子
@@ -50,7 +50,7 @@ class ArtifactLocker(QObject):
         self._fatal_error = None
         self._lock_icon_center = None
 
-    # ========== 入口 ==========
+    # 入口
 
     def lock_artifacts(
         self,
@@ -74,7 +74,7 @@ class ArtifactLocker(QObject):
         """
         return self._lock_loop(rules, default_action, re_unlock, max_count, ocr)
 
-    # ========== 主循环 ==========
+    # 主循环
 
     def _lock_loop(
         self,
@@ -225,7 +225,7 @@ class ArtifactLocker(QObject):
 
         return (total_locked, total_unlocked, total_skipped)
 
-    # ========== 圣遗物详情 OCR 识别（直接同步调用） ==========
+    # 圣遗物详情 OCR 识别（直接同步调用）
 
     @staticmethod
     def _recognize_artifact(image: np.ndarray, config, ocr) -> object | None:
@@ -254,12 +254,12 @@ class ArtifactLocker(QObject):
             log.debug(f"[锁定OCR] 识别异常: {e}")
             return None
 
-    # ========== 滑块操作 ==========
+    # 滑块操作
 
     def _scroll_to_top(self) -> None:
         self._slider_scroller.ensure_at_top()
 
-    # ========== 锁定/解锁操作 ==========
+    # 锁定/解锁操作
 
     def _toggle_lock(
         self,
@@ -307,9 +307,8 @@ class ArtifactLocker(QObject):
         time.sleep(0.3)
 
 
-# ====================================================================
-# 锁定 Worker（后台线程）
-# ====================================================================
+# # 锁定 Worker（后台线程）
+#
 
 
 class LockWorker(QThread):

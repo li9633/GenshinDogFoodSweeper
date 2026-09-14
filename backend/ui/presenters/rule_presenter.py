@@ -1,4 +1,4 @@
-"""狗粮规则 Presenter"""
+﻿"""狗粮规则 Presenter"""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ class RulePresenter(QObject):
         self._selected_config_index = 0
         self._load()
 
-    # ========== 持久化 ==========
+    # 持久化
 
     def _load(self) -> None:
         self._default_action = settings.get("dogfood.default_action") or "keep"
@@ -57,7 +57,7 @@ class RulePresenter(QObject):
         self.rulesChanged.emit()
         self.multiSelectionChanged.emit()
 
-    # ========== Properties ==========
+    # Properties
 
     @Property("QVariantList", notify=rulesChanged)
     def rules(self) -> list[dict]:
@@ -114,7 +114,7 @@ class RulePresenter(QObject):
     def defaultAction(self) -> str:
         return self._default_action
 
-    # ========== QML 表单辅助 ==========
+    # QML 表单辅助
 
     @Slot(str, result=str)
     def actionLabel(self, action: str) -> str:
@@ -229,7 +229,7 @@ class RulePresenter(QObject):
             "include_main_stat": rule.get("include_main_stat", False),
         }
 
-    # ========== 多选（导出用） ==========
+    # 多选（导出用）
 
     @Property(int, notify=multiSelectionChanged)
     def multiSelectedCount(self) -> int:
@@ -252,7 +252,7 @@ class RulePresenter(QObject):
         self._multi_selected.clear()
         self.multiSelectionChanged.emit()
 
-    # ========== CRUD ==========
+    # CRUD
 
     @Slot("QVariantMap", result=bool)
     def saveRule(self, rule_map: dict) -> bool:
@@ -347,7 +347,7 @@ class RulePresenter(QObject):
         self._selected_name = ""
         self.selectedRuleChanged.emit()
 
-    # ========== 优先级 ==========
+    # 优先级
 
     @Slot(str)
     def moveRuleUp(self, name: str) -> None:
@@ -371,7 +371,7 @@ class RulePresenter(QObject):
                 self._reload()
                 return
 
-    # ========== 默认行为 ==========
+    # 默认行为
 
     @Slot(str)
     def setDefaultAction(self, action: str) -> None:
@@ -381,7 +381,7 @@ class RulePresenter(QObject):
         settings.set("dogfood.default_action", action)
         self.defaultActionChanged.emit()
 
-    # ========== 导入导出 ==========
+    # 导入导出
 
     @Slot(str, result="QVariantMap")
     def exportToFile(self, url: str) -> dict:
@@ -471,7 +471,7 @@ class RulePresenter(QObject):
                 return r.to_dict()
         return {}
 
-    # ========== 检测配置 ==========
+    # 检测配置
 
     @Property("QVariantList", notify=rulesChanged)
     def availableSlotConfigs(self) -> list[dict]:
@@ -490,7 +490,7 @@ class RulePresenter(QObject):
         if 0 <= index < len(ALL_SLOT_CONFIGS):
             self._selected_config_index = index
 
-    # ========== 规则测试 ==========
+    # 规则测试
 
     _TEST_FIELDS: frozenset[ArtifactRecognitionField] = frozenset({
         ArtifactRecognitionField.SET_NAME,

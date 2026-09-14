@@ -1,4 +1,4 @@
-"""
+﻿"""
 原神狗粮清扫器 — 启动入口
 ===========================
 PySide6 + QML 桌面 GUI + FastAPI 后端服务。
@@ -100,14 +100,14 @@ def main():
         register_sink(stderr_sink_id)
     update_global_level(file_level)
 
-    # -- QML 引擎 --
+    # QML 引擎
     engine = QQmlApplicationEngine()
     engine.addImageProvider("preview", PreviewImageProvider())
     log.debug("PreviewImageProvider 注册成功")
 
     _presenters = register_all(engine)
 
-    # -- 退出清理 --
+    # 退出清理
     def _cleanup():
         from backend.automation.hotkey_listener import HotkeyListener
         from backend.automation.ocr_worker import OcrWorker
@@ -141,7 +141,7 @@ def main():
         log.error("QML 加载失败：engine.rootObjects() 为空，程序退出")
         sys.exit(-1)
 
-    # -- 系统托盘 --
+    # 系统托盘
     try:
         from ui.tray import TrayManager
 
@@ -151,7 +151,7 @@ def main():
         traceback.print_exc()
         log.error(f"TrayManager 初始化失败: {exc}")
 
-    # -- OCR 初始化器 --
+    # OCR 初始化器
     from ui.gmessagebox import GMessageBox
 
     GMessageBox.init(engine)
@@ -159,7 +159,7 @@ def main():
 
     _ocr_initializer = OcrInitializer()
 
-    # -- 窗口就绪回调 --
+    # 窗口就绪回调
     from ui.lifecycle import OnWindowReady
 
     OnWindowReady.trigger_all()

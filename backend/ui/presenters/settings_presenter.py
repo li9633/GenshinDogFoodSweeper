@@ -1,4 +1,4 @@
-"""
+﻿"""
 设置页面 Presenter
 ==================
 封装主题切换、数据同步、OCR 模型下载的业务逻辑，
@@ -25,10 +25,10 @@ from common.version_manager import AppVersion
 class SettingsPresenter(QObject):
     """设置页面 Presenter — 注册为 QML context property"""
 
-    # -- 主题 --
+    # 主题
     themeChanged = Signal(str)
 
-    # -- 同步 --
+    # 同步
     syncStarted = Signal()
     syncProgress = Signal(int, int, str)
     syncFinished = Signal(int, int, int)
@@ -36,7 +36,7 @@ class SettingsPresenter(QObject):
     syncTimeChanged = Signal()
     syncStatsChanged = Signal()
 
-    # -- 模型 --
+    # 模型
     modelDownloadStarted = Signal()
     modelDownloadProgress = Signal(int, int, str)
     modelDownloadFinished = Signal(bool, str)
@@ -44,21 +44,21 @@ class SettingsPresenter(QObject):
     modelVersionChanged = Signal()
     modelReadyChanged = Signal()
 
-    # -- 圣遗物更新检查 --
+    # 圣遗物更新检查
     versionCheckIntervalChanged = Signal()
 
-    # -- 快捷键 --
+    # 快捷键
     hotkeyChanged = Signal()
     hotkeyCaptureStarted = Signal()
     hotkeyCaptureFinished = Signal()
 
-    # -- 日志等级 --
+    # 日志等级
     logLevelChanged = Signal()
 
-    # -- 状态栏 --
+    # 状态栏
     statusMessage = Signal(str, int, str)
 
-    # -- 关于 --
+    # 关于
     from common.constants import APP_NAME_CN
 
     _APP_TITLE: ClassVar[str] = APP_NAME_CN
@@ -77,7 +77,7 @@ class SettingsPresenter(QObject):
     _GITHUB_URL: ClassVar[str] = "https://github.com/li9633/GenshinDogFoodSweeper"
     _ISSUES_URL: ClassVar[str] = f"{_GITHUB_URL}/issues"
 
-    # ========== 关于 ==========
+    # 关于
 
     @Property(str, constant=True)
     def appTitle(self) -> str:
@@ -124,7 +124,7 @@ class SettingsPresenter(QObject):
             return "file:///" + str(Resource.APP_ICON_PNG).replace("\\", "/")
         return ""
 
-    # ========== 主题 ==========
+    # 主题
 
     @Property(str, notify=themeChanged)
     def currentTheme(self) -> str:
@@ -145,7 +145,7 @@ class SettingsPresenter(QObject):
     def setThemeByIndex(self, index: int) -> None:
         self.setTheme("dark" if index == 0 else "light")
 
-    # ========== 快捷键 ==========
+    # 快捷键
 
     @Property(str, notify=hotkeyChanged)
     def hotkey(self) -> str:
@@ -173,7 +173,7 @@ class SettingsPresenter(QObject):
         self.hotkeyChanged.emit()
         self.hotkeyCaptureFinished.emit()
 
-    # ========== 日志等级 ==========
+    # 日志等级
 
     _LOG_LEVELS: ClassVar[list[str]] = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
     _LOG_LEVEL_LABELS: ClassVar[list[str]] = [
@@ -205,7 +205,7 @@ class SettingsPresenter(QObject):
             update_global_level(new_level)
             self.logLevelChanged.emit()
 
-    # ========== 日志轮转 ==========
+    # 日志轮转
 
     _ROTATION_OPTIONS: ClassVar[list[str]] = [
         "5 MB", "10 MB", "50 MB", "100 MB", "500 MB", "1 day", "1 week",
@@ -270,7 +270,7 @@ class SettingsPresenter(QObject):
         settings.set("log.compression", "zip" if enabled else "")
         self.compressionChanged.emit()
 
-    # ========== 圣遗物更新检查 ==========
+    # 圣遗物更新检查
 
     _VERSION_CHECK_INTERVALS: ClassVar[list[str]] = ["always", "12h", "1d", "7d"]
     _VERSION_CHECK_LABELS: ClassVar[list[str]] = ["每次启动", "12小时", "1天", "一星期"]
@@ -296,7 +296,7 @@ class SettingsPresenter(QObject):
             settings.set("sync_check.version_check_interval", new_key)
             self.versionCheckIntervalChanged.emit()
 
-    # ========== App 更新检查 ==========
+    # App 更新检查
 
     # 应用更新已迁移至 UpdatePresenter（ui/presenters/update_presenter.py）
     # SettingsPresenter 不再管理更新逻辑
@@ -318,7 +318,7 @@ class SettingsPresenter(QObject):
         NavigationPresenter.register("settings/hotkey", "settings", "hotkey")
         NavigationPresenter.register("settings/about", "settings", "about")
 
-    # ========== 同步 ==========
+    # 同步
 
     @Property(str, notify=syncTimeChanged)
     def syncTime(self) -> str:
@@ -398,7 +398,7 @@ class SettingsPresenter(QObject):
         self.syncFailed.emit(error)
         self.statusMessage.emit(f"同步失败: {error}", 5000, "ERROR")
 
-    # ========== OCR 模型 ==========
+    # OCR 模型
 
     def _get_model_manager(self):
         if self._model_manager is None:

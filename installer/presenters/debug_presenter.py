@@ -1,8 +1,4 @@
-"""调试 Presenter
-=========
-仅在 GDFS_INSTALLER_DEBUG=True 时创建，包装 Coordinator 暴露调试接口。
-Coordinator 本身零改动，所有调试逻辑集中于此。
-"""
+"""调试 Presenter — 仅在 GDFS_INSTALLER_DEBUG=True 时创建"""
 
 from __future__ import annotations
 
@@ -12,7 +8,7 @@ from installer.presenters.coordinator import AppCoordinator
 
 
 class DebugPresenter(QObject):
-    """包装 Coordinator，提供调试专用数据查询与操作接口。"""
+    """包装 Coordinator，提供调试专用接口"""
 
     stateChanged = Signal()
 
@@ -31,7 +27,7 @@ class DebugPresenter(QObject):
         self._current_page = page
         self.stateChanged.emit()
 
-    # ========== 数据查询（供 DebugPanelPresenter 调用） ==========
+    # 数据查询（供 DebugPanelPresenter 调用）
 
     @property
     def current_page(self) -> str:
@@ -65,7 +61,7 @@ class DebugPresenter(QObject):
     def allow_close(self) -> bool:
         return self._coord.allowClose
 
-    # ========== 调试操作（供 DebugPanelPresenter 代理） ==========
+    # 调试操作（供 DebugPanelPresenter 代理）
 
     @Slot(str)
     def setMode(self, value: str) -> None:

@@ -1,4 +1,4 @@
-"""自动分解低星圣遗物模块"""
+﻿"""自动分解低星圣遗物模块"""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ class ArtifactDecomposer(QObject):
         self._stop_event.clear()
         self._fatal_error = None
 
-    # ========== 入口 ==========
+    # 入口
 
     def try_quick_select_decompose(self, ocr) -> bool:
         """
@@ -147,7 +147,7 @@ class ArtifactDecomposer(QObject):
         log.info("已关闭快速选择分解结果蒙层")
         return True
 
-    # ========== 规则评估分解入口 ==========
+    # 规则评估分解入口
 
     def enter_decompose_page(self) -> bool:
         """确保当前在分解页面。如果不在则尝试点击分解按钮进入。
@@ -235,7 +235,7 @@ class ArtifactDecomposer(QObject):
         log.info("已关闭分解结果蒙层")
         return True
 
-    # ========== 逐格评估循环 ==========
+    # 逐格评估循环
 
     def _decompose_loop(
         self,
@@ -414,7 +414,7 @@ class ArtifactDecomposer(QObject):
 
         return (total_keep, total_discard, reached_limit)
 
-    # ========== 圣遗物详情 OCR 识别（直接同步调用） ==========
+    # 圣遗物详情 OCR 识别（直接同步调用）
 
     @staticmethod
     def _recognize_artifact(image: np.ndarray, config, ocr) -> object | None:
@@ -443,7 +443,7 @@ class ArtifactDecomposer(QObject):
             log.debug(f"[分解OCR] 识别异常: {e}")
             return None
 
-    # ========== 模板检测 ==========
+    # 模板检测
 
     def _is_on_decompose_page(self, image: np.ndarray) -> bool:
         """判断当前是否在分解页面。
@@ -514,7 +514,7 @@ class ArtifactDecomposer(QObject):
         MouseController.move_and_click(*self._decompose_button_pos)
         time.sleep(0.2)
 
-    # ========== 快速选择 ==========
+    # 快速选择
 
     def _click_quick_select(self, image: np.ndarray) -> bool:
         """查找并点击快速选择按钮，成功后保存坐标供后续复用"""
@@ -528,7 +528,7 @@ class ArtifactDecomposer(QObject):
         self._quick_select_pos = pos
         return True
 
-    # ========== 快速选择结果解析 ==========
+    # 快速选择结果解析
 
     @staticmethod
     def _parse_quick_select_result(
@@ -634,7 +634,7 @@ class ArtifactDecomposer(QObject):
 
         return options
 
-    # ========== 底层工具 ==========
+    # 底层工具
 
     def _match_template(
         self, image: np.ndarray, template: object, threshold: float
@@ -673,9 +673,8 @@ class ArtifactDecomposer(QObject):
         return (rel_x, rel_y)
 
 
-# ====================================================================
-# 分解 Worker（后台线程）
-# ====================================================================
+# # 分解 Worker（后台线程）
+#
 
 
 class SelectWorker(QThread):

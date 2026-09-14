@@ -1,4 +1,4 @@
-"""
+﻿"""
 侧边栏导航组件
 ==============
 基于 QTreeWidget 实现多级可展开/折叠菜单（Vue3 el-menu 风格）。
@@ -57,7 +57,7 @@ class Sidebar(QWidget):
         self.setFixedWidth(width)
         self._build_ui(nav_items)
 
-    # ---------- 公开方法 ----------
+    # 公开方法
 
     def set_active(self, key: str) -> None:
         """高亮指定导航项，自动展开所有祖先节点"""
@@ -72,7 +72,7 @@ class Sidebar(QWidget):
 
         self._tree.setCurrentItem(item)
 
-    # ---------- UI 构建 ----------
+    # UI 构建
 
     def _build_ui(self, nav_items: list[NavItem]) -> None:
         layout = QVBoxLayout(self)
@@ -106,7 +106,7 @@ class Sidebar(QWidget):
             if nav_item.children:
                 self._build_items(nav_item.children, tree_item)
 
-    # ---------- 交互 ----------
+    # 交互
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
         key = item.data(0, Qt.ItemDataRole.UserRole)

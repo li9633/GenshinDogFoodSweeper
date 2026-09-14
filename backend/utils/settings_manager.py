@@ -1,4 +1,4 @@
-"""
+﻿"""
 设置管理器
 ==========
 封装 SettingsRepo，提供带缓存、类型安全的读写接口。
@@ -61,7 +61,7 @@ class SettingsManager:
         self._cache: dict[str, str] = {}
         self._load_cache()
 
-    # ---------- 内部工具 ----------
+    # 内部工具
 
     @staticmethod
     def _flatten(nested: dict[str, dict[str, str]], prefix: str = "") -> dict[str, str]:
@@ -89,7 +89,7 @@ class SettingsManager:
             if key not in existing:
                 SettingsRepo.set(key, value)
 
-    # ---------- 通用读写 ----------
+    # 通用读写
 
     def get(self, key: str) -> str:
         return self._cache.get(key, self._flat_defaults.get(key, ""))
@@ -114,7 +114,7 @@ class SettingsManager:
         self._cache[key] = default
         SettingsRepo.delete(key)
 
-    # ---------- 分组操作 ----------
+    # 分组操作
 
     def get_group(self, prefix: str) -> dict[str, str]:
         """获取某个命名空间下的所有设置，返回去掉前缀的 {key: value}"""
@@ -130,7 +130,7 @@ class SettingsManager:
         for k, v in values.items():
             self.set(f"{prefix}.{k}", v)
 
-    # ---------- 便捷方法 ----------
+    # 便捷方法
 
     def get_theme(self) -> str:
         return self.get("ui.theme")
