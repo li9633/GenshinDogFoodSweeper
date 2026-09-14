@@ -1,13 +1,6 @@
 ﻿"""
-全局热键监听器
-==============
-基于 pynput 实现全局键盘热键，支持窗口失焦时触发。
-Ctrl+Shift+X → 终止当前所有自动化操作。
-
-架构设计：
-- Singleton QObject，与 OcrWorker 保持一致的设计模式
-- pynput 全局热键 → Qt Signal → 各 Presenter 自行处理停止逻辑
-- 防抖：300ms 冷却，防止连发误触
+全局热键监听器 — 基于 pynput 的全局热键（Singleton QObject）
+Ctrl+Shift+X → 终止当前所有自动化操作，支持窗口失焦触发，300ms 防抖冷却。
 """
 
 from __future__ import annotations
@@ -28,7 +21,7 @@ _KEY_TO_STR: dict = {
 }
 
 
-class HotkeyListener:
+class HotkeyListener(QObject):
     """全局热键监听器（Singleton）"""
 
     _instance: HotkeyListener | None = None
@@ -81,8 +74,7 @@ class HotkeyListener:
         self._last_trigger = 0.0
         self._start()
 
-    # # 公开 API
-    #
+    # 公开 API
 
     @staticmethod
     def get_hotkey() -> str:
@@ -161,8 +153,7 @@ class HotkeyListener:
         if cls._instance is not None:
             cls._instance._stop_capture()
 
-    # # 内部实现
-    #
+    # 内部实现
 
     def _stop_capture(self) -> None:
         if self._capture_listener is not None:
