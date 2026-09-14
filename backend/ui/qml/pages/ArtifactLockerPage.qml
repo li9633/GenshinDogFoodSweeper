@@ -38,7 +38,7 @@ Rectangle {
 
         // ==== 规则列表 ====
         Text {
-            text: "选择规则（最多 " + ArtifactLocker.maxRuleSelection + " 条）"
+            text: ArtifactLocker.ruleSelectionHint
             font.family: Theme.fontFamily
             font.pixelSize: 14
             color: Theme.textPrimary
@@ -137,7 +137,7 @@ Rectangle {
                 spacing: 2
 
                 Text {
-                    text: "锁定: " + ArtifactLocker.lockedCount + " | 解锁: " + ArtifactLocker.unlockedCount + " | 跳过: " + ArtifactLocker.skippedCount
+                    text: ArtifactLocker.statsText
                     font.family: Theme.fontFamily
                     font.pixelSize: 12
                     color: Theme.textSecondary

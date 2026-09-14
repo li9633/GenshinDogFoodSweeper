@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import GenshinUI
 
@@ -8,6 +9,13 @@ Rectangle {
     id: root
     property string pageTitle: "圣遗物扫描器"
     color: Theme.bgPrimary
+
+    // 保存位置选择（权限与写法对齐 RulesPage 的导出目录选择）
+    FolderDialog {
+        id: saveDirDialog
+        title: "选择扫描结果保存位置"
+        onAccepted: ArtifactScan.setSaveDirectory(selectedFolder)
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -46,15 +54,11 @@ Rectangle {
 
                 // 进度
                 Text {
-                    text: ArtifactScan.fullScanProgress
-                          + (ArtifactScan.fullScanCurrentPage > 0
-                             ? " | 第 " + ArtifactScan.fullScanCurrentPage
-                               + "/" + ArtifactScan.fullScanTotalPages + " 页"
-                             : "")
+                    text: ArtifactScan.fullScanProgressText
                     font.family: Theme.fontFamily
                     font.pixelSize: 24
                     color: Theme.accent
-                    visible: ArtifactScan.fullScanProgress !== ""
+                    visible: ArtifactScan.fullScanProgressText !== ""
                     horizontalAlignment: Text.AlignHCenter
                     Layout.fillWidth: true
                 }
@@ -65,7 +69,7 @@ Rectangle {
                     font.family: Theme.fontFamily
                     font.pixelSize: 13
                     color: Theme.textMuted
-                    visible: ArtifactScan.fullScanStep === "" && ArtifactScan.fullScanProgress === ""
+                    visible: ArtifactScan.fullScanIdle
                     horizontalAlignment: Text.AlignHCenter
                     Layout.fillWidth: true
                 }
@@ -94,6 +98,80 @@ Rectangle {
                         Layout.fillWidth: true
                     }
                 }
+
+                // 保存失败提示
+                Text {
+                    visible: ArtifactScan.fullScanSaveError !== ""
+                    text: ArtifactScan.fullScanSaveError
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                    color: "#D32F2F"
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
+        // ==== 保存设置 ====
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 2
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Text {
+                    text: "保存位置:"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 13
+                    color: Theme.textSecondary
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: 420
+                    text: ArtifactScan.saveDirectory
+                    elide: Text.ElideMiddle
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                    color: Theme.textMuted
+                }
+
+                GButton {
+                    text: "选择目录"
+                    colorType: "default"
+                    enabled: !ArtifactScan.fullScanRunning
+                    onClicked: saveDirDialog.open()
+                }
+
+                Text {
+                    text: "保存格式:"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 13
+                    color: Theme.textSecondary
+                    Layout.leftMargin: 8
+                }
+
+                GComboBox {
+                    implicitWidth: 180
+                    model: ArtifactScan.saveFormatNames
+                    currentIndex: ArtifactScan.saveFormatIndex
+                    enabled: !ArtifactScan.fullScanRunning
+                    onActivated: (index) => ArtifactScan.setSaveFormatByIndex(index)
+                }
+            }
+
+            // 当前格式说明
+            Text {
+                Layout.leftMargin: 68
+                text: ArtifactScan.saveFormatDescription
+                font.family: Theme.fontFamily
+                font.pixelSize: 11
+                color: Theme.textMuted
+                elide: Text.ElideRight
+                Layout.fillWidth: true
             }
         }
 
@@ -112,7 +190,7 @@ Rectangle {
 
             GComboBox {
                 implicitWidth: 150
-                model: ["首尾锚点定位", "仅扫描五星", "固定扫描数量"]
+                model: ArtifactScan.scanStopModeNames
                 currentIndex: ArtifactScan.scanStopModeIndex
                 enabled: !ArtifactScan.fullScanRunning
                 onActivated: (index) => ArtifactScan.setScanStopModeByIndex(index)
@@ -120,7 +198,7 @@ Rectangle {
 
             // 去重（仅五星模式）
             GCheckBox {
-                visible: ArtifactScan.scanStopMode === "five_star_only"
+                visible: ArtifactScan.scanShowsDedup
                 text: "去重"
                 checked: ArtifactScan.scanEnableDedup
                 enabled: !ArtifactScan.fullScanRunning
@@ -129,7 +207,7 @@ Rectangle {
 
             // 固定数量
             Text {
-                visible: ArtifactScan.scanStopMode === "fixed_count"
+                visible: ArtifactScan.scanShowsFixedCount
                 text: "数量:"
                 font.family: Theme.fontFamily
                 font.pixelSize: 13
@@ -138,7 +216,7 @@ Rectangle {
 
             GSpinBox {
                 id: fixedCountSpin
-                visible: ArtifactScan.scanStopMode === "fixed_count"
+                visible: ArtifactScan.scanShowsFixedCount
                 from: 1
                 to: 9999
                 editable: true
@@ -146,14 +224,14 @@ Rectangle {
                 implicitHeight: 32
                 enabled: !ArtifactScan.fullScanRunning
                 onValueChanged: ArtifactScan.setScanFixedCount(value)
-                Component.onCompleted: value = ArtifactScan.scanFixedCount > 0 ? ArtifactScan.scanFixedCount : 100
+                Component.onCompleted: value = ArtifactScan.scanFixedCountInitial
             }
 
             Item { Layout.fillWidth: true }
 
             // 统计信息
             Text {
-                text: ArtifactScan.fullScanProgress || ""
+                text: ArtifactScan.fullScanProgress
                 font.family: Theme.fontFamily
                 font.pixelSize: 12
                 color: Theme.textSecondary
@@ -162,7 +240,7 @@ Rectangle {
             }
 
             GButton {
-                text: ArtifactScan.fullScanRunning ? "扫描中…" : "开始扫描"
+                text: ArtifactScan.fullScanButtonText
                 colorType: "primary"
                 enabled: !ArtifactScan.fullScanRunning
                 onClicked: ArtifactScan.startFullScan()

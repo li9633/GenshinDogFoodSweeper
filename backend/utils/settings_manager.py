@@ -1,4 +1,4 @@
-﻿"""
+"""
 设置管理器
 ==========
 封装 SettingsRepo，提供带缓存、类型安全的读写接口。
@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from database.repository.settings_repo import SettingsRepo
+from backend.database.repository.settings_repo import SettingsRepo
 
 
 class SettingsManager:
@@ -44,9 +44,14 @@ class SettingsManager:
             "enable_dedup": "true",
             "stop_mode": "anchor",
             "fixed_count": "0",
+            "save_dir": "",  # 空 = 使用内置 scan_result 目录
+            "save_format": "",  # 空 = 使用默认保存格式（见 artifact_save 注册表）
         },
         "hotkey": {
             "stop": "<ctrl>+<shift>+x",
+        },
+        "debug": {
+            "batch_click_interval": "100",  # 调试面板批量点击的每格间隔（毫秒）
         },
         "log": {
             "level": "DEBUG",

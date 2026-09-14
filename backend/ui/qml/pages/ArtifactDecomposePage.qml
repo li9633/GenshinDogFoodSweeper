@@ -42,7 +42,7 @@ Rectangle {
 
         // ==== 规则列表 ====
         Text {
-            text: "选择规则（最多 " + ArtifactDecompose.maxRuleSelection + " 条）"
+            text: ArtifactDecompose.ruleSelectionHint
             font.family: Theme.fontFamily
             font.pixelSize: 14
             color: Theme.textPrimary
