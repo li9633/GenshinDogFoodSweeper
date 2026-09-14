@@ -1,11 +1,11 @@
-r"""GitHub Release API 模拟服务器
+"""GitHub Release API 模拟服务器
 ================================
 提供可编程控制的 HTTP 模拟服务器，用于测试 AppUpdater 更新流程。
 
 基于 FastAPI + uvicorn 实现，替代原始 http.server 方案。
 
 用法:
-    from backend.utils.mock_github_api import MockGitHubServer
+    from tests.mocks.mock_github_api import MockGitHubServer
 
     server = MockGitHubServer(port=9888)
     server.start()

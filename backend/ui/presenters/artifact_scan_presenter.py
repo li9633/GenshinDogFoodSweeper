@@ -160,7 +160,7 @@ class ArtifactScanPresenter(QObject, OnWindowReady):
             from dataclasses import asdict
 
             from backend.database.repository.artifact_set_repo import ArtifactSetRepo
-            from backend.utils.datetime_helper import DateTimeHelper
+            from common.datetime_helper import DateTimeHelper
 
             all_sets = {s.id: s for s in ArtifactSetRepo.find_all()}
             for r in results:
