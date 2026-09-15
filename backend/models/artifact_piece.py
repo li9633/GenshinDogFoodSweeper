@@ -1,4 +1,4 @@
-"""
+﻿"""
 圣遗物部位实体
 ==============
 对应 artifacts.db 中的 artifact_pieces 表。
@@ -36,7 +36,7 @@ class ArtifactPiece:
         self.icon = icon
         self.description = description
 
-    # ---------- 序列化 ----------
+    # 序列化
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "ArtifactPiece":

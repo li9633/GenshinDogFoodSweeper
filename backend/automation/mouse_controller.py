@@ -1,8 +1,5 @@
 """
-鼠标控制器
-==========
-基于 Win32 API 的鼠标移动、点击操作。
-参考 yas 项目 design，后续可扩展为完整的定位+点击+翻页系统。
+鼠标控制器 — 基于 Win32 API 的鼠标移动、点击操作
 """
 
 from __future__ import annotations
@@ -11,7 +8,7 @@ import ctypes
 import time
 from ctypes import wintypes
 
-from utils.logger import log
+from backend.utils.logger import log
 
 # Win32 API 常量
 INPUT_MOUSE = 0
@@ -47,13 +44,8 @@ class INPUT(ctypes.Structure):
 class MouseController:
     """鼠标控制器 — 基于 Win32 SendInput
 
-    性能设计（参考 yas）：
-      - move_to() 即时完成（SendInput），无 sleep
-      - click() 仅 down + 10ms + up，无额外延迟
-      - 每次点击耗时 ~10ms，2000 个圣遗物约 20s
-
+    move_to() 即时完成（SendInput），click() 仅 down + 10ms + up。
     注意：原神使用 mhyprot2 反作弊驱动，可能拦截 SendInput 输入模拟。
-    如果点击无效，请以管理员权限运行本程序。
     """
 
     # 点击间隔常量（秒）

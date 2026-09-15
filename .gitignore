@@ -17,6 +17,7 @@ backend/static/
 dist/
 build/
 backend/utils/_build_channel.py
+common/_build_channel.py
 
 # 数据库文件
 backend/data/*.db
@@ -28,6 +29,8 @@ data/*.db-shm
 
 # 运行时数据
 backend/test_output/*
+installer/installer.spec
+installer/uninstaller.spec
 
 # IDE
 .vscode/
@@ -55,3 +58,6 @@ temp/
 engines/
 
 scan_result/
+# 测试缓存
+.pytest_cache/
+pytest-cache-files-*/

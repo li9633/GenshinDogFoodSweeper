@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import re
 
+from backend.automation.screen_capture import ScreenshotCapture
 from backend.automation.window_helper import WindowHelper
-from backend.utils.screen_capture import ScreenshotCapture
 
 
 def ocr_artifact_count(capture: ScreenshotCapture, ocr) -> int:

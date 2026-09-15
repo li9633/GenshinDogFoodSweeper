@@ -10,23 +10,26 @@
 
 from __future__ import annotations
 
-import time
 from typing import ClassVar
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
-from utils.datetime_helper import DateTimeHelper
-from utils.logger import log
-from utils.settings_manager import settings
-from utils.version import AppVersion, Channel
+
+from backend.ui.presenters.worker_host import WorkerHost
+from backend.utils.logger import log
+from backend.utils.settings_manager import settings
+from common.datetime_helper import DateTimeHelper
+from common.resources import Resource
+from common.version import Channel
+from common.version_manager import AppVersion
 
 
 class SettingsPresenter(QObject):
     """设置页面 Presenter — 注册为 QML context property"""
 
-    # -- 主题 --
+    # 主题
     themeChanged = Signal(str)
 
-    # -- 同步 --
+    # 同步
     syncStarted = Signal()
     syncProgress = Signal(int, int, str)
     syncFinished = Signal(int, int, int)
@@ -34,7 +37,7 @@ class SettingsPresenter(QObject):
     syncTimeChanged = Signal()
     syncStatsChanged = Signal()
 
-    # -- 模型 --
+    # 模型
     modelDownloadStarted = Signal()
     modelDownloadProgress = Signal(int, int, str)
     modelDownloadFinished = Signal(bool, str)
@@ -42,22 +45,24 @@ class SettingsPresenter(QObject):
     modelVersionChanged = Signal()
     modelReadyChanged = Signal()
 
-    # -- 圣遗物更新检查 --
+    # 圣遗物更新检查
     versionCheckIntervalChanged = Signal()
 
-    # -- 快捷键 --
+    # 快捷键
     hotkeyChanged = Signal()
     hotkeyCaptureStarted = Signal()
     hotkeyCaptureFinished = Signal()
 
-    # -- 日志等级 --
+    # 日志等级
     logLevelChanged = Signal()
 
-    # -- 状态栏 --
+    # 状态栏
     statusMessage = Signal(str, int, str)
 
-    # -- 关于 --
-    _APP_TITLE: ClassVar[str] = "原神狗粮清扫器"
+    # 关于
+    from common.constants import APP_NAME_CN
+
+    _APP_TITLE: ClassVar[str] = APP_NAME_CN
     _APP_SUBTITLE: ClassVar[str] = "原神圣遗物自动化管理工具"
     _APP_VERSION: ClassVar[str] = (
         AppVersion.clean()
@@ -73,23 +78,7 @@ class SettingsPresenter(QObject):
     _GITHUB_URL: ClassVar[str] = "https://github.com/li9633/GenshinDogFoodSweeper"
     _ISSUES_URL: ClassVar[str] = f"{_GITHUB_URL}/issues"
 
-    def __init__(self, parent: QObject | None = None):
-        super().__init__(parent)
-        self._sync_worker = None
-        self._model_manager = None
-        self._download_worker = None
-
-        # 注册设置页子Tab路由
-        from ui.presenters.navigation_presenter import NavigationPresenter
-
-        NavigationPresenter.register("settings/general", "settings", "general")
-        NavigationPresenter.register("settings/appearance", "settings", "appearance")
-        NavigationPresenter.register("settings/sync", "settings", "sync")
-        NavigationPresenter.register("settings/model", "settings", "model")
-        NavigationPresenter.register("settings/hotkey", "settings", "hotkey")
-        NavigationPresenter.register("settings/about", "settings", "about")
-
-    # ========== 关于 ==========
+    # 关于
 
     @Property(str, constant=True)
     def appTitle(self) -> str:
@@ -131,20 +120,12 @@ class SettingsPresenter(QObject):
 
     @Property(str, constant=True)
     def appIconPath(self) -> str:
-        """应用图标路径，兼容开发模式和 PyInstaller 打包"""
-        import sys
-        from pathlib import Path
-        if getattr(sys, 'frozen', False):
-            base = Path(sys.executable).parent
-        else:
-            base = Path(__file__).parent.parent.parent.parent
-        for name in ("app.png", "app.ico"):
-            p = base / "resources" / name
-            if p.exists():
-                return "file:///" + str(p).replace("\\", "/")
+        """应用图标路径"""
+        if Resource.APP_ICON_PNG.exists():
+            return "file:///" + str(Resource.APP_ICON_PNG).replace("\\", "/")
         return ""
 
-    # ========== 主题 ==========
+    # 主题
 
     @Property(str, notify=themeChanged)
     def currentTheme(self) -> str:
@@ -165,7 +146,7 @@ class SettingsPresenter(QObject):
     def setThemeByIndex(self, index: int) -> None:
         self.setTheme("dark" if index == 0 else "light")
 
-    # ========== 快捷键 ==========
+    # 快捷键
 
     @Property(str, notify=hotkeyChanged)
     def hotkey(self) -> str:
@@ -193,7 +174,7 @@ class SettingsPresenter(QObject):
         self.hotkeyChanged.emit()
         self.hotkeyCaptureFinished.emit()
 
-    # ========== 日志等级 ==========
+    # 日志等级
 
     _LOG_LEVELS: ClassVar[list[str]] = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
     _LOG_LEVEL_LABELS: ClassVar[list[str]] = [
@@ -221,11 +202,11 @@ class SettingsPresenter(QObject):
         if 0 <= index < len(self._LOG_LEVELS):
             new_level = self._LOG_LEVELS[index]
             settings.set("log.level", new_level)
-            from utils.log_bridge import update_global_level
+            from backend.utils.log_bridge import update_global_level
             update_global_level(new_level)
             self.logLevelChanged.emit()
 
-    # ========== 日志轮转 ==========
+    # 日志轮转
 
     _ROTATION_OPTIONS: ClassVar[list[str]] = [
         "5 MB", "10 MB", "50 MB", "100 MB", "500 MB", "1 day", "1 week",
@@ -290,7 +271,7 @@ class SettingsPresenter(QObject):
         settings.set("log.compression", "zip" if enabled else "")
         self.compressionChanged.emit()
 
-    # ========== 圣遗物更新检查 ==========
+    # 圣遗物更新检查
 
     _VERSION_CHECK_INTERVALS: ClassVar[list[str]] = ["always", "12h", "1d", "7d"]
     _VERSION_CHECK_LABELS: ClassVar[list[str]] = ["每次启动", "12小时", "1天", "一星期"]
@@ -316,7 +297,30 @@ class SettingsPresenter(QObject):
             settings.set("sync_check.version_check_interval", new_key)
             self.versionCheckIntervalChanged.emit()
 
-    # ========== 同步 ==========
+    # App 更新检查
+
+    # 应用更新已迁移至 UpdatePresenter（ui/presenters/update_presenter.py）
+    # SettingsPresenter 不再管理更新逻辑
+    # QML 层可直接绑定 UpdatePresenter 的属性/信号
+
+    def __init__(self, parent: QObject | None = None):
+        super().__init__(parent)
+        # 同步与模型下载是两件独立的事，各给一个单飞托管
+        self._sync_host = WorkerHost(self)
+        self._download_host = WorkerHost(self)
+        self._model_manager = None
+
+        # 注册设置页子Tab路由
+        from backend.ui.presenters.navigation_presenter import NavigationPresenter
+
+        NavigationPresenter.register("settings/general", "settings", "general")
+        NavigationPresenter.register("settings/appearance", "settings", "appearance")
+        NavigationPresenter.register("settings/sync", "settings", "sync")
+        NavigationPresenter.register("settings/model", "settings", "model")
+        NavigationPresenter.register("settings/hotkey", "settings", "hotkey")
+        NavigationPresenter.register("settings/about", "settings", "about")
+
+    # 同步
 
     @Property(str, notify=syncTimeChanged)
     def syncTime(self) -> str:
@@ -342,8 +346,10 @@ class SettingsPresenter(QObject):
     def dbStats(self) -> str:
         """当前数据库实际存储的圣遗物数据量（可能因手动删除等操作与上次同步记录不一致）"""
         try:
-            from database.repository.artifact_piece_repo import ArtifactPieceRepo
-            from database.repository.artifact_set_repo import ArtifactSetRepo
+            from backend.database.repository.artifact_piece_repo import (
+                ArtifactPieceRepo,
+            )
+            from backend.database.repository.artifact_set_repo import ArtifactSetRepo
             sets = ArtifactSetRepo.count()
             pieces = ArtifactPieceRepo.count()
             if sets > 0:
@@ -362,14 +368,18 @@ class SettingsPresenter(QObject):
     def startSync(self) -> None:
         from backend.ui.presenters.sync_worker import SyncWorker
 
+        if self._sync_host.busy:
+            log.warning("同步已在运行中")
+            return
+
         self.syncStarted.emit()
         self.statusMessage.emit("正在同步圣遗物数据…", 0, "INFO")
 
-        self._sync_worker = SyncWorker()
-        self._sync_worker.progress.connect(self.syncProgress.emit)
-        self._sync_worker.finished_sync.connect(self._on_sync_finished)
-        self._sync_worker.failed.connect(self._on_sync_failed)
-        self._sync_worker.start()
+        worker = SyncWorker()
+        worker.progress.connect(self.syncProgress.emit)
+        worker.finished_sync.connect(self._on_sync_finished)
+        worker.failed.connect(self._on_sync_failed)
+        self._sync_host.start(worker)
 
     def _notify_sync_changed(self) -> None:
         self.syncTimeChanged.emit()
@@ -383,7 +393,7 @@ class SettingsPresenter(QObject):
     def _on_sync_finished(
         self, sets_count: int, slots_count: int, expected_count: int
     ) -> None:
-        now_ts = time.time()
+        now_ts = DateTimeHelper.now_ts()
         settings.set("data.last_sync_ts", str(int(now_ts)))
         settings.set("data.last_sync_sets", str(sets_count))
         settings.set("data.last_sync_pieces", str(slots_count))
@@ -396,7 +406,7 @@ class SettingsPresenter(QObject):
         self.syncFailed.emit(error)
         self.statusMessage.emit(f"同步失败: {error}", 5000, "ERROR")
 
-    # ========== OCR 模型 ==========
+    # OCR 模型
 
     def _get_model_manager(self):
         if self._model_manager is None:
@@ -423,13 +433,17 @@ class SettingsPresenter(QObject):
 
     @Slot()
     def downloadModels(self) -> None:
+        if self._download_host.busy:
+            log.warning("模型下载已在运行中")
+            return
+
         self.modelDownloadStarted.emit()
 
         mgr = self._get_model_manager()
-        self._download_worker = mgr.create_download_worker()
-        self._download_worker.progress.connect(self.modelDownloadProgress.emit)
-        self._download_worker.finished_download.connect(self._on_download_finished)
-        self._download_worker.start()
+        worker = mgr.create_download_worker()
+        worker.progress.connect(self.modelDownloadProgress.emit)
+        worker.finished_download.connect(self._on_download_finished)
+        self._download_host.start(worker)
 
     def _on_download_finished(self, success: bool, message: str) -> None:
         self._notify_model_changed()

@@ -1,4 +1,4 @@
-"""
+﻿"""
 页面导航管理器
 =============
 管理页面懒加载、QStackedWidget 切换和 Sidebar 高亮同步。
@@ -23,7 +23,7 @@ class PageNavigator:
         self._pages: dict[str, QWidget] = {}
         self._factories: dict[str, Callable[[], QWidget]] = {}
 
-    # ---------- 公开 API ----------
+    # 公开 API
 
     def register(self, key: str, factory: Callable[[], QWidget]) -> None:
         """注册页面工厂函数（首次访问时懒加载）"""

@@ -1,4 +1,4 @@
-"""
+﻿"""
 系统托盘管理器
 ==============
 负责系统托盘图标、右键菜单、状态切换。
@@ -10,13 +10,12 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from common.constants import APP_NAME_CN
+from common.resources import Resource
+
 
 class TrayManager(QObject):
-    """系统托盘管理器
-
-    用法：
-        _tray = TrayManager(app=app, engine=engine)
-    """
+    """系统托盘管理器"""
 
     def __init__(
         self,
@@ -29,7 +28,7 @@ class TrayManager(QObject):
         self._engine = engine
 
         self._tray = QSystemTrayIcon(parent=None)
-        self._tray.setToolTip("原神狗粮清扫器")
+        self._tray.setToolTip(APP_NAME_CN)
 
         self._set_icon()
         self._build_menu()
@@ -42,7 +41,7 @@ class TrayManager(QObject):
 
         self._tray.show()
 
-    # ---------- 公开方法 ----------
+    # 公开方法
 
     def show_message(self, title: str, message: str, duration_ms: int = 3000):
         """弹出气泡提示"""
@@ -58,7 +57,7 @@ class TrayManager(QObject):
         self._tray.hide()
         self._tray.deleteLater()
 
-    # ---------- 内部 ----------
+    # 内部
 
     def _set_icon(self):
         """设置托盘图标"""
@@ -109,24 +108,8 @@ class TrayManager(QObject):
 
     @staticmethod
     def _find_icon() -> str | None:
-        """查找应用图标（兼容开发模式和打包后）"""
-        import sys
-        from pathlib import Path
-
-        if getattr(sys, 'frozen', False):
-            base = Path(sys.executable).parent
-        else:
-            base = Path(__file__).parent.parent.parent
-
-        candidates = [
-            base / "resources" / "app.ico",
-            base / "resources" / "app.png",
-            base / "resources" / "icons" / "app.ico",
-        ]
-        for p in candidates:
-            if p.exists():
-                return str(p)
-        return None
+        """查找应用图标"""
+        return str(Resource.APP_ICON_PNG) if Resource.APP_ICON_PNG.exists() else None
 
     @staticmethod
     def _generate_fallback_icon():

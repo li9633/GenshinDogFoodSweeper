@@ -5,18 +5,130 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from database.repository.dogfood_rule_repo import DogfoodRuleRepo
-from models.dogfood_rule import DogfoodRule
 from PySide6.QtCore import Property, QObject, Signal, Slot
-from ui.gmessagebox import GMessageBox
-from utils.logger import log
-from utils.settings_manager import settings
 
+from backend.automation.artifact_recognizer import ArtifactRecognizer
 from backend.automation.dogfood_rule_engine import DogfoodRuleEngine
-from backend.automation.recognizer import ArtifactRecognizer
+from backend.database.repository.dogfood_rule_repo import DogfoodRuleRepo
 from backend.exceptions.automation import GameWindowNotFoundError
+from backend.models.artifact import ArtifactInfo
 from backend.models.artifact_recognition_field import ArtifactRecognitionField
+from backend.models.dogfood_rule import DogfoodRule
 from backend.models.slot_models import ALL_SLOT_CONFIGS
+from backend.ui.gmessagebox import GMessageBox
+from backend.ui.presenters.rule_display import (
+    card_display,
+    selection_text,
+    sub_stat_chip_text,
+)
+from backend.utils.logger import log
+from backend.utils.qml_url import local_path_from_url
+from backend.utils.settings_manager import settings
+from common.resources import Resource
+
+
+def _empty_test_result() -> dict:
+    """测试结果载荷骨架 —— 成功/失败/初始态三种情况字段完全一致
+
+    QML 侧对 ``resultData`` 的绑定是无条件求值的（``visible`` 为 false 也一样求值），
+    载荷缺字段就会在日志里刷 ``Unable to assign [undefined] to QString``，
+    因此两种载荷都必须从这个骨架长出来，不允许各自手写一份。
+    """
+    return {
+        "ok": False,
+        "error": "",
+        "error_text": "",
+        "rule_name": "",
+        "rule_action": "keep",
+        "rule_text": "",
+        "matched": False,
+        "match_text": "",
+        "detail": {},
+        "final_action": "keep",
+        "artifact": {
+            "set_name": "",
+            "piece_icon": "",
+            "piece_type": "",
+            "piece_name": "",
+            "rarity": 0,
+            "level": 0,
+            "level_text": "",
+            "lock_text": "",
+            "set_text": "",
+            "piece_type_text": "",
+            "main_stat": "",
+            "main_stat_text": "",
+            "sub_stats": [],
+            "is_locked": False,
+            "is_material": False,
+            "material_name": "",
+        },
+    }
+
+
+def _error_test_result(error_msg: str) -> dict:
+    """OCR/识别失败时的测试结果载荷"""
+    payload = _empty_test_result()
+    payload["ok"] = False
+    payload["error"] = error_msg
+    payload["error_text"] = f"测试失败: {error_msg or '未知错误'}"
+    return payload
+
+
+def _success_test_result(
+    *,
+    rule_name: str,
+    rule_action: str,
+    matched: bool,
+    final_action: str,
+    artifact: ArtifactInfo,
+    piece_icon: str,
+) -> dict:
+    """识别成功时的测试结果载荷（含全部展示文案）"""
+    main_stat_value = (
+        f"{artifact.main_stat.name}+{artifact.main_stat.value}"
+        if artifact.main_stat
+        else "未知"
+    )
+    payload = _empty_test_result()
+    payload.update(
+        {
+            "ok": True,
+            "rule_name": rule_name,
+            "rule_action": rule_action,
+            "matched": matched,
+            "final_action": final_action,
+            "rule_text": f"规则: {rule_name or ''}",
+            "match_text": "规则匹配成功" if matched else "规则不匹配",
+        }
+    )
+    payload["artifact"] = payload["artifact"] | {
+        "set_name": artifact.set_name or "未知",
+        "piece_icon": piece_icon,
+        "piece_type": artifact.piece_type or "未知",
+        "piece_name": artifact.piece_name or "",
+        "rarity": artifact.rarity or 0,
+        "level": artifact.level or 0,
+        "level_text": f"+{artifact.level or 0}",
+        "lock_text": "已锁" if artifact.is_locked else "未锁",
+        "set_text": f"套装: {artifact.set_name or '未知'}",
+        "piece_type_text": f"部位: {artifact.piece_type or '未知'}",
+        "main_stat": main_stat_value,
+        "main_stat_text": f"主词条: {main_stat_value}",
+        "sub_stats": [
+            {
+                "name": s.name,
+                "value": f"{s.value}{'%' if s.is_percentage else ''}",
+                "activated": s.is_activated,
+                "display": f"{s.name} +{s.value}{'%' if s.is_percentage else ''}",
+            }
+            for s in artifact.sub_stats
+        ],
+        "is_locked": artifact.is_locked,
+        "is_material": artifact.is_material,
+        "material_name": artifact.material_name or "",
+    }
+    return payload
 
 
 class RulePresenter(QObject):
@@ -38,7 +150,7 @@ class RulePresenter(QObject):
         self._selected_config_index = 0
         self._load()
 
-    # ========== 持久化 ==========
+    # 持久化
 
     def _load(self) -> None:
         self._default_action = settings.get("dogfood.default_action") or "keep"
@@ -56,13 +168,20 @@ class RulePresenter(QObject):
         self.rulesChanged.emit()
         self.multiSelectionChanged.emit()
 
-    # ========== Properties ==========
+    # Properties
 
     @Property("QVariantList", notify=rulesChanged)
     def rules(self) -> list[dict]:
         try:
-            result = [r.to_dict() | {"_index": i} for i, r in enumerate(self._rules)]
-            log.debug(f"rules 属性返回 {len(result)} 条: {[r.get('name') for r in result]}")
+            result = []
+            for index, rule in enumerate(self._rules):
+                data = rule.to_dict()
+                data["_index"] = index
+                data["display"] = card_display(data)
+                result.append(data)
+            log.debug(
+                f"rules 属性返回 {len(result)} 条: {[r.get('name') for r in result]}"
+            )
             return result
         except Exception as e:
             log.error(f"序列化规则列表失败: {e}")
@@ -70,18 +189,19 @@ class RulePresenter(QObject):
 
     def _load_stats_config(self) -> dict:
         if self._stats_config is None:
-            stats_path = (
-                Path(__file__).parent.parent.parent.parent
-                / "resources" / "templates" / "config" / "artifact_stats.json"
+            self._stats_config = json.loads(
+                Resource.ARTIFACT_STATS_JSON.read_text(encoding="utf-8")
             )
-            self._stats_config = json.loads(stats_path.read_text(encoding="utf-8"))
         return self._stats_config
 
     @Property("QVariantList", notify=rulesChanged)
     def artifactSetNames(self) -> list[dict]:
         try:
-            from database.repository.artifact_set_repo import ArtifactSetRepo
-            return [{"name": s.name, "icon": s.icon} for s in ArtifactSetRepo.find_all()]
+            from backend.database.repository.artifact_set_repo import ArtifactSetRepo
+
+            return [
+                {"name": s.name, "icon": s.icon} for s in ArtifactSetRepo.find_all()
+            ]
         except Exception:
             return []
 
@@ -117,7 +237,16 @@ class RulePresenter(QObject):
     def defaultAction(self) -> str:
         return self._default_action
 
-    # ========== QML 表单辅助 ==========
+    # QML 表单辅助
+
+    @Property("QVariantMap", constant=True)
+    def emptyTestResult(self) -> dict:
+        """测试结果载荷的初始骨架（字段与 testResultReady 一致）
+
+        RuleTestResultDialog 用它作为初始值：载荷结构由 Presenter 单点维护，
+        避免 QML 再抄一份、加字段时两边不同步。
+        """
+        return _empty_test_result()
 
     @Slot(str, result=str)
     def actionLabel(self, action: str) -> str:
@@ -158,7 +287,9 @@ class RulePresenter(QObject):
         main_cat = main_info.get("category", "")
         if not main_cat:
             return sub_stat_names
-        return [s for s in sub_stat_names if stats.get(s, {}).get("category") != main_cat]
+        return [
+            s for s in sub_stat_names if stats.get(s, {}).get("category") != main_cat
+        ]
 
     @Slot(str, str, result=bool)
     def validateMainStatForPart(self, part: str, main_stat: str) -> bool:
@@ -179,7 +310,9 @@ class RulePresenter(QObject):
             "part": form_data.get("part", "*"),
             "part_exclude": form_data.get("part_exclude", ""),
             "main_stat": form_data.get("main_stat", "*"),
-            "set_name": "*" if form_data.get("set_enabled", True) else ",".join(selected_sets),
+            "set_name": "*"
+            if form_data.get("set_enabled", True)
+            else ",".join(selected_sets),
             "sub_stats": form_data.get("sub_stats") or [],
             "sub_count": form_data.get("sub_count", 0),
             "action": form_data.get("action", "keep"),
@@ -195,12 +328,20 @@ class RulePresenter(QObject):
         if not rule or not rule.get("name"):
             return {
                 "title": "新建规则",
-                "name": "", "part": "*", "part_exclude": "",
-                "main_stat": "*", "set_enabled": True,
-                "selected_sets": [], "set_search": "",
-                "selected_sub_stats": [], "sub_count": 0,
-                "action": "keep", "priority": 0, "enabled": True,
-                "include_unactivated": True, "include_main_stat": False,
+                "name": "",
+                "part": "*",
+                "part_exclude": "",
+                "main_stat": "*",
+                "set_enabled": True,
+                "selected_sets": [],
+                "set_search": "",
+                "selected_sub_stats": [],
+                "sub_count": 0,
+                "action": "keep",
+                "priority": 0,
+                "enabled": True,
+                "include_unactivated": True,
+                "include_main_stat": False,
             }
 
         set_name = rule.get("set_name") or "*"
@@ -210,7 +351,11 @@ class RulePresenter(QObject):
 
         sub_stats = rule.get("sub_stats") or []
         selected_sub_stats = [
-            {"name": s.get("name", ""), "op": s.get("op", ""), "value": s.get("value", 0)}
+            {
+                "name": s.get("name", ""),
+                "op": s.get("op", ""),
+                "value": s.get("value", 0),
+            }
             for s in sub_stats
         ]
 
@@ -232,11 +377,33 @@ class RulePresenter(QObject):
             "include_main_stat": rule.get("include_main_stat", False),
         }
 
-    # ========== 多选（导出用） ==========
+    # 多选（导出用）
 
     @Property(int, notify=multiSelectionChanged)
     def multiSelectedCount(self) -> int:
         return len(self._multi_selected)
+
+    @Property(str, notify=multiSelectionChanged)
+    def exportSelectedText(self) -> str:
+        """导出按钮文案（含已选条数），QML 只负责显示"""
+        return f"导出选中({len(self._multi_selected)})"
+
+    # 编辑对话框内的标签文案：数量来自对话框本地表单状态，这里只负责组织文案
+
+    @Slot(int, result=str)
+    def selectedSetsText(self, count: int) -> str:
+        """套装选择按钮文案"""
+        return selection_text(count, "选择套装")
+
+    @Slot(int, result=str)
+    def selectedSubStatsText(self, count: int) -> str:
+        """副词条选择按钮文案"""
+        return selection_text(count, "不限")
+
+    @Slot("QVariantMap", result=str)
+    def subStatChipText(self, sub: dict) -> str:
+        """已选副词条标签文案"""
+        return sub_stat_chip_text(sub)
 
     @Property("QVariantList", notify=multiSelectionChanged)
     def multiSelectedNames(self) -> list[str]:
@@ -255,7 +422,7 @@ class RulePresenter(QObject):
         self._multi_selected.clear()
         self.multiSelectionChanged.emit()
 
-    # ========== CRUD ==========
+    # CRUD
 
     @Slot("QVariantMap", result=bool)
     def saveRule(self, rule_map: dict) -> bool:
@@ -267,7 +434,9 @@ class RulePresenter(QObject):
                 return False
 
             original_name = rule_map.get("_original_name", "")
-            log.debug(f"saveRule 收到: name={name}, _original_name={original_name}, keys={list(rule_map.keys())}")
+            log.debug(
+                f"saveRule 收到: name={name}, _original_name={original_name}, keys={list(rule_map.keys())}"
+            )
 
             # 解析副词条：QML 传来 [{name, op?, value?}, ...] 对象列表
             subs = rule_map.get("sub_stats", [])
@@ -350,7 +519,7 @@ class RulePresenter(QObject):
         self._selected_name = ""
         self.selectedRuleChanged.emit()
 
-    # ========== 优先级 ==========
+    # 优先级
 
     @Slot(str)
     def moveRuleUp(self, name: str) -> None:
@@ -374,7 +543,7 @@ class RulePresenter(QObject):
                 self._reload()
                 return
 
-    # ========== 默认行为 ==========
+    # 默认行为
 
     @Slot(str)
     def setDefaultAction(self, action: str) -> None:
@@ -384,7 +553,7 @@ class RulePresenter(QObject):
         settings.set("dogfood.default_action", action)
         self.defaultActionChanged.emit()
 
-    # ========== 导入导出 ==========
+    # 导入导出
 
     @Slot(str, result="QVariantMap")
     def exportToFile(self, url: str) -> dict:
@@ -474,15 +643,12 @@ class RulePresenter(QObject):
                 return r.to_dict()
         return {}
 
-    # ========== 检测配置 ==========
+    # 检测配置
 
     @Property("QVariantList", notify=rulesChanged)
     def availableSlotConfigs(self) -> list[dict]:
         """可用检测配置列表，供 QML 下拉选择"""
-        return [
-            {"name": c.name, "index": i}
-            for i, c in enumerate(ALL_SLOT_CONFIGS)
-        ]
+        return [{"name": c.name, "index": i} for i, c in enumerate(ALL_SLOT_CONFIGS)]
 
     @Property(int, notify=rulesChanged)
     def selectedSlotConfigIndex(self) -> int:
@@ -493,17 +659,19 @@ class RulePresenter(QObject):
         if 0 <= index < len(ALL_SLOT_CONFIGS):
             self._selected_config_index = index
 
-    # ========== 规则测试 ==========
+    # 规则测试
 
-    _TEST_FIELDS: frozenset[ArtifactRecognitionField] = frozenset({
-        ArtifactRecognitionField.SET_NAME,
-        ArtifactRecognitionField.PIECE_TYPE,
-        ArtifactRecognitionField.MAIN_STAT,
-        ArtifactRecognitionField.SUB_STATS,
-        ArtifactRecognitionField.LEVEL,
-        ArtifactRecognitionField.RARITY,
-        ArtifactRecognitionField.LOCK_STATUS,
-    })
+    _TEST_FIELDS: frozenset[ArtifactRecognitionField] = frozenset(
+        {
+            ArtifactRecognitionField.SET_NAME,
+            ArtifactRecognitionField.PIECE_TYPE,
+            ArtifactRecognitionField.MAIN_STAT,
+            ArtifactRecognitionField.SUB_STATS,
+            ArtifactRecognitionField.LEVEL,
+            ArtifactRecognitionField.RARITY,
+            ArtifactRecognitionField.LOCK_STATUS,
+        }
+    )
 
     @Slot()
     def testCurrentArtifact(self) -> None:
@@ -514,8 +682,8 @@ class RulePresenter(QObject):
 
         try:
             from backend.automation.ocr_worker import OcrWorker
+            from backend.automation.screen_capture import ScreenshotCapture
             from backend.automation.window_helper import WindowHelper
-            from backend.utils.screen_capture import ScreenshotCapture
         except Exception as e:
             log.error(f"导入测试依赖失败: {e}")
             self.statusMessage.emit("测试模块加载失败", 3000, "error")
@@ -530,8 +698,10 @@ class RulePresenter(QObject):
         try:
             window = WindowHelper.find_genshin_window()
             result = capture.capture(window=window)
-        except GameWindowNotFoundError:
+        except GameWindowNotFoundError as exc:
             self.testStatusChanged.emit("截图失败")
+            # 异常只带消息，界面提示由 UI 层负责
+            GMessageBox.warning(str(exc))
             return
 
         image = result.image
@@ -547,7 +717,9 @@ class RulePresenter(QObject):
 
         def do_recognize(ocr):
             return ArtifactRecognizer.recognize(
-                image, roi_configs, ocr,
+                image,
+                roi_configs,
+                ocr,
                 fields=fields,
                 lock_anchor_search_region=lock_search,
                 lock_anchor_to_level=lock_to_level,
@@ -594,7 +766,10 @@ class RulePresenter(QObject):
         piece_icon = ""
         if artifact.set_id and artifact.piece_type:
             try:
-                from database.repository.artifact_piece_repo import ArtifactPieceRepo
+                from backend.database.repository.artifact_piece_repo import (
+                    ArtifactPieceRepo,
+                )
+
                 pieces = ArtifactPieceRepo.find_by_set_id(artifact.set_id)
                 for p in pieces:
                     if p.type == artifact.piece_type:
@@ -603,37 +778,16 @@ class RulePresenter(QObject):
             except Exception as e:
                 log.debug(f"查询部位图标失败: {e}")
 
-        self.testResultReady.emit({
-            "ok": True,
-            "rule_name": rule_name,
-            "rule_action": selected_rule.action,
-            "matched": matched,
-            "detail": {},
-            "final_action": final_action,
-            "artifact": {
-                "set_name": artifact.set_name or "未知",
-                "piece_icon": piece_icon,
-                "piece_type": artifact.piece_type or "未知",
-                "piece_name": artifact.piece_name or "",
-                "rarity": artifact.rarity or 0,
-                "level": artifact.level or 0,
-                "main_stat": (
-                    f"{artifact.main_stat.name}+{artifact.main_stat.value}"
-                    if artifact.main_stat else "未知"
-                ),
-                "sub_stats": [
-                    {
-                        "name": s.name,
-                        "value": f"{s.value}{'%' if s.is_percentage else ''}",
-                        "activated": s.is_activated,
-                    }
-                    for s in artifact.sub_stats
-                ],
-                "is_locked": artifact.is_locked,
-                "is_material": artifact.is_material,
-                "material_name": artifact.material_name or "",
-            },
-        })
+        self.testResultReady.emit(
+            _success_test_result(
+                rule_name=rule_name,
+                rule_action=selected_rule.action,
+                matched=matched,
+                final_action=final_action,
+                artifact=artifact,
+                piece_icon=piece_icon,
+            )
+        )
         self.testStatusChanged.emit("测试完成")
 
     def _on_test_ocr_error(self, error_msg: str, callback_data: str) -> None:
@@ -649,14 +803,9 @@ class RulePresenter(QObject):
 
         log.error(f"规则测试 OCR 失败: {error_msg}")
         self.testStatusChanged.emit("识别失败")
-        self.testResultReady.emit({
-            "ok": False,
-            "error": error_msg,
-        })
+        self.testResultReady.emit(_error_test_result(error_msg))
 
     @staticmethod
     def _clean_url(url: str) -> str:
         """将 QML file:// URL 转为本地路径"""
-        if url.startswith("file:///"):
-            return url[8:]
-        return url
+        return local_path_from_url(url)

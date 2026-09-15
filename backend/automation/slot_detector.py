@@ -1,4 +1,4 @@
-"""
+﻿"""
 圣遗物格子检测器
 ================
 基于灰度阈值 + 轮廓检测，自动定位圣遗物列表中的每个格子位置。
@@ -11,7 +11,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from utils.logger import log
 
 from backend.models.slot_models import (
     ALL_RARITY_THRESHOLDS,  # noqa: F401
@@ -32,6 +31,7 @@ from backend.models.slot_models import (
     classify_rarity,
     star_count_to_rarity,
 )
+from backend.utils.logger import log
 
 
 def _draw_chinese_text(
@@ -158,7 +158,7 @@ class SlotDetector:
         span_w = rw - config.roi_left_offset - config.roi_right_offset
         col_step = (span_w - config.slot_w) / (config.cols - 1)
 
-        # === 轮廓检测找页尾 ===
+        # 轮廓检测找页尾
         _, binary = cv2.threshold(gray, white_threshold, 255, cv2.THRESH_BINARY)
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
         binary = cv2.erode(binary, kernel, iterations=2)
@@ -197,7 +197,7 @@ class SlotDetector:
             (rx, ry, rw, rh), config, ry + page_bottom_crop
         )
 
-        # === 几何网格 + 多特征融合投票 ===
+        # 几何网格 + 多特征融合投票
         # 卡片主体：3特征投票（饱和度 + 灰度标准差 + 边缘密度）
         # 等级条：白色均值（保留原有逻辑）
         # 综合：卡片投票 >= 1 AND 等级条白色

@@ -1,4 +1,4 @@
-"""OCR Worker — 在专用线程中执行 PaddleOCR 推理，解决线程安全问题并避免阻塞 UI
+﻿"""OCR Worker — 在专用线程中执行 PaddleOCR 推理，解决线程安全问题并避免阻塞 UI
 
 PaddleOCR 要求初始化和推理必须在同一线程中执行。
 本模块提供 OcrWorker（QThread 子类），在 run() 中初始化模型，
@@ -19,7 +19,9 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from PySide6.QtCore import QThread, Signal
-from utils.logger import log
+
+from backend.utils.logger import log
+from common.paths import ENGINES
 
 
 class OcrWorker(QThread):
@@ -39,7 +41,7 @@ class OcrWorker(QThread):
     def __init__(self, engines_dir: Path | None = None):
         super().__init__()
         if engines_dir is None:
-            engines_dir = Path(__file__).resolve().parents[2] / "engines"
+            engines_dir = ENGINES
         self._engines_dir = engines_dir
         self._queue: queue.Queue = queue.Queue()
         self._ocr: Any = None
@@ -69,16 +71,15 @@ class OcrWorker(QThread):
         此处直接创建 OCR 实例。
         """
         try:
-            from utils.log_bridge import TaskContext
-
             from backend.automation.ocr_engine import OcrEngine
             from backend.exceptions.automation import OcrModelNotReadyError
+            from backend.utils.log_bridge import TaskContext
 
             with TaskContext("ocr_init", "OCR 引擎预热中 …", success_message="OCR 引擎就绪"):
                 self._ocr = OcrEngine.create_ocr(self._engines_dir)
             self.ready.emit()
 
-            # ---- 任务处理循环 ----
+            # 任务处理循环
             while True:
                 try:
                     task = self._queue.get(timeout=0.5)

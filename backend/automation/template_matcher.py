@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
-from utils.logger import log
 
 from backend.models.template import Template
+from backend.utils.logger import log
 
 DEFAULT_SCALES: tuple[float, ...] = (
     0.5,

@@ -5,6 +5,8 @@ from __future__ import annotations
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from PySide6.QtGui import QGuiApplication, QWindow
 
+from common.constants import APP_NAME_CN
+
 
 class TitleBarPresenter(QObject):
     """标题栏 Presenter
@@ -26,14 +28,14 @@ class TitleBarPresenter(QObject):
         self._refresh_title()
 
     def _refresh_title(self) -> None:
-        from utils.env_manager import EnvManager
-        from utils.version import AppVersion
+        from common.env_manager import EnvManager
+        from common.version_manager import AppVersion
 
-        base = "原神狗粮清扫器"
+        base = APP_NAME_CN
         if EnvManager.is_debug():
             self._title = f"{base}（调试模式）"
         else:
-            self._title = f"{base} v{AppVersion.display()}"
+            self._title = f"{base} {AppVersion.display()}"
         self.titleChanged.emit()
 
     def _get_window(self) -> QWindow | None:

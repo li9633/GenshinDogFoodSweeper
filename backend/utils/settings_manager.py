@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from database.repository.settings_repo import SettingsRepo
+from backend.database.repository.settings_repo import SettingsRepo
 
 
 class SettingsManager:
@@ -44,9 +44,14 @@ class SettingsManager:
             "enable_dedup": "true",
             "stop_mode": "anchor",
             "fixed_count": "0",
+            "save_dir": "",  # 空 = 使用内置 scan_result 目录
+            "save_format": "",  # 空 = 使用默认保存格式（见 artifact_save 注册表）
         },
         "hotkey": {
             "stop": "<ctrl>+<shift>+x",
+        },
+        "debug": {
+            "batch_click_interval": "100",  # 调试面板批量点击的每格间隔（毫秒）
         },
         "log": {
             "level": "DEBUG",
@@ -61,7 +66,7 @@ class SettingsManager:
         self._cache: dict[str, str] = {}
         self._load_cache()
 
-    # ---------- 内部工具 ----------
+    # 内部工具
 
     @staticmethod
     def _flatten(nested: dict[str, dict[str, str]], prefix: str = "") -> dict[str, str]:
@@ -89,7 +94,7 @@ class SettingsManager:
             if key not in existing:
                 SettingsRepo.set(key, value)
 
-    # ---------- 通用读写 ----------
+    # 通用读写
 
     def get(self, key: str) -> str:
         return self._cache.get(key, self._flat_defaults.get(key, ""))
@@ -114,7 +119,7 @@ class SettingsManager:
         self._cache[key] = default
         SettingsRepo.delete(key)
 
-    # ---------- 分组操作 ----------
+    # 分组操作
 
     def get_group(self, prefix: str) -> dict[str, str]:
         """获取某个命名空间下的所有设置，返回去掉前缀的 {key: value}"""
@@ -130,7 +135,7 @@ class SettingsManager:
         for k, v in values.items():
             self.set(f"{prefix}.{k}", v)
 
-    # ---------- 便捷方法 ----------
+    # 便捷方法
 
     def get_theme(self) -> str:
         return self.get("ui.theme")

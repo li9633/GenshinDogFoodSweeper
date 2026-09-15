@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 
-from utils.logger import log
+from backend.utils.logger import log
 
 
 class ApiLauncher:

@@ -1,4 +1,4 @@
-"""
+﻿"""
 截图预览组件
 ============
 实时显示游戏窗口截图，支持区域选择。
@@ -36,7 +36,7 @@ class CapturePreviewWidget(QWidget):
 
         self._build_ui()
 
-    # ---------- 公开方法 ----------
+    # 公开方法
 
     def display_pixmap(self, pixmap: QPixmap, info_text: str = "") -> None:
         """显示 pixmap（如带标注的截图）"""
@@ -118,7 +118,7 @@ class CapturePreviewWidget(QWidget):
                 return True
         return super().eventFilter(obj, event)
 
-    # ---------- 内部 ----------
+    # 内部
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -187,7 +187,7 @@ class CapturePreviewWidget(QWidget):
 
         layout.addWidget(self._scroll_area)
 
-    # ---------- 缩放 ----------
+    # 缩放
 
     def _zoom_in(self) -> None:
         self._fit_to_view = False
@@ -225,7 +225,7 @@ class CapturePreviewWidget(QWidget):
         self._image_label.setPixmap(scaled)
         self._image_label.resize(scaled.size())
 
-    # ---------- 鼠标选区 ----------
+    # 鼠标选区
 
     def _on_mouse_press(self, event: QMouseEvent) -> None:
         self._selection_start = event.pos()

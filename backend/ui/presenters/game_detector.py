@@ -1,4 +1,4 @@
-"""游戏进程检测器 — 轮询原神窗口，暴露给 QML"""
+﻿"""游戏进程检测器 — 轮询原神窗口，暴露给 QML"""
 
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 
@@ -93,7 +93,7 @@ class GameDetector(QObject):
             return "#D8AA52"
         return "#D47373"
 
-    # ========== 操作 ==========
+    # 操作
 
     @Slot()
     def focusGame(self) -> None:

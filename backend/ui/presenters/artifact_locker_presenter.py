@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import ClassVar
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
-from utils.logger import log
-from utils.settings_manager import settings
 
 from backend.automation.artifact_locker import ArtifactLocker, LockWorker
 from backend.database.repository.dogfood_rule_repo import DogfoodRuleRepo
+from backend.ui.presenters.rule_display import with_display
+from backend.ui.presenters.worker_host import WorkerHost
+from backend.utils.logger import log
+from backend.utils.settings_manager import settings
+from common.paths import ENGINES
 
 
 class ArtifactLockerPresenter(QObject):
@@ -32,10 +34,10 @@ class ArtifactLockerPresenter(QObject):
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._running = False
         self._status = ""
         self._locker = ArtifactLocker()
-        self._lock_worker: LockWorker | None = None
+        self._host = WorkerHost(self)
+        self._host.busyChanged.connect(self._on_busy_changed)
         self._rules: list = []
         self._selected_rule_names: list[str] = []
         self._default_action = "keep"
@@ -50,13 +52,18 @@ class ArtifactLockerPresenter(QObject):
         self._load_re_unlock()
         self._load_limit_count()
 
-    # ========== 常量 ==========
+    # 常量
 
     @Property(int, constant=True)
     def maxRuleSelection(self) -> int:
         return self.MAX_RULE_SELECTION
 
-    # ========== 规则列表 ==========
+    @Property(str, constant=True)
+    def ruleSelectionHint(self) -> str:
+        """规则选择提示文案（QML 只负责显示）"""
+        return f"选择规则（最多 {self.MAX_RULE_SELECTION} 条）"
+
+    # 规则列表
 
     def _load_rules(self) -> None:
         try:
@@ -76,23 +83,25 @@ class ArtifactLockerPresenter(QObject):
     @Property("QVariantList", notify=rulesChanged)
     def rules(self) -> list:
         return [
-            {
-                "name": r.name,
-                "action": r.action,
-                "part": r.part,
-                "part_exclude": r.part_exclude,
-                "main_stat": r.main_stat,
-                "set_name": r.set_name,
-                "sub_stats": [s.to_dict() for s in r.sub_stats],
-                "sub_count": r.sub_count,
-                "priority": r.priority,
-                "include_unactivated": r.include_unactivated,
-                "include_main_stat": r.include_main_stat,
-            }
+            with_display(
+                {
+                    "name": r.name,
+                    "action": r.action,
+                    "part": r.part,
+                    "part_exclude": r.part_exclude,
+                    "main_stat": r.main_stat,
+                    "set_name": r.set_name,
+                    "sub_stats": [s.to_dict() for s in r.sub_stats],
+                    "sub_count": r.sub_count,
+                    "priority": r.priority,
+                    "include_unactivated": r.include_unactivated,
+                    "include_main_stat": r.include_main_stat,
+                }
+            )
             for r in self._rules
         ]
 
-    # ========== 多选规则名 ==========
+    # 多选规则名
 
     @Property("QVariantList", notify=selectedRuleNamesChanged)
     def selectedRuleNames(self) -> list[str]:
@@ -109,7 +118,7 @@ class ArtifactLockerPresenter(QObject):
             self._selected_rule_names.append(name)
         self.selectedRuleNamesChanged.emit()
 
-    # ========== 默认行为 ==========
+    # 默认行为
 
     @Property("QVariantList", constant=True)
     def defaultActionLabels(self) -> list[str]:
@@ -138,7 +147,7 @@ class ArtifactLockerPresenter(QObject):
         settings.set("dogfood.default_action", action)
         self.defaultActionChanged.emit()
 
-    # ========== 重新解锁选项 ==========
+    # 重新解锁选项
 
     def _load_re_unlock(self) -> None:
         val = settings.get("locker.re_unlock")
@@ -156,7 +165,7 @@ class ArtifactLockerPresenter(QObject):
         settings.set("locker.re_unlock", "true" if value else "false")
         self.reUnlockChanged.emit()
 
-    # ========== 限制处理数量 ==========
+    # 限制处理数量
 
     def _load_limit_count(self) -> None:
         val = settings.get("locker.limit_count_enabled")
@@ -192,7 +201,7 @@ class ArtifactLockerPresenter(QObject):
         settings.set("locker.max_count", count)
         self.maxCountChanged.emit()
 
-    # ========== 统计 ==========
+    # 统计
 
     @Property(int, notify=statsChanged)
     def lockedCount(self) -> int:
@@ -206,21 +215,29 @@ class ArtifactLockerPresenter(QObject):
     def skippedCount(self) -> int:
         return self._skipped_count
 
-    # ========== 运行状态 ==========
+    @Property(str, notify=statsChanged)
+    def statsText(self) -> str:
+        """统计文案（"锁定: N | 解锁: N | 跳过: N"），QML 只负责显示"""
+        return (
+            f"锁定: {self._locked_count} | 解锁: {self._unlocked_count}"
+            f" | 跳过: {self._skipped_count}"
+        )
+
+    # 运行状态
 
     @Property(bool, notify=runningChanged)
     def running(self) -> bool:
-        return self._running
+        return self._host.busy
 
     @Property(str, notify=statusChanged)
     def status(self) -> str:
         return self._status
 
-    # ========== 锁定入口 ==========
+    # 锁定入口
 
     @Slot()
     def startLock(self) -> None:
-        if self._running:
+        if self._host.busy:
             log.warning("锁定已在运行中")
             return
 
@@ -239,9 +256,6 @@ class ArtifactLockerPresenter(QObject):
         self._skipped_count = 0
         self.statsChanged.emit()
 
-        self._running = True
-        self.runningChanged.emit()
-
         self._locker.reset_stop()
 
         log.info(
@@ -250,16 +264,19 @@ class ArtifactLockerPresenter(QObject):
         )
 
         max_count = self._max_count if self._limit_count_enabled else 0
-        engines_dir = Path(__file__).resolve().parents[3] / "engines"
-        self._lock_worker = LockWorker(
-            self._locker, active_rules, self._default_action,
-            self._re_unlock, max_count,
+        engines_dir = ENGINES
+        worker = LockWorker(
+            self._locker,
+            active_rules,
+            self._default_action,
+            self._re_unlock,
+            max_count,
             engines_dir=engines_dir,
         )
-        self._lock_worker.stepChanged.connect(self._set_status)
-        self._lock_worker.finished.connect(self._on_lock_finished)
-        self._lock_worker.errorOccurred.connect(self._on_lock_error)
-        self._lock_worker.start()
+        worker.stepChanged.connect(self._set_status)
+        worker.lockCompleted.connect(self._on_lock_finished)
+        worker.errorOccurred.connect(self._on_lock_error)
+        self._host.start(worker)
 
     def _on_lock_finished(self, locked: int, unlocked: int, skipped: int) -> None:
         self._locked_count = locked
@@ -270,26 +287,23 @@ class ArtifactLockerPresenter(QObject):
         msg = f"完成！锁定 {locked} 件，解锁 {unlocked} 件，跳过 {skipped} 件"
         log.info(f"[Locker] {msg}")
         self._set_status(msg)
-        self._finish()
 
     def _on_lock_error(self, error: str) -> None:
         self._set_status(error)
-        self._finish()
 
     @Slot()
     def stopLock(self) -> None:
-        if self._lock_worker is not None:
-            self._lock_worker.stop()
+        if not self._host.busy:
+            return
+        self._host.stop()
         log.info("[Locker] 已请求停止")
 
     @Slot()
     def _on_hotkey_stop(self) -> None:
-        if self._running and self._lock_worker is not None:
-            self._lock_worker.stop()
+        self.stopLock()
 
-    def _finish(self) -> None:
-        self._lock_worker = None
-        self._running = False
+    def _on_busy_changed(self) -> None:
+        """后台任务开始/结束时同步界面上的运行状态"""
         self.runningChanged.emit()
 
     def _set_status(self, msg: str) -> None:

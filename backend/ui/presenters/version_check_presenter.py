@@ -6,18 +6,17 @@
 
 from __future__ import annotations
 
-import time
-
 from PySide6.QtCore import QObject, QThread, Signal, Slot
-from ui.gmessagebox import GMessageBox
-from ui.lifecycle import OnWindowReady
-from utils.logger import log
-from utils.settings_manager import settings
 
 from backend.exceptions.automation.exceptions import (
     ArtifactDatabaseEmptyError,
     ArtifactUpdateAvailableError,
 )
+from backend.ui.gmessagebox import GMessageBox
+from backend.ui.lifecycle import OnWindowReady
+from backend.utils.logger import log
+from backend.utils.settings_manager import settings
+from common.datetime_helper import DateTimeHelper
 
 # 间隔常量（秒）
 INTERVAL_SECONDS: dict[str, int] = {
@@ -35,7 +34,7 @@ class _VersionCheckWorker(QThread):
     checkFailed = Signal(str)  # 异常类型名
 
     def run(self) -> None:
-        from crawler.version_checker import VersionChecker
+        from backend.crawler.version_checker import VersionChecker
 
         try:
             VersionChecker.check()
@@ -56,7 +55,7 @@ class VersionCheckPresenter(QObject, OnWindowReady):
         """窗口就绪后自动检查版本"""
         self.checkVersion()
 
-    # ========== 间隔判断 ==========
+    # 间隔判断
 
     def _should_check(self) -> bool:
         """根据配置判断是否需要执行检查"""
@@ -69,9 +68,9 @@ class VersionCheckPresenter(QObject, OnWindowReady):
         last_ts = settings.get_int("sync_check.last_version_check_ts")
         if last_ts <= 0:
             return True
-        return (time.time() - last_ts) >= interval_sec
+        return (DateTimeHelper.now_ts() - last_ts) >= interval_sec
 
-    # ========== 公开 Slot ==========
+    # 公开 Slot
 
     @Slot()
     def checkVersion(self) -> None:
@@ -88,13 +87,13 @@ class VersionCheckPresenter(QObject, OnWindowReady):
 
     def _on_check_ok(self) -> None:
         """检查完成，无需更新"""
-        now_ts = int(time.time())
+        now_ts = int(DateTimeHelper.now_ts())
         settings.set("sync_check.last_version_check_ts", str(now_ts))
         log.debug("圣遗物更新检查: 本地数据已是最新，无需更新")
 
     def _on_check_failed(self, exc_name: str) -> None:
         """检查失败，根据异常类型名决定是否弹窗"""
-        now_ts = int(time.time())
+        now_ts = int(DateTimeHelper.now_ts())
         settings.set("sync_check.last_version_check_ts", str(now_ts))
 
         if exc_name == ArtifactDatabaseEmptyError.__name__:
@@ -126,5 +125,5 @@ class VersionCheckPresenter(QObject, OnWindowReady):
         """版本更新弹窗按钮回调"""
         if role == "accept":
             log.debug("用户点击「立即前往」，跳转到同步Tab")
-            from ui.presenters.navigation_presenter import NavigationPresenter
+            from backend.ui.presenters.navigation_presenter import NavigationPresenter
             NavigationPresenter.navigate("settings/sync")

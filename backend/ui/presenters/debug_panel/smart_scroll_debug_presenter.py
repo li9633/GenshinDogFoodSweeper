@@ -17,10 +17,9 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import Property, QObject, QThread, Signal, Slot
-from ui.lifecycle import OnWindowReady
-from utils.logger import log
 
 from backend.automation.mouse_controller import MouseController
+from backend.automation.screen_capture import ScreenshotCapture
 from backend.automation.slider_scroller import SliderScroller
 from backend.automation.slot_detector import (
     BAG_SLOT_CONFIG,
@@ -29,7 +28,8 @@ from backend.automation.slot_detector import (
 from backend.automation.smart_scroller import SmartScroller
 from backend.automation.window_helper import WindowHelper
 from backend.exceptions.automation import GameWindowNotFoundError
-from backend.utils.screen_capture import ScreenshotCapture
+from backend.ui.lifecycle import OnWindowReady
+from backend.utils.logger import log
 
 from ..image_provider import PreviewImageProvider
 

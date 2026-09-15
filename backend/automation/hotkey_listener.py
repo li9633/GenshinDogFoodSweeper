@@ -1,13 +1,6 @@
-"""
-全局热键监听器
-==============
-基于 pynput 实现全局键盘热键，支持窗口失焦时触发。
-Ctrl+Shift+X → 终止当前所有自动化操作。
-
-架构设计：
-- Singleton QObject，与 OcrWorker 保持一致的设计模式
-- pynput 全局热键 → Qt Signal → 各 Presenter 自行处理停止逻辑
-- 防抖：300ms 冷却，防止连发误触
+﻿"""
+全局热键监听器 — 基于 pynput 的全局热键（Singleton QObject）
+Ctrl+Shift+X → 终止当前所有自动化操作，支持窗口失焦触发，300ms 防抖冷却。
 """
 
 from __future__ import annotations
@@ -17,7 +10,8 @@ from typing import ClassVar
 
 from pynput.keyboard import GlobalHotKeys, Key, Listener
 from PySide6.QtCore import QObject, Signal
-from utils.logger import log
+
+from backend.utils.logger import log
 
 # pynput Key 常量 → 字符串映射
 _KEY_TO_STR: dict = {
@@ -29,12 +23,7 @@ _KEY_TO_STR: dict = {
 
 
 class HotkeyListener(QObject):
-    """全局热键监听器（Singleton）
-
-    用法：
-        listener = HotkeyListener.instance()
-        listener.stopRequested.connect(presenter.stop_all)
-    """
+    """全局热键监听器（Singleton）"""
 
     _instance: HotkeyListener | None = None
     _stop_callbacks: ClassVar[list] = []
@@ -86,20 +75,18 @@ class HotkeyListener(QObject):
         self._last_trigger = 0.0
         self._start()
 
-    # ------------------------------------------------------------------
     # 公开 API
-    # ------------------------------------------------------------------
 
     @staticmethod
     def get_hotkey() -> str:
         """从 settings 读取当前热键"""
-        from utils.settings_manager import settings
+        from backend.utils.settings_manager import settings
         return settings.get("hotkey.stop")
 
     @staticmethod
     def set_hotkey(hotkey: str) -> None:
         """持久化热键并重启监听"""
-        from utils.settings_manager import settings
+        from backend.utils.settings_manager import settings
         settings.set("hotkey.stop", hotkey)
         if HotkeyListener._instance is not None:
             HotkeyListener._instance._restart()
@@ -167,9 +154,7 @@ class HotkeyListener(QObject):
         if cls._instance is not None:
             cls._instance._stop_capture()
 
-    # ------------------------------------------------------------------
     # 内部实现
-    # ------------------------------------------------------------------
 
     def _stop_capture(self) -> None:
         if self._capture_listener is not None:

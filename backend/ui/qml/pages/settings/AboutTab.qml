@@ -122,6 +122,27 @@ ColumnLayout {
                         url: SettingsPresenter.issuesUrl
                     }
                 }
+
+                Item { Layout.preferredHeight: 8 }
+
+                // -- 检查更新 --
+                GButton {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: UpdatePresenter.checking ? "检查中…" : "检查更新"
+                    enabled: !UpdatePresenter.checking
+                    onClicked: UpdatePresenter.checkForUpdates()
+                }
+
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: UpdatePresenter.checkResultText !== ""
+                    text: UpdatePresenter.checkResultText
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                    color: UpdatePresenter.checkResultIsError ? "#D32F2F" : Theme.success
+                    wrapMode: Text.WordWrap
+                    Layout.maximumWidth: 380
+                }
             }
 
             Item { Layout.fillWidth: true }

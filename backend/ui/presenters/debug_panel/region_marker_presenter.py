@@ -1,4 +1,4 @@
-"""区域标记 Presenter — QObject 封装，供 QML 绑定
+﻿"""区域标记 Presenter — QObject 封装，供 QML 绑定
 
 通过 Signal/Slot/Property 暴露给 QML，内部委托给纯业务方法。
 """
@@ -11,12 +11,12 @@ import cv2
 import numpy as np
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from PySide6.QtWidgets import QApplication
-from utils.logger import log
 
 from backend.automation.color_sampler import sample_roi_color
+from backend.automation.screen_capture import CaptureResult, ScreenshotCapture
 from backend.automation.template_manager import TemplateManager
 from backend.automation.window_helper import WindowHelper
-from backend.utils.screen_capture import CaptureResult, ScreenshotCapture
+from backend.utils.logger import log
 
 from ..image_provider import PreviewImageProvider
 
@@ -24,7 +24,7 @@ from ..image_provider import PreviewImageProvider
 class RegionMarkerPresenter(QObject):
     """区域标记 Presenter — QML 可绑定"""
 
-    # -- 信号 --
+    # 信号
     captureFinished = Signal(str, int, int, int, int)  # path, x, y, w, h
     colorExtracted = Signal(int, int, int, int, int, int)  # r, g, b, h, s, v
     colorExtractedString = Signal(str)  # "RGB(x,x,x) HSV(x,x,x)"
@@ -66,7 +66,7 @@ class RegionMarkerPresenter(QObject):
             self._selection_mode = val
             self.selectionModeChanged.emit()
 
-    # ========== 坐标 Properties ==========
+    # 坐标 Properties
 
     @Property(int, notify=coordsChanged)
     def regionX(self) -> int:
@@ -125,7 +125,7 @@ class RegionMarkerPresenter(QObject):
     def coordsText(self) -> str:
         return f"{self._x},{self._y},{self._w},{self._h}"
 
-    # ========== 业务 Slots ==========
+    # 业务 Slots
 
     @Slot()
     def mark(self) -> None:
@@ -215,7 +215,7 @@ class RegionMarkerPresenter(QObject):
         self.clearPreview.emit()
 
 
-# ========== 纯业务方法（保留原有静态方法兼容性） ==========
+# 纯业务方法（保留原有静态方法兼容性）
 
 def _capture() -> CaptureResult:
     window = WindowHelper.find_genshin_window()

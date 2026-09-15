@@ -1,4 +1,4 @@
-"""
+﻿"""
 圣遗物部位 Repository
 ======================
 对应 artifact_pieces 表的 DDL 与 CRUD 操作。
@@ -6,8 +6,8 @@
 
 from typing import Any
 
-from database.connection import get_db
-from models.artifact_piece import ArtifactPiece
+from backend.database.connection import get_db
+from backend.models.artifact_piece import ArtifactPiece
 
 
 class ArtifactPieceRepo:
@@ -15,7 +15,7 @@ class ArtifactPieceRepo:
 
     DB_NAME = "artifacts.db"
 
-    # ---------- DDL ----------
+    # DDL
 
     @classmethod
     def create_table(cls) -> None:
@@ -45,7 +45,7 @@ class ArtifactPieceRepo:
                 "ON artifact_pieces(set_id, type)"
             )
 
-    # ---------- CRUD ----------
+    # CRUD
 
     @classmethod
     def find_by_set_id(cls, set_id: int) -> list[ArtifactPiece]:

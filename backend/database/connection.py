@@ -8,10 +8,11 @@
 import sqlite3
 from collections.abc import Generator
 from contextlib import contextmanager
-from pathlib import Path
+
+from common.paths import DATA
 
 # 数据目录: <项目根>/data/
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
+DATA_DIR = DATA
 
 
 def get_connection(db_name: str) -> sqlite3.Connection:

@@ -1,4 +1,4 @@
-"""
+﻿"""
 FastAPI 应用
 ============
 提供 REST API + 静态文件服务。
@@ -8,8 +8,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from utils.logger import log
-from utils.version import AppVersion
+
+from backend.utils.logger import log
+from common.constants import APP_NAME, APP_NAME_CN
+from common.version_manager import AppVersion
 
 
 @asynccontextmanager
@@ -20,8 +22,8 @@ async def lifespan(application: FastAPI):
 
 
 app = FastAPI(
-    title="GenshinDogFoodSweeper",
-    description="原神狗粮清扫器 — 后端 API",
+    title=APP_NAME,
+    description=f"{APP_NAME_CN} — 后端 API",
     version=AppVersion.semver(),
     lifespan=lifespan,
 )
@@ -35,7 +37,7 @@ app.add_middleware(
 )
 
 
-# ===================== 基础路由 =====================
+# 基础路由
 
 
 @app.get("/api/health")
@@ -55,7 +57,7 @@ async def get_stats():
     }
 
 
-# ===================== 子路由（后续接入） =====================
+# 子路由（后续接入）
 # from api.artifacts import router as artifacts_router
 # from api.scan import router as scan_router
 # from api.settings import router as settings_router

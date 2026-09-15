@@ -19,7 +19,7 @@ ApplicationWindow {
     minimumHeight: 600
     color: "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint
-    title: "原神狗粮清扫器"
+    title: SettingsPresenter.appTitle
 
     // ---- 阴影边距（内容区域距离窗口边缘的距离）----
     readonly property int shadowMargin: 4

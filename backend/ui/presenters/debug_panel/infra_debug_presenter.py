@@ -1,4 +1,4 @@
-"""
+﻿"""
 基础设施调试 Presenter
 =====================
 为调试面板提供基础设施组件的测试方法：状态栏、GMessageBox 等。
@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
+from common.paths import ENGINES
+
 
 class InfraDebugPresenter(QObject):
     """基础设施调试 Presenter — 供 QML 调试面板绑定"""
@@ -15,7 +17,7 @@ class InfraDebugPresenter(QObject):
     @Slot(str)
     def testStatusBar(self, level: str) -> None:
         """测试状态栏：通过 log.xxx 发送消息，测试完整的日志桥接链路"""
-        from utils.logger import log
+        from backend.utils.logger import log
 
         msg = f"[调试] 状态栏颜色测试 — {level}"
         if level == "SUCCESS":
@@ -32,7 +34,7 @@ class InfraDebugPresenter(QObject):
     @Slot(str)
     def testGMessageBox(self, msg_type: str) -> None:
         """测试 GMessageBox Python 桥接链路：Python → Signal → QML"""
-        from ui.gmessagebox import GMessageBox
+        from backend.ui.gmessagebox import GMessageBox
 
         messages = {
             "info": "[基础设施调试] Python桥接 — 信息消息",
@@ -51,7 +53,8 @@ class InfraDebugPresenter(QObject):
         错误/警告类型会触发 requestActivate → 窗口拉起；信息/成功类型不会。
         """
         from PySide6.QtCore import QTimer
-        from ui.gmessagebox import GMessageBox
+
+        from backend.ui.gmessagebox import GMessageBox
 
         messages = {
             "info": "[聚焦测试] 延迟后 — 信息消息（不激活窗口）",
@@ -66,9 +69,8 @@ class InfraDebugPresenter(QObject):
 
         QTimer.singleShot(delay_sec * 1000, _do_show)
 
-    # ============================================================
-    # GProgressBar 调试
-    # ============================================================
+    # # GProgressBar 调试
+    #
 
     _debug_progress_value: float = 0.38
     _debug_progress_text: str = "翠绿之影  24 / 63"
@@ -111,15 +113,14 @@ class InfraDebugPresenter(QObject):
         self._debug_progress_text = "同步完成"
         self.debugProgressChanged.emit()
 
-    # ============================================================
-    # 数据库 & 模型清理
-    # ============================================================
+    # # 数据库 & 模型清理
+    #
 
     @Slot()
     def clearArtifactSets(self) -> None:
         """清空圣遗物套装表（artifact_sets）"""
-        from database.repository.artifact_set_repo import ArtifactSetRepo
-        from utils.logger import log
+        from backend.database.repository.artifact_set_repo import ArtifactSetRepo
+        from backend.utils.logger import log
 
         count = ArtifactSetRepo.delete_all()
         log.info(f"[调试] 已清空 artifact_sets 表（{count} 条记录）")
@@ -127,8 +128,8 @@ class InfraDebugPresenter(QObject):
     @Slot()
     def clearArtifactPieces(self) -> None:
         """清空圣遗物单件表（artifact_pieces）"""
-        from database.repository.artifact_piece_repo import ArtifactPieceRepo
-        from utils.logger import log
+        from backend.database.repository.artifact_piece_repo import ArtifactPieceRepo
+        from backend.utils.logger import log
 
         count = ArtifactPieceRepo.delete_all()
         log.info(f"[调试] 已清空 artifact_pieces 表（{count} 条记录）")
@@ -137,11 +138,10 @@ class InfraDebugPresenter(QObject):
     def deleteOcrModel(self) -> None:
         """删除 OCR 模型文件（engine/official_models 目录）"""
         import shutil
-        from pathlib import Path
 
-        from utils.logger import log
+        from backend.utils.logger import log
 
-        engines_dir = Path(__file__).resolve().parents[3] / "engines"
+        engines_dir = ENGINES
         models_dir = engines_dir / "official_models"
         if models_dir.exists():
             shutil.rmtree(models_dir)

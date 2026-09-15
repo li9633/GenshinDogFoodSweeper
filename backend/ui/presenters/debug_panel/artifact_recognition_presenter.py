@@ -15,12 +15,16 @@ from typing import Any
 import cv2
 import numpy as np
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
-from utils.logger import log
 
-from backend.automation.recognizer import ArtifactRecognizer
+from backend.automation.artifact_recognizer import ArtifactRecognizer
+from backend.automation.screen_capture import (
+    CaptureMethod,
+    CaptureResult,
+    ScreenshotCapture,
+)
 from backend.automation.window_helper import WindowHelper
 from backend.models.slot_models import ALL_SLOT_CONFIGS, SlotDetectorConfig
-from backend.utils.screen_capture import CaptureMethod, CaptureResult, ScreenshotCapture
+from backend.utils.logger import log
 
 from ..image_provider import PreviewImageProvider
 
@@ -33,7 +37,7 @@ class ArtifactRecognitionPresenter(QObject):
     支持切换配置（背包/分解页面）快速调试。
     """
 
-    # -- 信号 --
+    # 信号
     recognitionStarted = Signal()
     recognitionFinished = Signal(str, str, str, bool)
     # ocrText, structuredText, imagePath
@@ -71,7 +75,7 @@ class ArtifactRecognitionPresenter(QObject):
     def recognizing(self) -> bool:
         return self._recognizing
 
-    # ========== 检测配置切换 ==========
+    # 检测配置切换
 
     @Property("QVariantList", notify=activeConfigChanged)
     def availableConfigNames(self) -> list[str]:
@@ -104,7 +108,7 @@ class ArtifactRecognitionPresenter(QObject):
             log.info(f"圣遗物识别配置切换: {self._active_config.name}")
             self.activeConfigChanged.emit()
 
-    # ========== 识别 ==========
+    # 识别
 
     @Slot()
     def recognize(self) -> None:
@@ -143,7 +147,7 @@ class ArtifactRecognitionPresenter(QObject):
             self.recognizingChanged.emit()
             raise
 
-    # ---------- OCR Worker 信号连接 ----------
+    # OCR Worker 信号连接
 
     def _connect_ocr_worker(self) -> None:
         from backend.automation.ocr_worker import OcrWorker
@@ -189,7 +193,7 @@ class ArtifactRecognitionPresenter(QObject):
         self._recognizing = False
         self.recognizingChanged.emit()
 
-    # ---------- OCR 任务工厂 ----------
+    # OCR 任务工厂
 
     @staticmethod
     def create_recognition_task(
@@ -253,7 +257,7 @@ class ArtifactRecognitionPresenter(QObject):
         PreviewImageProvider.clear("artifact")
         self.clearPreview.emit()
 
-    # ========== 展示结果构建 ==========
+    # 展示结果构建
 
     @staticmethod
     def _draw_dashed_rect(

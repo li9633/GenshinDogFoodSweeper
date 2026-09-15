@@ -1,16 +1,12 @@
-"""预览图 Provider — QQuickImageProvider 内存缓存，零 IO
-
-用法：
-  Presenter: PreviewImageProvider.put("region", numpy_rgb_array)
-  QML:       Image { source: "image://preview/region" }
-"""
+"""预览图 Provider — QQuickImageProvider 内存缓存"""
 
 from __future__ import annotations
 
 import numpy as np
 from PySide6.QtGui import QImage
 from PySide6.QtQuick import QQuickImageProvider
-from utils.logger import log
+
+from backend.utils.logger import log
 
 
 class PreviewImageProvider(QQuickImageProvider):

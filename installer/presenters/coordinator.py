@@ -1,0 +1,288 @@
+"""应用协调器 — 共享状态与核心操作逻辑"""
+
+from __future__ import annotations
+
+import ctypes
+import re
+import shutil
+import threading
+from pathlib import Path
+
+from PySide6.QtCore import Property, QObject, Signal
+from PySide6.QtGui import QGuiApplication
+
+from common.constants import APP_NAME_CN
+from common.resources import Resource
+from installer.core import (
+    APP_NAME,
+    get_default_install_dir,
+    get_logger,
+    restart_app,
+    run_install,
+    run_uninstall,
+)
+
+logger = get_logger(__name__)
+
+try:
+    from common.version_manager import AppVersion
+
+    VERSION = AppVersion.get_version("clean")
+except ImportError:
+    VERSION = "v0.0.0"
+
+
+class AppCoordinator(QObject):
+    navigateRequested = Signal(str)
+    installStarted = Signal()
+    installProgress = Signal(int, str)
+    installFinished = Signal(bool, str)
+    modeChanged = Signal()
+    installDirChanged = Signal()
+    oldVersionChanged = Signal()
+    installLogChanged = Signal()
+    freeSpaceChanged = Signal()
+    quickUpdateChanged = Signal()
+
+    def __init__(self, parent: QObject | None = None):
+        super().__init__(parent)
+        self._install_dir = str(get_default_install_dir())
+        self._mode = "install"
+        self._quick_update = False
+        self._old_version = ""
+        self._version = VERSION
+        self._log_lines: list[str] = []
+        self._free_space: int = -1
+        self._drive_valid: bool = False
+        self._required_space: int = self._calc_required_space()
+        self._update_free_space(self._install_dir)
+
+    # 共享状态属性
+
+    @property
+    def install_dir(self) -> str:
+        return self._install_dir
+
+    @install_dir.setter
+    def install_dir(self, value: str) -> None:
+        if self._install_dir != value:
+            self._install_dir = value
+            self._update_free_space(value)
+            self.installDirChanged.emit()
+            self.freeSpaceChanged.emit()
+
+    @property
+    def mode(self) -> str:
+        return self._mode
+
+    @mode.setter
+    def mode(self, value: str) -> None:
+        if self._mode != value:
+            self._mode = value
+            self.modeChanged.emit()
+
+    @property
+    def quick_update(self) -> bool:
+        return self._quick_update
+
+    @quick_update.setter
+    def quick_update(self, value: bool) -> None:
+        if self._quick_update != value:
+            self._quick_update = value
+            self.modeChanged.emit()
+            self.quickUpdateChanged.emit()
+
+    @Property(bool, notify=quickUpdateChanged)
+    def quickUpdate(self) -> bool:
+        return self._quick_update
+
+    @property
+    def old_version(self) -> str:
+        return self._old_version
+
+    @old_version.setter
+    def old_version(self, value: str) -> None:
+        if self._old_version != value:
+            self._old_version = value
+            self.oldVersionChanged.emit()
+
+    @property
+    def version(self) -> str:
+        return self._version
+
+    @property
+    def log_lines(self) -> list[str]:
+        return list(self._log_lines)
+
+    @property
+    def free_space(self) -> int:
+        return self._free_space
+
+    @property
+    def drive_valid(self) -> bool:
+        return self._drive_valid
+
+    @property
+    def required_space(self) -> int:
+        return self._required_space
+
+    # 模式相关 UI 属性
+
+    @Property(str, notify=modeChanged)
+    def windowTitle(self) -> str:
+        if self._quick_update:
+            return f"{APP_NAME_CN} 快速更新"
+        titles = {
+            "install": f"{APP_NAME_CN} 安装向导",
+            "update": f"{APP_NAME_CN} 更新向导",
+            "uninstall": f"{APP_NAME_CN} 卸载向导",
+        }
+        return titles.get(self._mode, f"{APP_NAME_CN} 安装向导")
+
+    @Property(str, notify=modeChanged)
+    def accentColor(self) -> str:
+        if self._mode == "uninstall":
+            return "#D32F2F"
+        if self._mode == "update":
+            return "#4CAF50"
+        return "#1976D2"
+
+    @Property(bool, notify=modeChanged)
+    def allowClose(self) -> bool:
+        return not self._quick_update
+
+    @Property(str, notify=modeChanged)
+    def windowIcon(self) -> str:
+        if self._quick_update:
+            return f"file:///{Resource.QUICK_UPDATE_ICON_PNG.as_posix()}"
+        icons = {
+            "install": Resource.INSTALL_ICON_PNG,
+            "update": Resource.UPDATE_ICON_PNG,
+            "uninstall": Resource.UNINSTALL_ICON_PNG,
+        }
+        icon = icons.get(self._mode, Resource.INSTALL_ICON_PNG)
+        return f"file:///{icon.as_posix()}"
+
+    # 导航
+
+    def navigate_to(self, page: str) -> None:
+        self.navigateRequested.emit(page)
+
+    # 目录选择
+
+    def set_install_dir(self, path: str) -> None:
+        self.install_dir = path
+
+    def check_free_space(self, path: str) -> None:
+        self._update_free_space(path)
+        self.freeSpaceChanged.emit()
+
+    def select_install_dir(self, path: str) -> None:
+        p = Path(path)
+        try:
+            if p.exists() and p.is_dir() and any(p.iterdir()):
+                p = p / APP_NAME
+        except (OSError, PermissionError):
+            pass
+        self._install_dir = str(p)
+        self._update_free_space(str(p))
+        self.installDirChanged.emit()
+
+    # 磁盘空间检查
+
+    @staticmethod
+    def _calc_required_space() -> int:
+        from installer.core import get_own_dir
+        archive = get_own_dir() / "app.7z"
+        if archive.exists():
+            return archive.stat().st_size * 3
+        return 800 * 1024 * 1024
+
+    @staticmethod
+    def _validate_drive(path_str: str) -> bool:
+        m = re.match(r'^([A-Za-z]):', path_str)
+        if not m:
+            return False
+        drive_letter = m.group(1).upper()
+        drives = ctypes.windll.kernel32.GetLogicalDrives()
+        return bool(drives & (1 << (ord(drive_letter) - ord('A'))))
+
+    def _update_free_space(self, path_str: str) -> None:
+        if not path_str or not self._validate_drive(path_str):
+            self._free_space = -1
+            self._drive_valid = False
+            return
+        self._drive_valid = True
+        try:
+            p = Path(path_str)
+            while not p.exists() and p != p.anchor:
+                p = p.parent
+            self._free_space = shutil.disk_usage(p).free
+        except (OSError, FileNotFoundError, PermissionError):
+            self._free_space = -1
+
+    # 核心操作
+
+    def start_action(self) -> None:
+        self._log_lines.clear()
+        self.installLogChanged.emit()
+        if self._mode == "uninstall":
+            self._start_uninstall()
+        else:
+            self._start_install()
+
+    def _start_install(self) -> None:
+        self.installStarted.emit()
+        threading.Thread(target=self._run_install, daemon=True).start()
+
+    def _start_uninstall(self) -> None:
+        self.installStarted.emit()
+        threading.Thread(target=self._run_uninstall, daemon=True).start()
+
+    def _run_install(self) -> None:
+        logger.info("Install started, target=%s, version=%s", self._install_dir, self._version)
+        try:
+            run_install(
+                Path(self._install_dir),
+                self._version,
+                self._on_progress,
+                skip_shortcuts=(self._mode == "update" or self._quick_update),
+            )
+            logger.info("Install succeeded")
+            self.installFinished.emit(True, "")
+        except Exception as e:
+            logger.exception("Install failed")
+            self.installFinished.emit(False, str(e))
+
+    def _run_uninstall(self) -> None:
+        logger.info("Uninstall started, target=%s", self._install_dir)
+        try:
+            run_uninstall(Path(self._install_dir), self._on_progress)
+            logger.info("Uninstall succeeded")
+            self.installFinished.emit(True, "")
+        except Exception as e:
+            logger.exception("Uninstall failed")
+            self.installFinished.emit(False, str(e))
+
+    def _on_progress(self, pct: int, status: str) -> None:
+        self.installProgress.emit(pct, status)
+        self._log_lines.append(status)
+        self.installLogChanged.emit()
+
+    # 启动 App
+
+    def launch_app(self) -> None:
+        if restart_app(Path(self._install_dir)):
+            QGuiApplication.quit()
+        else:
+            logger.error("无法启动主程序，请检查安装目录: %s", self._install_dir)
+            self.navigate_to("progress")
+            self.installFinished.emit(
+                False, f"无法启动主程序，请检查安装目录:\n{self._install_dir}"
+            )
+
+    # 退出
+
+    @staticmethod
+    def quit() -> None:
+        QGuiApplication.quit()

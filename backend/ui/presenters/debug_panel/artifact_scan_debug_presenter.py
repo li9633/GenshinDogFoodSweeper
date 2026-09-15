@@ -16,24 +16,21 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable
-from pathlib import Path
 from time import sleep
 
 import numpy as np
-from models.artifact import ArtifactInfo
 from PySide6.QtCore import Property, QObject, QThread, QTimer, Signal, Slot
-from ui.lifecycle import OnWindowReady
-from utils.logger import log
 
 from backend.automation.anchor_locator import AnchorLocator
 from backend.automation.artifact_count_ocr import ocr_artifact_count
-from backend.automation.debug_preview import DebugPreview
 from backend.automation.mouse_controller import MouseController
 from backend.automation.ocr_engine import OcrEngine
 from backend.automation.page_scroller import PageScroller
 from backend.automation.roi_config import ANCHOR_ROI_DEFINITIONS
+from backend.automation.screen_capture import ScreenshotCapture
 from backend.automation.slider_detector import SliderDetector
 from backend.automation.slider_scroller import SliderScroller
 from backend.automation.slot_detector import (
@@ -41,12 +38,24 @@ from backend.automation.slot_detector import (
     BAG_SLOT_CONFIG,
     SlotDetector,
 )
-from backend.automation.slot_iterator import SlotIterator
 from backend.automation.smart_scroller import SmartScroller
+from backend.automation.sweep import BaseSweepPolicy, SlotSweep, SweepObserver
+from backend.automation.sweep_adapters import (
+    DetectorSlotFinder,
+    MousePointer,
+    WindowScreenSource,
+)
 from backend.automation.window_helper import WindowHelper
+from backend.contracts.sweep import SweepTiming
 from backend.exceptions.automation import GameWindowNotFoundError
-from backend.models.slot_models import DetectResult
-from backend.utils.screen_capture import ScreenshotCapture
+from backend.models.artifact import ArtifactInfo
+from backend.models.slot_models import DetectResult, SlotDetectorConfig
+from backend.ui.lifecycle import OnWindowReady
+from backend.ui.presenters.debug_panel.debug_preview import DebugPreview
+from backend.ui.presenters.worker_host import WorkerHost
+from backend.utils.logger import log
+from backend.utils.settings_manager import settings
+from common.paths import ENGINES
 
 from ..image_provider import PreviewImageProvider
 
@@ -72,10 +81,11 @@ class _DebugWorker(QThread):
 class ArtifactScanDebugPresenter(QObject, OnWindowReady):
     """圣遗物扫描调试 — 注册为 QML context property `ArtifactScanDebug`"""
 
-    # ========== 信号 ==========
+    # 信号
 
     batchProgressChanged = Signal()
     batchRunningChanged = Signal()
+    batchClickIntervalChanged = Signal()
     anchorFirstMarked = Signal()
     anchorLastFound = Signal()
     anchorPagesCalculated = Signal()
@@ -109,9 +119,11 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
 
         # 批量点击
         self._batch_progress = ""
-        self._batch_running = False
-        self._batch_worker: QThread | None = None
-        self._batch_click_interval = 100
+        self._batch_host = WorkerHost(self)
+        self._batch_host.busyChanged.connect(self._on_batch_busy_changed)
+        self._batch_click_interval = (
+            settings.get_int("debug.batch_click_interval") or 100
+        )
 
         # 首尾锚点
         self._anchor_first_x = 0
@@ -154,9 +166,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
         worker.start()
         return worker
 
-    # ==================================================================
-    # 配置管理
-    # ==================================================================
+    # # 配置管理
+    #
 
     @Property("QVariantList", notify=activeConfigChanged)
     def availableConfigNames(self) -> list[str]:
@@ -230,6 +241,21 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
     def activeConfigTolerance(self) -> int:
         return self._active_config.tolerance
 
+    @Property(str, notify=activeConfigChanged)
+    def activeConfigSummaryText(self) -> str:
+        """配置摘要（QML 只负责显示）"""
+        cfg = self._active_config
+        return (
+            f"当前配置: {cfg.name} | {cfg.cols}×{cfg.rows}"
+            f" | 格子: {cfg.slot_w}×{cfg.slot_h}"
+        )
+
+    @Property(str, notify=activeConfigChanged)
+    def activeConfigRoiText(self) -> str:
+        cfg = self._active_config
+        roi = cfg.roi or (0, 0, 0, 0)
+        return f"ROI: ({roi[0]}, {roi[1]}, {roi[2]}, {roi[3]})"
+
     @Slot(int)
     def setActiveConfigByIndex(self, index: int) -> None:
         if 0 <= index < len(self._available_configs):
@@ -240,9 +266,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
             log.info(f"[调试面板] 格子检测配置切换: {self._active_config.name}")
             self.activeConfigChanged.emit()
 
-    # ==================================================================
-    # 批量点击（基于 SlotIterator）
-    # ==================================================================
+    # # 批量点击（走遍历骨架：端口 + 纯点击策略）
+    #
 
     @Property(str, notify=batchProgressChanged)
     def batchProgress(self) -> str:
@@ -250,67 +275,65 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
 
     @Property(bool, notify=batchRunningChanged)
     def batchRunning(self) -> bool:
-        return self._batch_running
+        return self._batch_host.busy
+
+    @Property(int, notify=batchClickIntervalChanged)
+    def batchClickInterval(self) -> int:
+        return self._batch_click_interval
 
     @Slot()
     def startBatchClick(self) -> None:
-        if self._batch_running:
+        """批量点击：走遍历骨架（纯点击策略），不再自己写逐格循环"""
+        if self._batch_host.busy:
+            log.warning("[调试面板] 批量点击已在运行中")
             return
         WindowHelper.focus()
 
-        def _task() -> object:
-            window = WindowHelper.find_genshin_window()
-            result = self._capture.capture(window=window)
-            if result is None:
-                raise GameWindowNotFoundError()
-            det_result = SlotDetector.detect(result.image, config=self._active_config)
-            if not det_result.slots:
-                return None
-            return det_result
+        self._batch_progress = ""
+        self.batchProgressChanged.emit()
 
-        def _on_done(det_result: object) -> None:
-            if det_result is None:
-                log.warning("[调试面板] 批量点击初始化: 未检测到格子")
-                return
-            self._batch_running = True
-            self.batchRunningChanged.emit()
-            self._batch_worker = _SlotClickWorker(
-                self._mouse,
-                det_result,
-                self._batch_click_interval,
-            )
-            self._batch_worker.progress.connect(self._on_batch_progress)
-            self._batch_worker.finished.connect(self._on_batch_finished)
-            self._batch_worker.start()
-
-        worker = _DebugWorker(_task, parent=self)
-        worker.done.connect(_on_done)
-        worker.failed.connect(
-            lambda e: log.warning(f"[调试面板] 批量点击初始化失败: {e}")
+        worker = _BatchClickWorker(
+            self._active_config,
+            self._capture,
+            self._batch_click_interval,
         )
-        worker.start()
+        worker.progressChanged.connect(self._on_batch_progress)
+        worker.clickCompleted.connect(self._on_batch_finished)
+        worker.errorOccurred.connect(self._on_batch_error)
+        if not self._batch_host.start(worker):
+            log.warning("[调试面板] 批量点击启动失败")
 
     @Slot()
     def stopBatchClick(self) -> None:
-        if self._batch_worker is not None:
-            self._batch_worker.stop()
-            self._batch_worker = None
-        self._batch_running = False
-        self.batchRunningChanged.emit()
+        self._batch_host.stop()
+        log.info("[调试面板] 已请求停止批量点击")
 
     def _on_batch_progress(self, current: int, total: int) -> None:
         self._batch_progress = f"{current}/{total}"
         self.batchProgressChanged.emit()
 
-    def _on_batch_finished(self) -> None:
-        self._batch_running = False
-        self._batch_worker = None
-        self.batchRunningChanged.emit()
-        log.info("[调试面板] 批量点击完成")
+    def _on_batch_finished(self, clicked: int) -> None:
+        self._batch_progress = f"{clicked}/{clicked}" if clicked else ""
+        self.batchProgressChanged.emit()
+        log.info(f"[调试面板] 批量点击完成: {clicked} 格")
 
-    # ==================================================================
-    # 格子定位
-    # ==================================================================
+    def _on_batch_error(self, error: str) -> None:
+        log.warning(f"[调试面板] 批量点击失败: {error}")
+
+    def _on_batch_busy_changed(self) -> None:
+        self.batchRunningChanged.emit()
+
+    @Slot(int)
+    def setBatchClickInterval(self, interval_ms: int) -> None:
+        """点击间隔（毫秒），持久化到设置，下次批量点击生效"""
+        if interval_ms == self._batch_click_interval:
+            return
+        self._batch_click_interval = interval_ms
+        settings.set("debug.batch_click_interval", str(interval_ms))
+        self.batchClickIntervalChanged.emit()
+
+    # # 格子定位
+    #
 
     @Slot(int, int, int)
     def navigateToSlot(self, page: int, row: int, col: int) -> None:
@@ -363,9 +386,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
 
         self._run_in_background(_task).done.connect(_on_done)
 
-    # ==================================================================
-    # 格子翻页
-    # ==================================================================
+    # # 格子翻页
+    #
 
     @Slot(int, int, int)
     def scrollPageByDetection(
@@ -396,7 +418,7 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
             window = WindowHelper.find_genshin_window()
             if window is None:
                 raise GameWindowNotFoundError()
-            engines_dir = Path(__file__).resolve().parents[4] / "engines"
+            engines_dir = ENGINES
             ocr = OcrEngine.create_ocr(engines_dir)
             count = ocr_artifact_count(self._capture, ocr)
             total_pages = max(1, (count + 31) // 32) if count > 0 else 0
@@ -418,9 +440,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
 
         self._run_in_background(_task).done.connect(_on_done)
 
-    # ==================================================================
-    # 首尾锚点定位
-    # ==================================================================
+    # # 首尾锚点定位
+    #
 
     @Property(int, notify=anchorFirstMarked)
     def anchorFirstX(self) -> int:
@@ -585,7 +606,7 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
     @staticmethod
     def _create_anchor_ocr_task(image, roi_configs, anchor_type):
         def task(ocr) -> dict:
-            from backend.automation.recognizer import ArtifactRecognizer
+            from backend.automation.artifact_recognizer import ArtifactRecognizer
             from backend.ui.presenters.debug_panel.artifact_recognition_presenter import (
                 ArtifactRecognitionPresenter,
             )
@@ -621,9 +642,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
     def _on_anchor_ocr_error(self, error: str, callback_data: object) -> None:
         log.error(f"[调试面板] 锚点OCR识别失败({callback_data}): {error}")
 
-    # ==================================================================
-    # 滚动条拖拽到底
-    # ==================================================================
+    # # 滚动条拖拽到底
+    #
 
     @Property(int, notify=scrollbarTrackHeightChanged)
     def scrollbarTrackHeight(self) -> int:
@@ -685,9 +705,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
 
         self._run_in_background(_task).done.connect(_on_done)
 
-    # ==================================================================
-    # 颜色检测到底
-    # ==================================================================
+    # # 颜色检测到底
+    #
 
     @Slot()
     def checkScrollBottomByColor(self) -> None:
@@ -715,9 +734,8 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
 
         self._run_in_background(_task).done.connect(_on_done)
 
-    # ==================================================================
-    # 调试预览
-    # ==================================================================
+    # # 调试预览
+    #
 
     def _emit_slider_debug(
         self,
@@ -860,39 +878,79 @@ class ArtifactScanDebugPresenter(QObject, OnWindowReady):
         self._run_in_background(_task).done.connect(_on_done)
 
 
-class _SlotClickWorker(QThread):
-    """后台线程：基于 SlotIterator 逐格点击（调试面板批量点击用）"""
+class ClickOnlyPolicy(BaseSweepPolicy):
+    """纯点击策略：全部点、不读详情 —— 遍历骨架最小的一种用法
 
-    progress = Signal(int, int)
-    finished = Signal()
+    整个策略只有一行：声明"不需要详情"，
+    于是骨架跳过截图与识别，点击时序由 ``SweepTiming.click_delay_s`` 决定。
+    """
+
+    def needs_detail(self) -> bool:
+        return False
+
+
+class _BatchClickWorker(QThread):
+    """后台线程：按当前配置逐格点击（走 SlotSweep，不再自己写循环）
+
+    结果信号用业务名，生命周期由 ``WorkerHost`` 托管。
+    """
+
+    progressChanged = Signal(int, int)
+    clickCompleted = Signal(int)
+    errorOccurred = Signal(str)
 
     def __init__(
         self,
-        mouse: MouseController,
-        det_result,
+        config: SlotDetectorConfig,
+        capture: ScreenshotCapture,
         click_interval_ms: int,
-    ):
-        super().__init__()
-        self._mouse = mouse
-        self._det_result = det_result
-        self._click_interval_ms = click_interval_ms
-        self._stop = False
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._config = config
+        self._capture = capture
+        self._timing = SweepTiming(
+            click_delay_s=click_interval_ms / 1000.0,
+            detail_settle_s=0.0,
+        )
+        self._stop_event = threading.Event()
+        self._clicked = 0
 
     def stop(self) -> None:
-        self._stop = True
+        self._stop_event.set()
 
-    def run(self) -> None:
-        iterator = SlotIterator(self._mouse)
-        total = len(self._det_result.slots)
+    def run(self) -> None:  # pragma: no cover - 线程体
+        try:
+            screen = WindowScreenSource(self._config, self._capture)
+            screen.prepare()
+            image = screen.capture()
+            if image is None:
+                raise GameWindowNotFoundError()
 
-        def on_slot(slot, idx, _total):
-            self.progress.emit(idx, total)
-            return not self._stop
+            finder = DetectorSlotFinder(self._config)
+            det_result = finder.find(image)
+            if not det_result.slots:
+                log.warning("[调试面板] 批量点击: 未检测到格子")
+                self.clickCompleted.emit(0)
+                return
 
-        iterator.iter_slots(
-            self._det_result,
-            on_slot=on_slot,
-            stop_check=lambda: self._stop,
-            click_delay=self._click_interval_ms / 1000.0,
-        )
-        self.finished.emit()
+            sweep = SlotSweep(
+                screen=screen,
+                pointer=MousePointer(),
+                slot_finder=finder,
+                timing=self._timing,  # reader 缺省：纯点击模式用不到识别端口
+            )
+            sweep.run_page(
+                det_result,
+                page=0,
+                policy=ClickOnlyPolicy(),
+                observer=SweepObserver(on_slot_clicked=self._on_slot_clicked),
+                stop_check=self._stop_event.is_set,
+            )
+            self.clickCompleted.emit(self._clicked)
+        except Exception as e:
+            self.errorOccurred.emit(str(e))
+
+    def _on_slot_clicked(self, index: int, total: int, _slot: object) -> None:
+        self._clicked = index
+        self.progressChanged.emit(index, total)

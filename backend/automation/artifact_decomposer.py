@@ -1,230 +1,244 @@
-"""自动分解低星圣遗物模块"""
+"""自动分解低星圣遗物（清理器）
+
+三个功能共用同一套遍历骨架（``backend/automation/sweep.py``）：
+
+- **阶段一（选择）**：进入分解页面 → 尝试「快速选择」→ 逐格遍历，
+  命中 discard 规则保持选中、命中 keep 则反选，到达单批上限或遇到锁定物即停；
+- **阶段二（执行）**：点击游戏内分解按钮 → 确认弹窗 → 关闭结果蒙层。
+
+本模块只保留清理器**特有的差异**：
+
+- :class:`DecomposePolicy`（规则判定 + 反选动作 + 单批上限 + 锁定物停止）；
+- 「快速选择」弹窗流程与两阶段执行（自有砖，不塞进通用骨架）；
+- 模板按钮点击（分解/确认/快速选择/进入分解页）。
+
+冻结模块（``slot_detector`` / ``page_scroller`` / ``slider_scroller``）经
+``sweep_adapters`` 的端口适配器原样接入；遍历与识别不再重复实现。
+"""
 
 from __future__ import annotations
 
 import threading
 import time
+from typing import Any, ClassVar
 
 import numpy as np
 from PySide6.QtCore import QObject, QThread, Signal
-from utils.logger import log
 
-from backend.automation.mouse_controller import MouseController
-from backend.automation.slot_iterator import SlotIterator
+from backend.automation.dogfood_rule_engine import DogfoodRuleEngine
+from backend.automation.sweep import BaseSweepPolicy, ListSweep, SweepObserver
+from backend.automation.sweep_adapters import (
+    DetectorSlotFinder,
+    MousePointer,
+    RecognizerArtifactReader,
+    ScrollerNavigator,
+    WindowScreenSource,
+)
 from backend.automation.template_manager import TemplateManager
 from backend.automation.template_matcher import multi_scale_match
 from backend.automation.window_helper import WindowHelper
-from backend.utils.screen_capture import ScreenshotCapture
+from backend.contracts.sweep import SlotContext, SweepTiming
+from backend.models.artifact import ArtifactInfo
+from backend.models.slot_models import SALVAGE_SLOT_CONFIG
+from backend.utils.logger import log
+
+# 反选（取消选中）后等待列表响应
+_DESELECT_DELAY_S = 0.2
+
+# 单批选择上限（游戏内一次最多分解 1000 件）
+_MAX_DISCARD_PER_BATCH = 1000
+
+# 清理流程原先依赖旧的逐格遍历器的点击间隔来等待详情面板，现由遍历骨架的
+# SweepTiming.click_delay_s 承担，这里不再额外等待
+_DECOMPOSE_TIMING = SweepTiming(detail_settle_s=0.0)
+
+
+class DecomposePolicy(BaseSweepPolicy):
+    """清理策略：规则判定 + 反选动作 + 单批上限 + 遇锁定物停止"""
+
+    def __init__(
+        self,
+        *,
+        rules: list,
+        default_action: str,
+        max_per_batch: int,
+        pointer: MousePointer,
+    ) -> None:
+        self._engine = DogfoodRuleEngine(default_action=default_action)
+        self._rules = rules
+        self._limit = min(max_per_batch, _MAX_DISCARD_PER_BATCH)
+        self._pointer = pointer
+        self._started = time.perf_counter()
+        self._last_logged = 0.0
+
+        self.keep = 0
+        self.discard = 0
+        self.reached_limit = False
+
+    def on_artifact(self, artifact: ArtifactInfo, ctx: SlotContext) -> bool:
+        elapsed = time.perf_counter() - self._started
+
+        if self._engine.evaluate(artifact, self._rules) == "discard":
+            self.discard += 1
+            self._log(ctx, "分解", artifact, elapsed)
+            if self.discard >= self._limit:
+                log.info(f"已达到单批上限 {self._limit} 件，暂停选择")
+                self.reached_limit = True
+                return False
+        else:
+            self.keep += 1
+            self._log(ctx, "保留", artifact, elapsed)
+            # 再次点击反选（取消选中）
+            self._pointer.click(ctx.slot.cx, ctx.slot.cy)
+            time.sleep(_DESELECT_DELAY_S)
+
+        self._log_progress(elapsed)
+
+        if ctx.slot.locked:
+            log.info(
+                f"[P{ctx.page + 1}-{ctx.index}/{ctx.total}] 检测到锁定圣遗物，"
+                f"停止分解流程 (累计保留={self.keep} 分解={self.discard})"
+            )
+            self.reached_limit = True
+            return False
+        return True
+
+    @staticmethod
+    def _log(ctx: SlotContext, action: str, artifact: ArtifactInfo, elapsed: float) -> None:
+        log.info(
+            f"[P{ctx.page + 1}-{ctx.index}/{ctx.total}] → {action} "
+            f"(套装={artifact.set_name or '?'} "
+            f"部位={artifact.piece_type or '?'} "
+            f"星级={artifact.rarity or '?'}) "
+            f"| 累计耗时={elapsed:.1f}s"
+        )
+
+    def _log_progress(self, elapsed: float) -> None:
+        """每 10 件或每 5 秒输出一次进度"""
+        processed = self.keep + self.discard
+        if processed % 10 and elapsed - self._last_logged <= 5.0:
+            return
+        self._last_logged = elapsed
+        avg = elapsed / processed if processed else 0.0
+        log.info(
+            f"[进度] 已处理 {processed} 个 | 保留 {self.keep} 分解 {self.discard} "
+            f"| 平均 {avg:.2f}s/个"
+        )
 
 
 class ArtifactDecomposer(QObject):
-    """自动分解4星及以下圣遗物"""
+    """自动分解 4 星及以下圣遗物"""
 
     # 模板匹配阈值
-    MATCH_THRESHOLD = 0.80
+    MATCH_THRESHOLD: ClassVar[float] = 0.80
 
     # 快速选择弹窗的 OCR 识别区域 (x, y, w, h)
-    QUICK_SELECT_ROI = (23, 114, 639, 360)
+    QUICK_SELECT_ROI: ClassVar[tuple[int, int, int, int]] = (23, 114, 639, 360)
 
     def __init__(self) -> None:
         super().__init__()
-        self._capture = ScreenshotCapture()
-        self._quick_select_pos: tuple[int, int] | None = None  # 窗口相对坐标
-        self._decompose_button_pos: tuple[int, int] | None = None  # 窗口相对坐标
         self._stop_event = threading.Event()
-        self._fatal_error: str | None = (
-            None  # 致命错误信息，非空时表示发生不可恢复的错误
-        )
+        self._quick_select_pos: tuple[int, int] | None = None
+        self._decompose_button_pos: tuple[int, int] | None = None
+
+        # 端口按轮次创建（reset_stop 时重建），避免上一轮的缓存影响本轮
+        self._screen: WindowScreenSource | None = None
+        self._pointer: MousePointer | None = None
+        self._slot_finder: DetectorSlotFinder | None = None
 
     def stop(self) -> None:
-        """线程安全：设置停止标志，终止正在运行的分解循环。"""
+        """线程安全：设置停止标志，遍历在每个检查点退出"""
         self._stop_event.set()
         log.info("[ArtifactDecomposer] 停止标志已设置")
 
     def reset_stop(self) -> None:
-        """清除停止标志和致命错误，允许下次运行。"""
+        """清除停止标志与端口缓存，允许下次运行"""
         self._stop_event.clear()
-        self._fatal_error = None
+        self._screen = None
+        self._pointer = None
+        self._slot_finder = None
+        self._quick_select_pos = None
+        self._decompose_button_pos = None
 
-    # ========== 入口 ==========
+    def is_stopped(self) -> bool:
+        """是否已收到停止请求（供 Presenter 判断"用户手动停止"）"""
+        return self._stop_event.is_set()
 
-    def try_quick_select_decompose(self, ocr) -> bool:
-        """
-        尝试快速选择4星及以下圣遗物并分解。
+    def _ports(self) -> tuple[WindowScreenSource, MousePointer, DetectorSlotFinder]:
+        if self._screen is None:
+            self._screen = WindowScreenSource(SALVAGE_SLOT_CONFIG)
+            self._pointer = MousePointer()
+            self._slot_finder = DetectorSlotFinder(SALVAGE_SLOT_CONFIG)
+        assert self._pointer is not None and self._slot_finder is not None
+        return self._screen, self._pointer, self._slot_finder
 
-        前提：调用方已确保当前在分解页面（已调用 enter_decompose_page()）。
-
-        流程：点击快速选择 → OCR识别弹窗 → 有4星及以下圣遗物则分解。
-
-        Args:
-            ocr: OcrEngine.create_ocr() 返回的 OCR 实例
-
-        Returns:
-            True 已执行快速分解，False 无4星及以下圣遗物（需进入主流程）
-        """
-        log.info("尝试快速选择4星及以下圣遗物...")
-
-        # 1. 点击快速选择按钮
-        time.sleep(0.5)
-        window = WindowHelper.find_genshin_window()
-        result = self._capture.capture(window=window)
-
-        if not self._click_quick_select(result.image):
-            log.warning("未找到快速选择按钮，跳过快速选择")
-            return False
-
-        # 2. 截图并 OCR 识别快速选择弹窗内容（直接同步调用）
-        time.sleep(0.5)
-        result2 = self._capture.capture(window=window)
-
-        rx, ry, rw, rh = self.QUICK_SELECT_ROI
-        roi = result2.image[ry : ry + rh, rx : rx + rw]
-        ocr_result = ocr.ocr(roi)
-        count = len(ocr_result) if ocr_result is not None and len(ocr_result) > 0 else 0
-        log.debug(f"[快速选择OCR] 识别到 {count} 个文本区域")
-
-        if ocr_result is None:
-            log.warning("快速选择 OCR 识别失败，跳过快速选择")
-            if self._quick_select_pos:
-                MouseController.move_and_click(*self._quick_select_pos)
-                time.sleep(0.3)
-            return False
-
-        log.info(f"快速选择 OCR 识别完成: {len(ocr_result)} 个区域")
-
-        # 3. 解析快速选择结果
-        options = ArtifactDecomposer._parse_quick_select_result(
-            ocr_result, roi_offset=(self.QUICK_SELECT_ROI[0], self.QUICK_SELECT_ROI[1])
-        )
-        for opt in options:
-            log.debug(
-                f"  {opt['star']}星圣遗物 ×{opt['count']} "
-                f"位置(窗口相对)=({opt['pos'][0]}, {opt['pos'][1]})"
-            )
-
-        # 4. 检查是否有4星及以下圣遗物
-        low_star_options = [opt for opt in options if opt["star"] <= 4]
-        has_any = any(opt["count"] > 0 for opt in low_star_options)
-
-        if not has_any:
-            log.info("无4星及以下圣遗物，关闭快速选择弹窗，进入主流程")
-            if self._quick_select_pos:
-                MouseController.move_and_click(*self._quick_select_pos)
-                time.sleep(0.3)
-            return False
-
-        # 5. 有4星及以下圣遗物，关闭弹窗并执行分解
-        log.info(
-            f"发现4星及以下圣遗物: "
-            f"{[f'{opt["star"]}星×{opt["count"]}' for opt in low_star_options if opt['count'] > 0]}"
-        )
-
-        if self._quick_select_pos is None:
-            log.error("快速选择按钮坐标丢失，无法关闭弹窗")
-            return False
-        MouseController.move_and_click(*self._quick_select_pos)
-        log.info("已关闭快速选择弹窗")
-
-        time.sleep(0.5)
-        result3 = self._capture.capture(window=window)
-
-        if not self._click_decompose_button(result3.image):
-            log.error("未找到分解按钮")
-            return False
-
-        # 等待确认弹窗出现
-        time.sleep(0.3)
-        result4 = self._capture.capture(window=window)
-        confirm_pos = self._click_confirm_decompose_button(result4.image)
-        if confirm_pos is None:
-            log.error("未找到确认分解按钮，确认弹窗可能未出现")
-            return False
-        log.info("已确认快速选择分解")
-
-        # 等待分解完成，关闭蒙层
-        time.sleep(0.2)
-        self._dismiss_result_overlay()
-        log.info("已关闭快速选择分解结果蒙层")
-        return True
-
-    # ========== 规则评估分解入口 ==========
-
-    def enter_decompose_page(self) -> bool:
-        """确保当前在分解页面。如果不在则尝试点击分解按钮进入。
-
-        Returns:
-            True 成功进入分解页面，False 失败
-        """
-        log.info("进入分解页面...")
-
-        WindowHelper.focus()
-
-        # 注入窗口原点，此后 MouseController 所有坐标均为窗口相对坐标
-        MouseController.set_origin(WindowHelper.get_origin())
-
-        window = WindowHelper.find_genshin_window()
-        result = self._capture.capture(window=window)
-
-        if self._is_on_decompose_page(result.image):
-            log.info("已在分解页面")
-            return True
-
-        log.info("未在分解页面，尝试查找分解按钮")
-        if not self._click_backpack_decompose_button(result.image):
-            log.error("未找到分解按钮")
-            return False
-
-        time.sleep(1.5)
-        result2 = self._capture.capture(window=window)
-
-        if not self._is_on_decompose_page(result2.image):
-            log.error("点击分解按钮后未能进入分解页面")
-            return False
-
-        log.info("已进入分解页面")
-        return True
+    # 阶段一：选择
 
     def select_artifacts(
         self,
         rules: list,
         default_action: str,
         max_per_batch: int = 1000,
-        ocr=None,
+        ocr: Any = None,
     ) -> tuple[int, int, bool]:
-        """选择一批待分解圣遗物。
-
-        Args:
-            rules: 启用的规则列表
-            default_action: 默认行为
-            max_per_batch: 每批最多选择数量，默认 1000，上限 1000
-            ocr: OcrEngine.create_ocr() 返回的 OCR 实例
+        """选择一批待分解圣遗物
 
         Returns:
             (keep_count, discard_count, reached_limit)
         """
-        return self._decompose_loop(rules, default_action, max_per_batch, ocr)
+        screen, pointer, slot_finder = self._ports()
+        policy = DecomposePolicy(
+            rules=rules,
+            default_action=default_action,
+            max_per_batch=max_per_batch,
+            pointer=pointer,
+        )
+        sweep = ListSweep(
+            screen=screen,
+            pointer=pointer,
+            slot_finder=slot_finder,
+            reader=RecognizerArtifactReader(SALVAGE_SLOT_CONFIG, ocr),
+            navigator=ScrollerNavigator(SALVAGE_SLOT_CONFIG),
+            timing=_DECOMPOSE_TIMING,
+        )
+        summary = sweep.run(
+            policy=policy,
+            stop_check=self._stop_event.is_set,
+            observer=SweepObserver(on_page_start=self._on_page_start),
+        )
+        log.info(
+            f"选择阶段结束（{summary.stopped_reason}）: 保留 {policy.keep} 件, "
+            f"分解 {policy.discard} 件, 达上限={policy.reached_limit}"
+        )
+        return (policy.keep, policy.discard, policy.reached_limit)
+
+    @staticmethod
+    def _on_page_start(page: int, slots_total: int) -> None:
+        log.info(f"--- 第 {page + 1} 页（检测到 {slots_total} 个格子）---")
+
+    # 阶段二：执行
 
     def execute_decompose(self) -> bool:
-        """点击游戏内的分解按钮并确认弹窗，完成分解。
+        """点击游戏内分解按钮并确认弹窗，完成分解"""
+        screen, _pointer, _finder = self._ports()
 
-        Returns:
-            True 分解成功，False 未找到按钮或确认失败
-        """
         time.sleep(0.5)
-        window = WindowHelper.find_genshin_window()
-        result = self._capture.capture(window=window)
+        image = screen.capture()
+        if image is None:
+            log.error("截图失败，无法执行分解")
+            return False
 
-        if not self._click_decompose_button(result.image):
+        if not self._click_decompose_button(image):
             log.error("未找到分解按钮")
             return False
         log.info("已点击分解按钮")
 
-        # 等待确认弹窗出现（0.2~0.4秒）
+        # 等待确认弹窗出现（0.2~0.4 秒）
         time.sleep(0.3)
-        result2 = self._capture.capture(window=window)
-
-        confirm_pos = self._click_confirm_decompose_button(result2.image)
-        if confirm_pos is None:
+        confirm_image = screen.capture()
+        if confirm_image is None or self._click_template(
+            confirm_image, "分解页面确认分解按钮"
+        ) is None:
             log.error("未找到确认分解按钮，确认弹窗可能未出现")
             return False
         log.info("已确认分解")
@@ -235,325 +249,199 @@ class ArtifactDecomposer(QObject):
         log.info("已关闭分解结果蒙层")
         return True
 
-    # ========== 逐格评估循环 ==========
+    # 进入分解页面
 
-    def _decompose_loop(
-        self,
-        rules: list,
-        default_action: str,
-        max_per_batch: int = 1000,
-        ocr=None,
-    ) -> tuple[int, int, bool]:
-        """逐格点击 → OCR识别 → 规则评估 → 反选保留 → 翻页。
+    def enter_decompose_page(self) -> bool:
+        """确保当前在分解页面；不在则尝试点击分解按钮进入"""
+        log.info("进入分解页面...")
+        screen, _pointer, _finder = self._ports()
+        screen.prepare()
 
-        流程：
-        1. 截图 → SlotDetector 检测格子
-        2. 遍历每个格子: 点击选中 → 等待弹窗 → OCR 识别 → 规则评估
-           - 命中 discard 规则 → 保持选中（待分解）
-           - 命中 keep 规则 / 默认保留 → 再次点击反选
-        3. PageScroller 翻页 → 回到步骤 1
-        4. 无格子时停止，或选中数达到上限时停止
-
-        Args:
-            rules: 启用的规则列表
-            default_action: 默认行为
-            max_per_batch: 每批最多选择数量，上限 1000
-            ocr: OcrEngine.create_ocr() 返回的 OCR 实例
-
-        Returns:
-            (keep_count, discard_count, reached_limit) 保留数、分解数、是否因达到上限而提前退出
-        """
-        from backend.automation.dogfood_rule_engine import DogfoodRuleEngine
-        from backend.automation.page_scroller import PageScroller
-        from backend.automation.slot_detector import SlotDetector
-        from backend.models.slot_models import SALVAGE_SLOT_CONFIG
-
-        config = SALVAGE_SLOT_CONFIG
-        MAX_DISCARD_PER_BATCH = min(max_per_batch, 1000)
-        scroller = PageScroller(MouseController(), self._capture, config)
-        engine = DogfoodRuleEngine(default_action=default_action)
-        iterator = SlotIterator(MouseController())
-
-        total_keep = 0
-        total_discard = 0
-        reached_limit = False
-        page = 0
-
-        # 计时：用于估算剩余时间
-        total_elapsed = 0.0
-        timed_count = 0
-        last_progress_log = 0.0  # 上次输出进度日志的时间戳
-
-        while True:
-            if self._stop_event.is_set():
-                log.info("收到停止信号，退出分解循环")
-                break
-
-            page += 1
-            log.info(f"--- 第 {page} 页 ---")
-
-            # 截图并检测格子
-            window = WindowHelper.find_genshin_window()
-            result = self._capture.capture(window=window)
-
-            det_result = SlotDetector.detect(result.image, config=config)
-            if not det_result.slots:
-                log.info("未检测到格子，分解流程结束")
-                break
-
-            log.info(
-                f"第 {page} 页检测到 {len(det_result.slots)} 个格子"
-                f" | 累计: 保留 {total_keep} 件, 分解 {total_discard} 件"
-            )
-
-            def on_slot(slot, idx, total, _page=page, _window=window):
-                nonlocal \
-                    total_keep, \
-                    total_discard, \
-                    reached_limit, \
-                    total_elapsed, \
-                    timed_count, \
-                    last_progress_log
-
-                t_start = time.perf_counter()
-                log.debug(f"[{_page}-{idx}/{total}] 点击格子 ({slot.cx}, {slot.cy})")
-
-                # 截图并 OCR 识别圣遗物详情（直接同步调用）
-                cap_result = self._capture.capture(window=_window)
-
-                artifact = ArtifactDecomposer._recognize_artifact(
-                    cap_result.image, config, ocr
-                )
-                if artifact is None:
-                    log.warning(f"[{_page}-{idx}] OCR 识别失败")
-                    return True
-
-                # 规则评估
-                action = engine.evaluate(artifact, rules)
-                is_dogfood = action == "discard"
-
-                # 计时统计
-                item_time = time.perf_counter() - t_start
-                total_elapsed += item_time
-                timed_count += 1
-                avg_time = total_elapsed / timed_count
-
-                # 估算剩余时间
-                remaining_slots_this_page = total - idx
-                remaining_est = avg_time * remaining_slots_this_page
-
-                if is_dogfood:
-                    total_discard += 1
-                    log.info(
-                        f"[{_page}-{idx}/{total}] → 分解 "
-                        f"(套装={artifact.set_name or '?'} "
-                        f"部位={artifact.piece_type or '?'} "
-                        f"星级={artifact.rarity or '?'}) "
-                        f"| 耗时={item_time:.2f}s 平均={avg_time:.2f}s "
-                        f"本页剩余≈{remaining_est:.0f}s"
-                    )
-                    if total_discard >= MAX_DISCARD_PER_BATCH:
-                        log.info(f"已达到单批上限 {MAX_DISCARD_PER_BATCH} 件，暂停选择")
-                        reached_limit = True
-                        return False
-                else:
-                    total_keep += 1
-                    log.info(
-                        f"[{_page}-{idx}/{total}] → 保留 "
-                        f"(套装={artifact.set_name or '?'} "
-                        f"部位={artifact.piece_type or '?'} "
-                        f"星级={artifact.rarity or '?'}) "
-                        f"| 耗时={item_time:.2f}s 平均={avg_time:.2f}s "
-                        f"本页剩余≈{remaining_est:.0f}s"
-                    )
-                    # 再次点击反选（取消选中）
-                    MouseController.move_and_click(slot.cx, slot.cy)
-                    time.sleep(0.2)
-
-                # 每处理 10 个或每 5 秒输出一次进度日志
-                now = time.perf_counter()
-                if timed_count % 10 == 0 or now - last_progress_log > 5.0:
-                    last_progress_log = now
-                    log.info(
-                        f"[进度] 已处理 {timed_count} 个 "
-                        f"| 保留 {total_keep} 分解 {total_discard} "
-                        f"| 平均 {avg_time:.2f}s/个"
-                    )
-
-                # 检测到锁定圣遗物，停止分解流程
-                if slot.locked:
-                    log.info(
-                        f"[{_page}-{idx}/{total}] 检测到锁定圣遗物，"
-                        f"停止分解流程 (累计保留={total_keep} 分解={total_discard})"
-                    )
-                    reached_limit = True
-                    return False
-
-                return True
-
-            iterator.reset()
-            iterator.iter_slots(
-                det_result,
-                on_slot=on_slot,
-                stop_check=lambda: self._stop_event.is_set(),
-            )
-
-            if reached_limit:
-                break
-
-            if self._stop_event.is_set():
-                break
-
-            # 翻页：截图+检测 → 翻页
-            window = WindowHelper.find_genshin_window()
-            result = self._capture.capture(window=window)
-            det_result = SlotDetector.detect(result.image, config=config)
-            if not scroller.scroll_to_next_page(det_result):
-                log.info("已是最后一页")
-                break
-
-        return (total_keep, total_discard, reached_limit)
-
-    # ========== 圣遗物详情 OCR 识别（直接同步调用） ==========
-
-    @staticmethod
-    def _recognize_artifact(image: np.ndarray, config, ocr) -> object | None:
-        """直接同步 OCR 识别圣遗物详情（在工作线程中调用）。
-
-        Args:
-            image: 截图
-            config: SALVAGE_SLOT_CONFIG
-            ocr: OcrEngine.create_ocr() 返回的 OCR 实例
-
-        Returns:
-            ArtifactInfo | None
-        """
-        from backend.automation.recognizer import ArtifactRecognizer
-
-        try:
-            return ArtifactRecognizer.recognize(
-                image,
-                config.detail_roi_configs,
-                ocr,
-                lock_anchor_search_region=config.lock_anchor_search_region,
-                lock_anchor_to_level=config.lock_anchor_to_level,
-                lock_anchor_to_sub_stats=config.lock_anchor_to_sub_stats,
-            )
-        except Exception as e:
-            log.debug(f"[分解OCR] 识别异常: {e}")
-            return None
-
-    # ========== 模板检测 ==========
-
-    def _is_on_decompose_page(self, image: np.ndarray) -> bool:
-        """判断当前是否在分解页面。
-
-        优先匹配「圣遗物分解文本」标题，若得分不足则用「圣遗物分解页面
-        分解按钮」辅助判断（按钮在页面上则说明已在分解页面）。
-        """
-        # 主判断：页面标题
-        text_template = TemplateManager.get("圣遗物分解文本")
-        if text_template is not None and self._match_template(
-            image, text_template, self.MATCH_THRESHOLD
-        ):
+        image = screen.capture()
+        if image is None:
+            log.error("截图失败，无法进入分解页面")
+            return False
+        if self._is_on_decompose_page(image):
+            log.info("已在分解页面")
             return True
 
-        # 辅助判断：分解页面独有的分解按钮
-        btn_template = TemplateManager.get("圣遗物分解页面分解按钮")
-        if btn_template is not None:
-            score, _, _, _ = multi_scale_match(image, btn_template)
+        log.info("未在分解页面，尝试查找分解按钮")
+        if self._click_template(image, "背包页面分解按钮") is None:
+            log.error("未找到分解按钮")
+            return False
+
+        time.sleep(1.5)
+        after = screen.capture()
+        if after is None or not self._is_on_decompose_page(after):
+            log.error("点击分解按钮后未能进入分解页面")
+            return False
+
+        log.info("已进入分解页面")
+        return True
+
+    # 快速选择（清理器自有砖）
+
+    def try_quick_select_decompose(self, ocr) -> bool:
+        """尝试用游戏内「快速选择」一键选中 4 星及以下并分解
+
+        Returns:
+            True 已执行快速分解；False 无 4 星及以下圣遗物（需走规则选择流程）
+        """
+        log.info("尝试快速选择4星及以下圣遗物...")
+        screen, _pointer, _finder = self._ports()
+
+        # 1. 点击快速选择按钮
+        time.sleep(0.5)
+        image = screen.capture()
+        if image is None:
+            log.warning("截图失败，跳过快速选择")
+            return False
+        self._quick_select_pos = self._click_template(image, "快速选择按钮")
+        if self._quick_select_pos is None:
+            log.warning("未找到快速选择按钮，跳过快速选择")
+            return False
+
+        # 2. 截图并 OCR 识别快速选择弹窗内容
+        time.sleep(0.5)
+        popup = screen.capture()
+        if popup is None:
+            log.warning("弹窗截图失败，跳过快速选择")
+            self._close_quick_select_popup()
+            return False
+
+        rx, ry, rw, rh = self.QUICK_SELECT_ROI
+        ocr_result = ocr.ocr(popup[ry : ry + rh, rx : rx + rw])
+        if ocr_result is None:
+            log.warning("快速选择 OCR 识别失败，跳过快速选择")
+            self._close_quick_select_popup()
+            return False
+        log.info(f"快速选择 OCR 识别完成: {len(ocr_result)} 个区域")
+
+        options = self._parse_quick_select_result(ocr_result, roi_offset=(rx, ry))
+        for opt in options:
+            log.debug(
+                f"  {opt['star']}星圣遗物 ×{opt['count']} "
+                f"位置(窗口相对)=({opt['pos'][0]}, {opt['pos'][1]})"
+            )
+
+        low_star = [opt for opt in options if opt["star"] <= 4 and opt["count"] > 0]
+        if not low_star:
+            log.info("无4星及以下圣遗物，关闭快速选择弹窗，进入主流程")
+            self._close_quick_select_popup()
+            return False
+
+        log.info(f"发现4星及以下圣遗物: {[f'{o["star"]}星×{o["count"]}' for o in low_star]}")
+
+        # 3. 关闭弹窗 → 点分解 → 确认 → 关蒙层
+        self._close_quick_select_popup()
+        time.sleep(0.5)
+        confirm_base = screen.capture()
+        if confirm_base is None or not self._click_decompose_button(confirm_base):
+            log.error("未找到分解按钮")
+            return False
+
+        time.sleep(0.3)
+        confirm_image = screen.capture()
+        if confirm_image is None or self._click_template(
+            confirm_image, "分解页面确认分解按钮"
+        ) is None:
+            log.error("未找到确认分解按钮，确认弹窗可能未出现")
+            return False
+        log.info("已确认快速选择分解")
+
+        time.sleep(0.2)
+        self._dismiss_result_overlay()
+        log.info("已关闭快速选择分解结果蒙层")
+        return True
+
+    def _close_quick_select_popup(self) -> None:
+        if self._quick_select_pos is None:
+            log.warning("快速选择按钮坐标丢失，无法关闭弹窗")
+            return
+        _screen, pointer, _finder = self._ports()
+        pointer.click(*self._quick_select_pos)
+        time.sleep(0.3)
+        log.info("已关闭快速选择弹窗")
+
+    # 模板按钮点击
+
+    def _is_on_decompose_page(self, image: np.ndarray) -> bool:
+        """判断当前是否在分解页面（标题优先，分解按钮兜底）"""
+        text_template = TemplateManager.get("圣遗物分解文本")
+        if text_template is not None and self._matches(image, text_template):
+            return True
+
+        button_template = TemplateManager.get("圣遗物分解页面分解按钮")
+        if button_template is not None:
+            score, _, _, _ = multi_scale_match(image, button_template)
             if score >= self.MATCH_THRESHOLD:
                 log.info("圣遗物分解文本未匹配，但检测到分解页面按钮，判定为在分解页面")
                 return True
-
         return False
 
+    def _matches(self, image: np.ndarray, template: object) -> bool:
+        score, _, _, _ = multi_scale_match(image, template)
+        return score >= self.MATCH_THRESHOLD
+
     def _click_decompose_button(self, image: np.ndarray) -> bool:
-        """查找并点击分解页面上的分解按钮（执行分解），保存坐标供后续复用"""
-        template = TemplateManager.get("圣遗物分解页面分解按钮")
-        if template is None:
-            log.error("未找到模板: 圣遗物分解页面分解按钮")
-            return False
-        pos = self._match_and_click_return_pos(
-            image, template, "圣遗物分解页面分解按钮"
-        )
+        """点击分解页面上的分解按钮，并缓存坐标供关闭蒙层复用"""
+        pos = self._click_template(image, "圣遗物分解页面分解按钮")
         if pos is None:
             return False
         self._decompose_button_pos = pos
         return True
 
-    def _click_backpack_decompose_button(self, image: np.ndarray) -> bool:
-        """查找并点击背包页面上的分解按钮（进入分解页面）"""
-        template = TemplateManager.get("背包页面分解按钮")
-        if template is None:
-            log.error("未找到模板: 背包页面分解按钮")
-            return False
-        return self._match_and_click(image, template, "背包页面分解按钮")
-
-    def _click_confirm_decompose_button(
-        self, image: np.ndarray
-    ) -> tuple[int, int] | None:
-        """查找并点击确认分解弹窗中的确认按钮，返回屏幕绝对坐标"""
-        template = TemplateManager.get("分解页面确认分解按钮")
-        if template is None:
-            log.error("未找到模板: 分解页面确认分解按钮")
-            return None
-        return self._match_and_click_return_pos(image, template, "分解页面确认分解按钮")
-
     def _dismiss_result_overlay(self) -> None:
-        """点击分解按钮位置，关闭分解结果蒙层。
-
-        蒙层并非100%出现，点击分解按钮位置是安全的：
-        - 有蒙层：点击关闭蒙层
-        - 无蒙层：未选中任何圣遗物，点击无效
-        """
+        """点击分解按钮位置关闭结果蒙层（无蒙层时点击无效，是安全的）"""
         if self._decompose_button_pos is None:
             log.warning("分解按钮坐标丢失，无法关闭蒙层")
             return
+        _screen, pointer, _finder = self._ports()
         time.sleep(0.2)
-        MouseController.move_and_click(*self._decompose_button_pos)
+        pointer.click(*self._decompose_button_pos)
         time.sleep(0.2)
 
-    # ========== 快速选择 ==========
-
-    def _click_quick_select(self, image: np.ndarray) -> bool:
-        """查找并点击快速选择按钮，成功后保存坐标供后续复用"""
-        template = TemplateManager.get("快速选择按钮")
+    def _click_template(self, image: np.ndarray, key: str) -> tuple[int, int] | None:
+        """模板匹配按钮并点击，返回窗口相对坐标（失败返回 None）"""
+        template = TemplateManager.get(key)
         if template is None:
-            log.error("未找到模板: 快速选择按钮")
-            return False
-        pos = self._match_and_click_return_pos(image, template, "快速选择按钮")
-        if pos is None:
-            return False
-        self._quick_select_pos = pos
-        return True
+            log.error(f"未找到模板: {key}")
+            return None
 
-    # ========== 快速选择结果解析 ==========
+        score, (rel_x, rel_y), scale, _size = multi_scale_match(image, template)
+        if score < self.MATCH_THRESHOLD:
+            log.warning(f"[{key}] 匹配失败: 得分={score:.3f} < 阈值={self.MATCH_THRESHOLD}")
+            return None
+
+        abs_x, abs_y = WindowHelper.to_absolute(rel_x, rel_y)
+        log.info(
+            f"[{key}] 匹配成功: 得分={score:.3f} 缩放={scale:.2f} "
+            f"窗口相对=({rel_x}, {rel_y}) 窗口原点={WindowHelper.get_origin()} "
+            f"屏幕绝对=({abs_x}, {abs_y})"
+        )
+        _screen, pointer, _finder = self._ports()
+        pointer.click(rel_x, rel_y)
+        return (rel_x, rel_y)
+
+    # 快速选择结果解析（纯函数）
 
     @staticmethod
     def _parse_quick_select_result(
         ocr_result: list,
         roi_offset: tuple[int, int] = (0, 0),
     ) -> list[dict]:
-        """解析快速选择弹窗 OCR 结果，返回结构化选项列表。
+        """解析快速选择弹窗 OCR 结果，返回结构化选项列表
 
         OCR 识别到的文本按「星级标签 → 数量」交替排列，如：
-        "1星圣遗物" → "1" → "2星圣遗物" → "4" → ...
-
-        Args:
-            ocr_result: ocr.ocr() 原始返回值 [[page0], ...]
-            roi_offset: ROI 在窗口中的偏移 (x, y)，用于计算窗口相对坐标
+        ``"1星圣遗物"`` → ``"1"`` → ``"2星圣遗物"`` → ``"4"`` → …
 
         Returns:
-            [{"star": 1, "label": "1星圣遗物", "count": 4, "pos": (x, y)}, ...]
+            ``[{"star": 1, "label": "1星圣遗物", "count": 4, "pos": (x, y)}, ...]``
         """
         import re
 
         lines: list[dict] = []
-
-        if ocr_result is None:
-            return []
-        if not isinstance(ocr_result, (list, tuple)) or len(ocr_result) == 0:
+        if ocr_result is None or len(ocr_result) == 0:
             return []
 
         page = ocr_result[0]
@@ -564,28 +452,17 @@ class ArtifactDecomposer(QObject):
             return []
 
         if isinstance(page, dict):
-            rec_texts = page.get("rec_texts", [])
-            dt_polys = page.get("dt_polys", [])
-            for text, poly in zip(rec_texts, dt_polys):
+            for text, poly in zip(page.get("rec_texts", []), page.get("dt_polys", [])):
                 if not text or not text.strip():
                     continue
-                cx = (
-                    sum(p[0] for p in poly) / len(poly)
-                    if poly is not None and len(poly) > 0
-                    else 0
-                )
-                cy = (
-                    sum(p[1] for p in poly) / len(poly)
-                    if poly is not None and len(poly) > 0
-                    else 0
-                )
+                cx = sum(p[0] for p in poly) / len(poly) if poly is not None and len(poly) else 0
+                cy = sum(p[1] for p in poly) / len(poly) if poly is not None and len(poly) else 0
                 lines.append({"text": text.strip(), "cx": cx, "cy": cy})
         elif isinstance(page, list):
             for line_info in page:
                 if not isinstance(line_info, (list, tuple)) or len(line_info) < 2:
                     continue
-                poly = line_info[0]
-                rec = line_info[1]
+                poly, rec = line_info[0], line_info[1]
                 text = rec[0] if isinstance(rec, (list, tuple)) else str(rec)
                 if not text or not text.strip():
                     continue
@@ -596,93 +473,39 @@ class ArtifactDecomposer(QObject):
                     cx, cy = 0, 0
                 lines.append({"text": text.strip(), "cx": cx, "cy": cy})
 
-        # 按 Y 坐标从上到下排序
-        lines.sort(key=lambda l: l["cy"])
+        lines.sort(key=lambda item: item["cy"])
 
         rx, ry = roi_offset
         options: list[dict] = []
         i = 0
         while i < len(lines) - 1:
-            label_line = lines[i]
-            count_line = lines[i + 1]
-
-            # 标签行包含「星圣遗物」
+            label_line, count_line = lines[i], lines[i + 1]
             if "星圣遗物" in label_line["text"]:
                 star_m = re.search(r"(\d+)\s*星", label_line["text"])
-                # 数量：提取所有数字字符，兼容 1000 / 1,000 / 1, 000 / 1.000 等格式
+                # 兼容 1000 / 1,000 / 1, 000 / 1.000 等格式
                 count_clean = re.sub(r"[^\d]", "", count_line["text"])
-                try:
-                    count = int(count_clean)
-                except ValueError:
-                    count = None
-
+                count = int(count_clean) if count_clean else None
                 if star_m and count is not None:
-                    star = int(star_m.group(1))
-                    wx = int(rx + label_line["cx"])
-                    wy = int(ry + label_line["cy"])
                     options.append(
                         {
-                            "star": star,
+                            "star": int(star_m.group(1)),
                             "label": label_line["text"],
                             "count": count,
-                            "pos": (wx, wy),
+                            "pos": (int(rx + label_line["cx"]), int(ry + label_line["cy"])),
                         }
                     )
-                    i += 2
-                    continue
             i += 1
-
         return options
-
-    # ========== 底层工具 ==========
-
-    def _match_template(
-        self, image: np.ndarray, template: object, threshold: float
-    ) -> bool:
-        """模板匹配，返回是否匹配成功。"""
-        score, _, _, _ = multi_scale_match(image, template)
-        return score >= threshold
-
-    def _match_and_click(self, image: np.ndarray, template: object, name: str) -> bool:
-        """模板匹配成功后点击，返回是否成功。"""
-        return self._match_and_click_return_pos(image, template, name) is not None
-
-    def _match_and_click_return_pos(
-        self, image: np.ndarray, template: object, name: str
-    ) -> tuple[int, int] | None:
-        """模板匹配成功后点击中心位置，返回屏幕绝对坐标。
-
-        与 _match_and_click 逻辑相同，但额外返回点击坐标，
-        供后续复用（如快速选择按钮的二次点击）。
-        """
-        score, (rel_x, rel_y), scale, (_w, _h) = multi_scale_match(image, template)
-        if score < self.MATCH_THRESHOLD:
-            log.warning(
-                f"[{name}] 匹配失败: 得分={score:.3f} < 阈值={self.MATCH_THRESHOLD}"
-            )
-            return None
-
-        abs_x, abs_y = WindowHelper.to_absolute(rel_x, rel_y)
-        win_origin = WindowHelper.get_origin()
-        log.info(
-            f"[{name}] 匹配成功: 得分={score:.3f} 缩放={scale:.2f} "
-            f"窗口相对=({rel_x}, {rel_y}) 窗口原点={win_origin} "
-            f"屏幕绝对=({abs_x}, {abs_y})"
-        )
-        MouseController.move_and_click(rel_x, rel_y)
-        return (rel_x, rel_y)
-
-
-# ====================================================================
-# 分解 Worker（后台线程）
-# ====================================================================
 
 
 class SelectWorker(QThread):
-    """后台线程：圣遗物分解 — 选择阶段（进入页面 + 快速选择 + 规则评估）"""
+    """后台线程：圣遗物分解 — 选择阶段（进入页面 + 快速选择 + 规则评估）
+
+    结果信号命名为 ``selectCompleted``，不覆盖 ``QThread.finished``。
+    """
 
     stepChanged = Signal(str)
-    finished = Signal(int, int, bool)
+    selectCompleted = Signal(int, int, bool)
     errorOccurred = Signal(str)
 
     def __init__(
@@ -724,26 +547,26 @@ class SelectWorker(QThread):
             keep, discard, reached_limit = self._decomposer.select_artifacts(
                 self._rules, self._default_action, self._max_discard, ocr
             )
-
-            if self._decomposer._fatal_error:
-                self.errorOccurred.emit(self._decomposer._fatal_error)
-                return
-
-            self.finished.emit(keep, discard, reached_limit)
+            self.selectCompleted.emit(keep, discard, reached_limit)
 
         except OcrModelNotReadyError:
             self.errorOccurred.emit(OcrModelNotReadyError._MESSAGE)
-        except Exception as e:
+        except Exception as exc:
             import traceback
 
-            self.errorOccurred.emit(f"{e}\n{traceback.format_exc()}")
+            tb = traceback.format_exc()
+            log.error(f"选择阶段发生未知错误:\n{tb}")
+            self.errorOccurred.emit(f"{exc}\n{tb}")
 
 
 class ExecuteWorker(QThread):
-    """后台线程：圣遗物分解 — 执行阶段（点击确认分解按钮）"""
+    """后台线程：圣遗物分解 — 执行阶段（点击确认分解按钮）
+
+    结果信号命名为 ``executeCompleted``，不覆盖 ``QThread.finished``。
+    """
 
     stepChanged = Signal(str)
-    finished = Signal(bool)
+    executeCompleted = Signal(bool)
     errorOccurred = Signal(str)
 
     def __init__(
@@ -758,11 +581,16 @@ class ExecuteWorker(QThread):
         self._decomposer.stop()
 
     def run(self) -> None:
+        from backend.exceptions.automation import OcrModelNotReadyError
+
         try:
             self.stepChanged.emit("正在执行分解...")
-            success = self._decomposer.execute_decompose()
-            self.finished.emit(success)
-        except Exception as e:
+            self.executeCompleted.emit(self._decomposer.execute_decompose())
+        except OcrModelNotReadyError:
+            self.errorOccurred.emit(OcrModelNotReadyError._MESSAGE)
+        except Exception as exc:
             import traceback
 
-            self.errorOccurred.emit(f"{e}\n{traceback.format_exc()}")
+            tb = traceback.format_exc()
+            log.error(f"执行阶段发生未知错误:\n{tb}")
+            self.errorOccurred.emit(f"{exc}\n{tb}")

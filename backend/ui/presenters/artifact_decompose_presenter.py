@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import ClassVar
 
-from PySide6.QtCore import Property, QObject, Signal, Slot
-from utils.logger import log
-from utils.settings_manager import settings
+from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 
 from backend.automation.artifact_decomposer import (
     ArtifactDecomposer,
@@ -15,6 +12,11 @@ from backend.automation.artifact_decomposer import (
     SelectWorker,
 )
 from backend.database.repository.dogfood_rule_repo import DogfoodRuleRepo
+from backend.ui.presenters.rule_display import with_display
+from backend.ui.presenters.worker_host import WorkerHost
+from backend.utils.logger import log
+from backend.utils.settings_manager import settings
+from common.paths import ENGINES
 
 
 class ArtifactDecomposePresenter(QObject):
@@ -34,6 +36,10 @@ class ArtifactDecomposePresenter(QObject):
 
     MAX_RULE_SELECTION = 5
 
+    #: 分解动画等待：25 × 100ms = 2.5s（与旧实现时长一致，但不阻塞界面）
+    _BATCH_WAIT_TICKS: ClassVar[int] = 25
+    _BATCH_WAIT_INTERVAL_MS: ClassVar[int] = 100
+
     _ACTION_LABELS: ClassVar[list[str]] = ["保留", "分解"]
 
     def __init__(self, parent: QObject | None = None):
@@ -41,8 +47,11 @@ class ArtifactDecomposePresenter(QObject):
         self._running = False
         self._status = ""
         self._decomposer = ArtifactDecomposer()
-        self._select_worker: SelectWorker | None = None
-        self._execute_worker: ExecuteWorker | None = None
+        self._host = WorkerHost(self)
+        self._batch_timer = QTimer(self)
+        self._batch_timer.setInterval(self._BATCH_WAIT_INTERVAL_MS)
+        self._batch_timer.timeout.connect(self._on_batch_wait_tick)
+        self._batch_wait_ticks = 0
         self._rules: list = []
         self._selected_rule_names: list[str] = []
         self._default_action = "keep"
@@ -60,13 +69,18 @@ class ArtifactDecomposePresenter(QObject):
         self._load_default_action()
         self._load_max_discard_count()
 
-    # ========== 常量 ==========
+    # 常量
 
     @Property(int, constant=True)
     def maxRuleSelection(self) -> int:
         return self.MAX_RULE_SELECTION
 
-    # ========== 规则列表 ==========
+    @Property(str, constant=True)
+    def ruleSelectionHint(self) -> str:
+        """规则选择提示文案（QML 只负责显示）"""
+        return f"选择规则（最多 {self.MAX_RULE_SELECTION} 条）"
+
+    # 规则列表
 
     def _load_rules(self) -> None:
         """从数据库加载规则列表"""
@@ -87,25 +101,27 @@ class ArtifactDecomposePresenter(QObject):
 
     @Property("QVariantList", notify=rulesChanged)
     def rules(self) -> list:
-        """返回规则列表，每条规则转为 dict 供 QML 使用"""
+        """返回规则列表，每条规则转为 dict（含 QML 直接可用的展示文案）"""
         return [
-            {
-                "name": r.name,
-                "action": r.action,
-                "part": r.part,
-                "part_exclude": r.part_exclude,
-                "main_stat": r.main_stat,
-                "set_name": r.set_name,
-                "sub_stats": [s.to_dict() for s in r.sub_stats],
-                "sub_count": r.sub_count,
-                "priority": r.priority,
-                "include_unactivated": r.include_unactivated,
-                "include_main_stat": r.include_main_stat,
-            }
+            with_display(
+                {
+                    "name": r.name,
+                    "action": r.action,
+                    "part": r.part,
+                    "part_exclude": r.part_exclude,
+                    "main_stat": r.main_stat,
+                    "set_name": r.set_name,
+                    "sub_stats": [s.to_dict() for s in r.sub_stats],
+                    "sub_count": r.sub_count,
+                    "priority": r.priority,
+                    "include_unactivated": r.include_unactivated,
+                    "include_main_stat": r.include_main_stat,
+                }
+            )
             for r in self._rules
         ]
 
-    # ========== 多选规则名 ==========
+    # 多选规则名
 
     @Property("QVariantList", notify=selectedRuleNamesChanged)
     def selectedRuleNames(self) -> list[str]:
@@ -123,7 +139,7 @@ class ArtifactDecomposePresenter(QObject):
             self._selected_rule_names.append(name)
         self.selectedRuleNamesChanged.emit()
 
-    # ========== 默认行为 ==========
+    # 默认行为
 
     @Property("QVariantList", constant=True)
     def defaultActionLabels(self) -> list[str]:
@@ -152,7 +168,7 @@ class ArtifactDecomposePresenter(QObject):
         settings.set("dogfood.default_action", action)
         self.defaultActionChanged.emit()
 
-    # ========== 每批分解数量上限 ==========
+    # 每批分解数量上限
 
     def _load_max_discard_count(self) -> None:
         val = settings.get("dogfood.max_discard_count")
@@ -174,7 +190,7 @@ class ArtifactDecomposePresenter(QObject):
         settings.set("dogfood.max_discard_count", count)
         self.maxDiscardCountChanged.emit()
 
-    # ========== 选择确认状态 ==========
+    # 选择确认状态
 
     @Property(bool, notify=selectionDoneChanged)
     def selectionDone(self) -> bool:
@@ -196,7 +212,7 @@ class ArtifactDecomposePresenter(QObject):
     def totalDiscard(self) -> int:
         return self._total_discard
 
-    # ========== 运行状态 ==========
+    # 运行状态
 
     @Property(bool, notify=runningChanged)
     def running(self) -> bool:
@@ -206,12 +222,12 @@ class ArtifactDecomposePresenter(QObject):
     def status(self) -> str:
         return self._status
 
-    # ========== 分解入口 ==========
+    # 分解入口
 
     @Slot()
     def startDecompose(self) -> None:
         """阶段一：进入分解页面并选择第一批圣遗物（后台线程执行）。"""
-        if self._running:
+        if self._running or self._host.busy:
             log.warning("分解已在运行中")
             return
 
@@ -220,7 +236,9 @@ class ArtifactDecomposePresenter(QObject):
             return
 
         db_rules = DogfoodRuleRepo.find_all()
-        self._active_rules = [r for r in db_rules if r.name in self._selected_rule_names]
+        self._active_rules = [
+            r for r in db_rules if r.name in self._selected_rule_names
+        ]
         if not self._active_rules:
             self._set_status("选中的规则已失效，请重新选择")
             return
@@ -240,25 +258,27 @@ class ArtifactDecomposePresenter(QObject):
             f"默认行为={self._active_default_action}"
         )
 
-        self._select_worker = SelectWorker(
+        self._start_select_phase()
+
+    def _start_select_phase(self) -> None:
+        """启动一轮"选择"后台任务（阶段一 / 后续批次共用）。"""
+        worker = SelectWorker(
             self._decomposer,
             self._active_rules,
             self._active_default_action,
             self._max_discard_count,
-            engines_dir=Path(__file__).resolve().parents[3] / "engines",
+            engines_dir=ENGINES,
         )
-        self._select_worker.stepChanged.connect(self._set_status)
-        self._select_worker.finished.connect(self._on_select_finished)
-        self._select_worker.errorOccurred.connect(self._on_decompose_error)
-        self._select_worker.start()
+        worker.stepChanged.connect(self._set_status)
+        worker.selectCompleted.connect(self._on_select_finished)
+        worker.errorOccurred.connect(self._on_decompose_error)
+        if not self._host.start(worker):
+            self._set_status("选择任务启动失败，请重试")
+            self._finish()
 
-    def _on_select_finished(
-        self, keep: int, discard: int, reached_limit: bool
-    ) -> None:
+    def _on_select_finished(self, keep: int, discard: int, reached_limit: bool) -> None:
         """SelectWorker 完成回调。"""
-        self._select_worker = None
-
-        if self._decomposer._stop_event.is_set():
+        if self._decomposer.is_stopped():
             self._set_status("用户手动停止")
             self._finish()
             return
@@ -286,9 +306,7 @@ class ArtifactDecomposePresenter(QObject):
         if discard == 0:
             self._set_status("没有需要分解的圣遗物")
         else:
-            self._set_status(
-                f"已选中 {discard} 件待分解（保留 {keep} 件），请确认"
-            )
+            self._set_status(f"已选中 {discard} 件待分解（保留 {keep} 件），请确认")
 
     def _on_decompose_error(self, error: str) -> None:
         self._set_status(error)
@@ -305,17 +323,17 @@ class ArtifactDecomposePresenter(QObject):
         self.selectionDoneChanged.emit()
 
         if self._pending_discard > 0:
-            self._execute_worker = ExecuteWorker(self._decomposer)
-            self._execute_worker.stepChanged.connect(self._set_status)
-            self._execute_worker.finished.connect(self._on_execute_finished)
-            self._execute_worker.errorOccurred.connect(self._on_decompose_error)
-            self._execute_worker.start()
+            worker = ExecuteWorker(self._decomposer)
+            worker.stepChanged.connect(self._set_status)
+            worker.executeCompleted.connect(self._on_execute_finished)
+            worker.errorOccurred.connect(self._on_decompose_error)
+            if not self._host.start(worker):
+                self._set_status("分解任务启动失败，请重试")
+                self._finish()
         else:
             self._on_execute_finished(True)
 
     def _on_execute_finished(self, success: bool) -> None:
-        self._execute_worker = None
-
         if not success:
             self._set_status("分解按钮点击失败")
             self._finish()
@@ -326,33 +344,7 @@ class ArtifactDecomposePresenter(QObject):
                 f"[Dogfood] 继续下一批 "
                 f"(已完成 {self._total_keep + self._total_discard} 件)"
             )
-            # 等待分解动画（可被热键中断）
-            import time
-
-            for _ in range(25):
-                if self._decomposer._stop_event.is_set():
-                    self._set_status("用户手动停止")
-                    self._finish()
-                    return
-                time.sleep(0.1)
-
-            self._batch_number += 1
-            log.info(
-                f"[Dogfood] 开始第 {self._total_keep + self._total_discard + 1} 批选择 "
-                f"(规则={[r.name for r in self._active_rules]}, "
-                f"默认={self._active_default_action})"
-            )
-            self._select_worker = SelectWorker(
-                self._decomposer,
-                self._active_rules,
-                self._active_default_action,
-                self._max_discard_count,
-                engines_dir=Path(__file__).resolve().parents[3] / "engines",
-            )
-            self._select_worker.stepChanged.connect(self._set_status)
-            self._select_worker.finished.connect(self._on_select_finished)
-            self._select_worker.errorOccurred.connect(self._on_decompose_error)
-            self._select_worker.start()
+            self._begin_batch_wait()
         else:
             final_msg = (
                 f"完成！保留 {self._total_keep} 件，分解 {self._total_discard} 件"
@@ -360,6 +352,37 @@ class ArtifactDecomposePresenter(QObject):
             log.info(f"[Dogfood] {final_msg}")
             self._set_status(final_msg)
             self._finish()
+
+    def _begin_batch_wait(self) -> None:
+        """等待分解动画结束（非阻塞，期间热键停止仍可生效）。"""
+        self._batch_wait_ticks = 0
+        self._batch_timer.start()
+
+    def _on_batch_wait_tick(self) -> None:
+        """动画等待定时器：检查停止请求，等待结束后开始下一批。"""
+        if not self._running:
+            self._batch_timer.stop()
+            return
+        if self._decomposer.is_stopped():
+            self._batch_timer.stop()
+            self._set_status("用户手动停止")
+            self._finish()
+            return
+        self._batch_wait_ticks += 1
+        if self._batch_wait_ticks < self._BATCH_WAIT_TICKS:
+            return
+        self._batch_timer.stop()
+        self._start_next_batch()
+
+    def _start_next_batch(self) -> None:
+        """进入下一批选择。"""
+        self._batch_number += 1
+        log.info(
+            f"[Dogfood] 开始第 {self._total_keep + self._total_discard + 1} 批选择 "
+            f"(规则={[r.name for r in self._active_rules]}, "
+            f"默认={self._active_default_action})"
+        )
+        self._start_select_phase()
 
     @Slot()
     def cancelDecompose(self) -> None:
@@ -375,12 +398,10 @@ class ArtifactDecomposePresenter(QObject):
         """热键停止回调（主线程，瞬间响应）。
 
         只请求 Worker 停止，不主动调用 _finish()。
-        Worker 的 finished 信号会自然触发清理，避免 QThread 被提前销毁。
+        Worker 的 selectCompleted/executeCompleted 会自然触发清理，
+        避免 QThread 被提前销毁。
         """
-        if self._select_worker is not None:
-            self._select_worker.stop()
-        if self._execute_worker is not None:
-            self._execute_worker.stop()
+        self._host.stop()
 
     def _finish(self) -> None:
         """清理状态，结束分解流程。"""
@@ -389,8 +410,8 @@ class ArtifactDecomposePresenter(QObject):
             f"batch={self._batch_number} "
             f"total_keep={self._total_keep} total_discard={self._total_discard}"
         )
-        self._select_worker = None
-        self._execute_worker = None
+        self._batch_timer.stop()
+        self._batch_wait_ticks = 0
         self._batch_number = 0
         self._selection_done = False
         self._pending_keep = 0

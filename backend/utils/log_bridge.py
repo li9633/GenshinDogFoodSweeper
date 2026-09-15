@@ -11,7 +11,7 @@ import sys
 from collections.abc import Callable
 from typing import Self
 
-from utils.logger import log
+from backend.utils.logger import log
 
 # 需要显示在状态栏的日志级别 → 显示时长（毫秒，0=永久）
 _STATUS_BAR_DURATION: dict[str, int] = {
@@ -44,7 +44,7 @@ def set_presenter(presenter: object) -> None:
 def start_task(key: str, message: str, *, name: str = "") -> None:
     """钉住一条任务消息到状态栏，同时写入文件日志。
 
-    线程安全，可在任意线程调用。
+    线程安全。
     状态栏直接显示，不受全局日志等级影响。
     """
     _emit = log.patch(lambda r: r.update(name=name)) if name else log

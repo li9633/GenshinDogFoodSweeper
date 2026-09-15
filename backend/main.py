@@ -9,6 +9,10 @@ import sys
 import traceback
 from pathlib import Path
 
+from common.constants import APP_NAME
+from common.paths import QML_DIR
+from common.resources import Resource
+
 # 强制使用 Basic 样式，允许自定义控件外观
 os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
 
@@ -17,35 +21,29 @@ import PySide6
 
 os.add_dll_directory(str(Path(PySide6.__file__).parent))
 
-# 确保项目根目录在 sys.path 中
-sys.path.insert(0, str(Path(__file__).parent))
-
-from database.init_db import create_tables
 from PySide6.QtCore import Qt
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
-from ui.presenters.image_provider import PreviewImageProvider
-from ui.presenters.registry import register_all
-from utils.logger import log, setup_logging
+
+from backend.database.init_db import create_tables
+from backend.exceptions.automation.exception_handler import install_exception_filters
+from backend.ui.presenters.image_provider import PreviewImageProvider
+from backend.ui.presenters.registry import register_all
+from backend.utils.logger import log, setup_logging
 
 
 def _find_icon() -> str | None:
-    """查找应用图标，兼容开发模式和 PyInstaller 打包后"""
-    if getattr(sys, 'frozen', False):
-        base = Path(sys.executable).parent
-    else:
-        base = Path(__file__).parent.parent
-    for name in ("app.ico", "app.png"):
-        p = base / "resources" / name
-        if p.exists():
-            return str(p)
-    return None
+    """查找应用图标"""
+    return str(Resource.APP_ICON_PNG) if Resource.APP_ICON_PNG.exists() else None
 
 
 def main():
     # 日志初始化
     file_sink_id, _error_sink_id, stderr_sink_id = setup_logging()
+
+    # 全局异常过滤器（显式安装；不再由 import 副作用触发）
+    install_exception_filters()
 
     # 高 DPI 适配
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -53,7 +51,7 @@ def main():
     )
 
     app = QApplication(sys.argv)
-    app.setApplicationName("GenshinDogFoodSweeper")
+    app.setApplicationName(APP_NAME)
     app.setQuitOnLastWindowClosed(False)
 
     # 设置应用图标
@@ -62,15 +60,9 @@ def main():
     if icon_path:
         app.setWindowIcon(QIcon(icon_path))
 
-    # 资源根目录：开发模式用脚本所在目录，打包后用 exe 所在目录
-    if getattr(sys, 'frozen', False):
-        _base_dir = Path(sys.executable).parent
-    else:
-        _base_dir = Path(__file__).parent
-
     # 加载 FontAwesome 字体
     from PySide6.QtGui import QFontDatabase
-    fonts_dir = _base_dir / "ui" / "qml" / "GenshinUI" / "fonts"
+    fonts_dir = QML_DIR / "GenshinUI" / "fonts"
     for font_file in fonts_dir.glob("*.otf"):
         font_id = QFontDatabase.addApplicationFont(str(font_file))
         if font_id < 0:
@@ -80,17 +72,18 @@ def main():
     create_tables()
 
     # 初始化日志等级
-    from database.repository.settings_repo import SettingsRepo
-    from utils.version import Channel
-    from utils.version_manager import AppVersion
+    from backend.database.repository.settings_repo import SettingsRepo
+    from common.version import Channel
+    from common.version_manager import AppVersion
 
     if SettingsRepo.get("log.level") is None:
         _default_level = "DEBUG" if AppVersion.CHANNEL == Channel.DEV else "INFO"
         SettingsRepo.set("log.level", _default_level)
 
     from loguru import logger
-    from utils.log_bridge import create_status_bar_sink
-    from utils.settings_manager import settings
+
+    from backend.utils.log_bridge import create_status_bar_sink
+    from backend.utils.settings_manager import settings
 
     # 重新加载设置缓存
     settings.reload()
@@ -103,20 +96,20 @@ def main():
         format="{message}",
     )
 
-    from utils.log_bridge import register_sink, update_global_level
+    from backend.utils.log_bridge import register_sink, update_global_level
     register_sink(file_sink_id)
     if stderr_sink_id is not None:
         register_sink(stderr_sink_id)
     update_global_level(file_level)
 
-    # -- QML 引擎 --
+    # QML 引擎
     engine = QQmlApplicationEngine()
     engine.addImageProvider("preview", PreviewImageProvider())
     log.debug("PreviewImageProvider 注册成功")
 
     _presenters = register_all(engine)
 
-    # -- 退出清理 --
+    # 退出清理
     def _cleanup():
         from backend.automation.hotkey_listener import HotkeyListener
         from backend.automation.ocr_worker import OcrWorker
@@ -130,10 +123,19 @@ def main():
     # 全局文本渲染 用 Windows ClearType
     QQuickWindow.setTextRenderType(QQuickWindow.NativeTextRendering)
 
-    qml_dir = _base_dir / "ui" / "qml"
-    log.debug(f"QML dir: {qml_dir}, exists: {qml_dir.exists()}")
+    qml_dir = QML_DIR
+    main_qml = qml_dir / "main.qml"
+
+    if not main_qml.exists():
+        log.error(f"main.qml 不存在: {main_qml}")
+        sys.exit(-1)
+
+    def _on_qml_warning(msg: object) -> None:
+        log.warning(f"QML 警告: {msg}")
+
+    engine.warnings.connect(_on_qml_warning)
     engine.addImportPath(str(qml_dir))
-    engine.load(str(qml_dir / "main.qml"))
+    engine.load(str(main_qml))
 
     root_objects = engine.rootObjects()
     log.debug(f"QML rootObjects count: {len(root_objects)}")
@@ -141,9 +143,9 @@ def main():
         log.error("QML 加载失败：engine.rootObjects() 为空，程序退出")
         sys.exit(-1)
 
-    # -- 系统托盘 --
+    # 系统托盘
     try:
-        from ui.tray import TrayManager
+        from backend.ui.tray import TrayManager
 
         _tray = TrayManager(app=app, engine=engine)
         log.debug("TrayManager 启动成功")
@@ -151,17 +153,18 @@ def main():
         traceback.print_exc()
         log.error(f"TrayManager 初始化失败: {exc}")
 
-    # -- OCR 初始化器 --
-    from ui.gmessagebox import GMessageBox
+    # OCR 初始化器（自动化层不依赖 UI，这里显式注册窗口就绪回调）
+    from backend.ui.gmessagebox import GMessageBox
 
     GMessageBox.init(engine)
     from backend.automation.ocr_initializer import OcrInitializer
 
     _ocr_initializer = OcrInitializer()
 
-    # -- 窗口就绪回调 --
-    from ui.lifecycle import OnWindowReady
+    # 窗口就绪回调
+    from backend.ui.lifecycle import OnWindowReady
 
+    OnWindowReady.register(_ocr_initializer.on_window_ready)
     OnWindowReady.trigger_all()
 
     app.exec()

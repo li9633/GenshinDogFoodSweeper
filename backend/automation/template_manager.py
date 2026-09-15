@@ -1,4 +1,4 @@
-"""
+﻿"""
 模板管理器
 ==========
 所有 images/*.png 即为全部模板，templates.json 仅提供可选的显示名和区域。
@@ -20,21 +20,21 @@ from pathlib import Path
 from typing import ClassVar
 
 from backend.models.template import Template
+from common.paths import TEMPLATES, TEMPLATES_IMAGES
+from common.resources import Resource
 
 
 class TemplateManager:
     """游戏 UI 模板管理器"""
 
-    TEMPLATES_DIR = (
-        Path(__file__).parent.parent.parent / "resources" / "templates"
-    )
-    IMAGES_DIR: ClassVar[Path] = TEMPLATES_DIR / "images"
+    TEMPLATES_DIR: ClassVar[Path] = TEMPLATES
+    IMAGES_DIR: ClassVar[Path] = TEMPLATES_IMAGES
 
-    _config_path: ClassVar[Path] = TEMPLATES_DIR / "config" / "templates.json"
+    _config_path: ClassVar[Path] = Resource.TEMPLATES_JSON
     _registry: ClassVar[list[dict[str, object]]] = []
     _index: ClassVar[dict[str, dict[str, object]]] = {}
 
-    # ---------- 内部 ----------
+    # 内部
 
     @classmethod
     def _load(cls) -> None:
@@ -77,7 +77,7 @@ class TemplateManager:
         cls._index.clear()
         cls._load()
 
-    # ---------- 查询 ----------
+    # 查询
 
     @classmethod
     def get(cls, key: str) -> Template | None:
@@ -155,7 +155,7 @@ class TemplateManager:
         kw = keyword.lower()
         return {k: v for k, v in cls.list_all().items() if kw in k.lower()}
 
-    # ---------- 注册 ----------
+    # 注册
 
     @classmethod
     def register(

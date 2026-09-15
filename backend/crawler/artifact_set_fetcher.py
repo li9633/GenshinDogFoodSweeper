@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import requests
-from utils.logger import log
+
+from backend.utils.logger import log
 
 # 米游社百科 — 圣遗物频道 API
 API_URL = (
@@ -442,8 +443,8 @@ class ArtifactSetFetcher:
         total_expected: int = 0,
     ) -> None:
         """通过 Repository 层将套装和部位写入 artifacts.db"""
-        from database.repository.artifact_piece_repo import ArtifactPieceRepo
-        from database.repository.artifact_set_repo import ArtifactSetRepo
+        from backend.database.repository.artifact_piece_repo import ArtifactPieceRepo
+        from backend.database.repository.artifact_set_repo import ArtifactSetRepo
 
         for s in sets:
             ArtifactSetRepo.upsert(**s)
@@ -520,7 +521,7 @@ def main():
 
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
-    from utils.logger import setup_logging
+    from backend.utils.logger import setup_logging
 
     setup_logging()
 

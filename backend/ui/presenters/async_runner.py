@@ -7,7 +7,8 @@ from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Signal
-from utils.logger import log
+
+from backend.utils.logger import log
 
 
 class AsyncRunner(QThread):

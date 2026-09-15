@@ -1,13 +1,5 @@
 """
-窗口助手 — 纯逻辑层，无 Qt 依赖
-===============================
-封装原神窗口的查找、聚焦、坐标转换等操作。
-所有窗口相关逻辑的唯一入口，不依赖截图模块。
-
-设计原则：
-  - WindowHelper 是窗口信息的唯一真相来源
-  - screen_capture 只负责截图，接受 WindowInfo 作为输入
-  - 调用方先通过 WindowHelper 获取窗口信息，再传给 screen_capture 截图
+窗口助手 — 封装原神窗口的查找、聚焦、坐标转换等操作
 """
 
 from __future__ import annotations
@@ -17,9 +9,9 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from utils.logger import log
+from backend.utils.logger import log
 
-# ===================== 可选依赖检测 =====================
+# 可选依赖检测
 
 _HAS_WIN32 = False
 try:
@@ -46,9 +38,6 @@ try:
     _HAS_PSUTIL = True
 except ImportError:
     pass
-
-
-# ===================== 数据类 =====================
 
 
 @dataclass
@@ -88,23 +77,12 @@ class WindowInfo:
         )
 
 
-# ===================== WindowHelper =====================
-
-
 class WindowHelper:
-    """窗口助手 — 封装窗口查找、聚焦、坐标转换
-
-    纯静态工具类，所有方法直接通过类名调用：
-        WindowHelper.find_genshin_window()
-        WindowHelper.get_origin()
-        WindowHelper.focus()
-    """
+    """窗口助手 — 封装窗口查找、聚焦、坐标转换"""
 
     GENSHIN_TITLES = ("原神", "Genshin Impact")
     GENSHIN_CLASS = "UnityWndClass"
     GENSHIN_PROCESSES = ("GenshinImpact.exe", "YuanShen.exe")
-
-    # ---- 内部工具 ----
 
     @staticmethod
     def _get_process_name(hwnd: int) -> str:
@@ -123,7 +101,7 @@ class WindowHelper:
         except Exception:
             return ""
 
-    # ---- 窗口查找 ----
+    # 窗口查找
 
     @staticmethod
     def find_genshin_window() -> WindowInfo | None:
@@ -218,22 +196,15 @@ class WindowHelper:
         win32gui.EnumWindows(enum_callback, None)
         return windows
 
-    # ---- 便捷方法 ----
+    # 便捷方法
 
     @staticmethod
     def get_window_info() -> WindowInfo | None:
-        """获取窗口完整信息，窗口不存在时返回 None（不抛异常）
-
-        适用于轮询 / 调试面板等需要容忍窗口不存在的场景。
-        """
+        """获取窗口完整信息，窗口不存在时返回 None（不抛异常）"""
         return WindowHelper.find_genshin_window()
 
     @staticmethod
     def get_origin() -> tuple[int, int]:
-        """获取原神窗口左上角屏幕坐标，窗口不存在时抛异常
-
-        适用于分解流程等必须窗口存在的场景。
-        """
         from backend.exceptions.automation import GameWindowNotFoundError
 
         window = WindowHelper.find_genshin_window()
@@ -245,11 +216,10 @@ class WindowHelper:
 
     @staticmethod
     def get_hwnd() -> int | None:
-        """获取原神窗口句柄"""
         window = WindowHelper.find_genshin_window()
         return window.hwnd if window else None
 
-    # ---- 坐标转换 ----
+    # 坐标转换
 
     @staticmethod
     def to_absolute(x: int, y: int) -> tuple[int, int]:
@@ -257,7 +227,7 @@ class WindowHelper:
         ox, oy = WindowHelper.get_origin()
         return (ox + x, oy + y)
 
-    # ---- 窗口聚焦 ----
+    # 窗口聚焦
 
     @staticmethod
     def focus() -> bool:

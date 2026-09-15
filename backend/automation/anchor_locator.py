@@ -1,21 +1,17 @@
-"""
-锚点定位器 — 纯逻辑层，无 Qt 依赖
-===============================
-基于首锚点位置和滑块Y坐标，动态定位尾锚点。
-支持空格子检测、页数计算、圣遗物显示文本格式化。
-"""
+"""锚点定位器 — 基于首锚点和滑块Y坐标定位尾锚点，支持空格子检测、页数计算"""
 
 from __future__ import annotations
 
 import cv2
 import numpy as np
-from models.artifact import ArtifactInfo
+
+from backend.models.artifact import ArtifactInfo
 
 
 class AnchorLocator:
-    """锚点定位器 — 纯函数，无状态，无 Qt 依赖"""
+    """锚点定位器"""
 
-    # ---- 空格子检测 ----
+    # 空格子检测
 
     @staticmethod
     def is_empty_slot(cx: int, cy: int, img: np.ndarray) -> bool:
@@ -44,7 +40,7 @@ class AnchorLocator:
         std_val = np.std(gray)
         return bool(mean_val < 60 and std_val < 15)
 
-    # ---- 页数计算 ----
+    # 页数计算
 
     @staticmethod
     def calculate_pages(
@@ -80,7 +76,7 @@ class AnchorLocator:
         total_pages = max(1, (total_rows + 3) // 4)
         return (total_rows, total_pages)
 
-    # ---- 显示格式化 ----
+    # 显示格式化
 
     @staticmethod
     def format_artifact_display(artifact: ArtifactInfo) -> list[str]:
