@@ -1,0 +1,169 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import GenshinUI
+import "debug_panels"
+import "../components"
+
+// qmllint disable unqualified
+// RegionMarker / ElementDetection / ArtifactRecognition 是 Python 上下文属性
+// qmllint disable missing-property
+// TabButton 的 contentItem/background 代理中 parent.text/font/checked 是标准 Qt 用法，qmllint 误报
+
+Rectangle {
+    id: root
+    property string pageTitle: "调试"
+    color: Theme.bgPrimary
+
+    // ============================================================
+    // 布局：TabBar 上方 + 预览区下方
+    // ============================================================
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        // -- Tab 栏 --
+        TabBar {
+            id: tabBar
+            Layout.fillWidth: true
+            background: Rectangle {
+                color: Theme.bgSidebar
+            }
+
+            Repeater {
+                model: ["区域标记", "元素定位", "圣遗物识别", "圣遗物扫描", "智能翻页器", "输入调试", "基础设施"]
+
+                TabButton {
+                    required property int index
+                    required property string modelData
+
+                    text: modelData
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 14
+
+                    HoverHandler {
+                        id: tabHover
+                        cursorShape: Qt.PointingHandCursor
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        font: parent.font
+                        color: parent.checked ? Theme.accent : Theme.textSecondary
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    background: Rectangle {
+                        color: {
+                            if (parent.checked) return Theme.accentOverlay10
+                            if (tabHover.hovered) return Theme.accentOverlay6
+                            return "transparent"
+                        }
+                    }
+                }
+            }
+        }
+
+        // -- 面板区 --
+        StackLayout {
+            id: panelStack
+            Layout.fillWidth: true
+            Layout.preferredHeight: 280
+            currentIndex: tabBar.currentIndex
+
+            RegionMarkerPanel {}
+            ElementDetectionPanel {}
+            ArtifactRecognitionPanel {}
+            ArtifactScanPanel {}
+            SmartScrollPanel {}
+            InputDebugPanel {}
+            InfraDebugPanel {}
+        }
+
+        // -- 分割线 --
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
+            color: Theme.border
+        }
+
+        // -- 预览区（状态栏/输入测试 Tab 不显示）--
+        CapturePreview {
+            id: preview
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: tabBar.currentIndex < 5
+            selectionMode: RegionMarker.selectionMode
+
+            onRegionSelected: (x, y, w, h) => {
+                RegionMarker.setCoords(x, y, w, h)
+                RegionMarker.selectionMode = false
+            }
+
+            onClearRequested: {
+                switch (tabBar.currentIndex) {
+                    case 0: RegionMarker.clear(); break
+                    case 2: ArtifactRecognition.clear(); break
+                }
+            }
+        }
+    }
+
+    // ============================================================
+    // 各面板 Presenter 信号 → CapturePreview
+    // ============================================================
+    Connections {
+        target: RegionMarker
+
+        function onCaptureFinished(key, x, y, w, h) {
+            preview.displayImage(key, "标记区域 (" + x + "," + y + "," + w + "x" + h + ")")
+            tabBar.currentIndex = 0
+        }
+         function onClearPreview() {
+            preview.clear()
+        }
+    }
+
+    Connections {
+        target: ElementDetection
+
+        function onDetectionFinished(allPassed, detailText, key) {
+            preview.displayImage(key, allPassed ? (Icon.check + " 全部通过") : (Icon.close + " 未通过"))
+            tabBar.currentIndex = 1
+        }
+    }
+
+    Connections {
+        target: ArtifactRecognition
+
+        function onRecognitionFinished(ocrText, structuredText, key) {
+            preview.displayImage(key, "识别完成")
+            tabBar.currentIndex = 2
+        }
+
+        function onClearPreview() {
+            preview.clear()
+        }
+    }
+
+    Connections {
+        target: ArtifactScanDebug
+
+        function onDebugPreviewReady(key) {
+            let label = "调试预览"
+            if (key.startsWith("slot_debug")) label = "格子检测"
+            else if (key.startsWith("slider_debug")) label = "滑块检测"
+            else if (key.startsWith("grayscale")) label = "灰度截图"
+            preview.displayImage(key, label)
+        }
+    }
+
+    Connections {
+        target: SmartScrollDebug
+
+        function onDebugPreviewReady(key) {
+            preview.displayImage(key, "SmartScroll 行高测量")
+        }
+    }
+}

@@ -1,0 +1,119 @@
+﻿"""
+圣遗物部位 Repository
+======================
+对应 artifact_pieces 表的 DDL 与 CRUD 操作。
+"""
+
+from typing import Any
+
+from backend.database.connection import get_db
+from backend.models.artifact_piece import ArtifactPiece
+
+
+class ArtifactPieceRepo:
+    """artifact_pieces 表数据访问"""
+
+    DB_NAME = "artifacts.db"
+
+    # DDL
+
+    @classmethod
+    def create_table(cls) -> None:
+        """创建 artifact_pieces 表（幂等）"""
+        with get_db(cls.DB_NAME) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS artifact_pieces (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    set_id      INTEGER NOT NULL,
+                    type        TEXT    NOT NULL,
+                    name        TEXT    NOT NULL,
+                    icon        TEXT    NOT NULL DEFAULT '',
+                    description TEXT    NOT NULL DEFAULT '',
+                    FOREIGN KEY (set_id) REFERENCES artifact_sets(id) ON DELETE CASCADE
+                )
+            """)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_artifact_pieces_set_id "
+                "ON artifact_pieces(set_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_artifact_pieces_type "
+                "ON artifact_pieces(type)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_artifact_pieces_set_type "
+                "ON artifact_pieces(set_id, type)"
+            )
+
+    # CRUD
+
+    @classmethod
+    def find_by_set_id(cls, set_id: int) -> list[ArtifactPiece]:
+        """查询指定套装下的全部部位"""
+        with get_db(cls.DB_NAME) as conn:
+            rows = conn.execute(
+                "SELECT * FROM artifact_pieces WHERE set_id = ? ORDER BY id",
+                (set_id,),
+            ).fetchall()
+            return [ArtifactPiece.from_row(r) for r in rows]
+
+    @classmethod
+    def save_batch(cls, pieces: list[dict[str, Any]]) -> None:
+        """批量插入部位"""
+        if not pieces:
+            return
+        with get_db(cls.DB_NAME) as conn:
+            conn.executemany(
+                "INSERT INTO artifact_pieces "
+                "(set_id, type, name, icon, description) "
+                "VALUES (:set_id, :type, :name, :icon, :description)",
+                [
+                    {
+                        "set_id": p["setId"],
+                        "type": p["type"],
+                        "name": p["name"],
+                        "icon": p.get("icon", ""),
+                        "description": p.get("description", ""),
+                    }
+                    for p in pieces
+                ],
+            )
+
+    @classmethod
+    def delete_by_set_id(cls, set_id: int) -> None:
+        """删除指定套装下的全部部位"""
+        with get_db(cls.DB_NAME) as conn:
+            conn.execute("DELETE FROM artifact_pieces WHERE set_id = ?", (set_id,))
+
+    @classmethod
+    def count(cls) -> int:
+        """统计部位总数"""
+        with get_db(cls.DB_NAME) as conn:
+            row = conn.execute("SELECT COUNT(*) FROM artifact_pieces").fetchone()
+            return row[0] if row else 0
+
+    @classmethod
+    def delete_all(cls) -> int:
+        """清空所有单件记录，返回删除行数"""
+        with get_db(cls.DB_NAME) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM artifact_pieces").fetchone()[0]
+            conn.execute("DELETE FROM artifact_pieces")
+            return count
+
+    @classmethod
+    def find_all(cls) -> list[ArtifactPiece]:
+        """查询全部部位"""
+        with get_db(cls.DB_NAME) as conn:
+            rows = conn.execute(
+                "SELECT * FROM artifact_pieces ORDER BY id"
+            ).fetchall()
+            return [ArtifactPiece.from_row(r) for r in rows]
+
+    @classmethod
+    def find_all_names(cls) -> list[dict[str, Any]]:
+        """查询全部部位名称及所属套装 ID（用于模糊匹配）"""
+        with get_db(cls.DB_NAME) as conn:
+            rows = conn.execute(
+                "SELECT id, set_id, type, name FROM artifact_pieces ORDER BY id"
+            ).fetchall()
+            return [dict(r) for r in rows]

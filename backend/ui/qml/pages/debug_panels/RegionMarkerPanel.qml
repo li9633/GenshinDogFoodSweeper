@@ -1,0 +1,187 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import GenshinUI
+
+// qmllint disable unqualified
+// RegionMarker 是 Python 通过 setContextProperty 注入的上下文属性，qmllint 无法识别
+
+Rectangle {
+    id: root
+    color: "transparent"
+    Layout.fillWidth: true
+    Layout.fillHeight: true
+
+    ScrollView {
+        id: scrollView
+        anchors.fill: parent
+        anchors.margins: 8
+        clip: true
+
+        ColumnLayout {
+            width: scrollView.availableWidth
+            spacing: Theme.spacing
+
+            // ---- 坐标定位 ----
+            GCard {
+                title: "坐标定位"
+                Layout.fillWidth: true
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    RowLayout {
+                        spacing: 4
+                        Text { text: "X:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: spinX; from: 0; to: 9999; value: RegionMarker.regionX }
+                        Text { text: "Y:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: spinY; from: 0; to: 9999; value: RegionMarker.regionY }
+                        Text { text: "W:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: spinW; from: 1; to: 9999; value: RegionMarker.regionW }
+                        Text { text: "H:"; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.textSecondary }
+                        GSpinBox { id: spinH; from: 1; to: 9999; value: RegionMarker.regionH }
+                    }
+
+                    RowLayout {
+                        spacing: 4
+                        GButton {
+                            text: "复制坐标到剪贴板"
+                            colorType: "default"
+                            onClicked: RegionMarker.copyCoords()
+                        }
+                        GButton {
+                            text: "从剪贴板导入"
+                            colorType: "default"
+                            onClicked: RegionMarker.pasteCoords()
+                        }
+                    }
+                }
+            }
+
+            // ---- 截图操作 ----
+            GCard {
+                title: "截图操作"
+                Layout.fillWidth: true
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    GButton {
+                        id: btnMark
+                        text: RegionMarker.marking ? "截图中…" : "截图并标记"
+                        colorType: "primary"
+                        enabled: !RegionMarker.marking
+                        onClicked: {
+                            RegionMarker.setCoords(spinX.value, spinY.value, spinW.value, spinH.value);
+                            RegionMarker.mark();
+                        }
+                    }
+
+                    GButton {
+                        id: btnSelect
+                        checkable: true
+                        checked: RegionMarker.selectionMode
+                        text: checked ? "选区中…" : "选区模式"
+                        colorType: checked ? "primary" : "default"
+                        onToggled: RegionMarker.selectionMode = checked
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+            }
+
+            // ---- 颜色提取 ----
+            GCard {
+                title: "颜色提取"
+                Layout.fillWidth: true
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    GButton {
+                        id: btnColor
+                        text: RegionMarker.extracting ? "提取中…" : "提取颜色"
+                        colorType: "primary"
+                        enabled: !RegionMarker.extracting
+                        onClicked: RegionMarker.extractColor()
+                    }
+
+                    Rectangle {
+                        id: colorSwatch
+                        implicitWidth: 28; implicitHeight: 28
+                        color: "#333333"
+                        border.color: Theme.border
+                        radius: 4
+                    }
+
+                    TextEdit {
+                        id: colorInfo
+                        text: "点击按钮提取区域颜色"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                        color: Theme.textSecondary
+                        readOnly: true
+                        selectByMouse: true
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+
+            // ---- 模板保存 ----
+            GCard {
+                title: "模板保存"
+                Layout.fillWidth: true
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    TextField {
+                        id: filenameInput
+                        Layout.fillWidth: true
+                        placeholderText: "输入模板名称，如 圣遗物文本"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 14
+                        color: Theme.textPrimary
+                        background: Rectangle {
+                            color: Theme.bgTrack
+                            radius: Theme.radius
+                            border.color: Theme.border
+                        }
+                    }
+                    GButton {
+                        text: "保存为模板"
+                        colorType: "primary"
+                        onClicked: RegionMarker.saveTemplate(filenameInput.text)
+                    }
+                }
+            }
+
+            Item { Layout.fillHeight: true }
+        }
+    }
+
+    // ============================================================
+    // Presenter 信号连接
+    // ============================================================
+    Connections {
+        target: RegionMarker
+
+        function onColorExtracted(r, g, b, h, s, v) {
+            colorSwatch.color = Qt.rgba(r / 255, g / 255, b / 255, 1)
+        }
+
+        function onColorExtractedString(text) {
+            colorInfo.text = text
+        }
+
+        function onTemplateSaved(filename) {
+            filenameInput.text = ""
+        }
+
+        }
+
+}

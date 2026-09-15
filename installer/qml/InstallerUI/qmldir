@@ -1,0 +1,7 @@
+module InstallerUI
+
+singleton Theme 1.0 Theme.qml
+IButton 1.0 IButton.qml
+ILabel 1.0 ILabel.qml
+IProgressBar 1.0 IProgressBar.qml
+ITextField 1.0 ITextField.qml

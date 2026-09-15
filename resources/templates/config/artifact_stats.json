@@ -1,0 +1,73 @@
+{
+  "_comment": "原神圣遗物词条模板 — 数值/百分比视为不同类型，可共存（如 防御力+19 与 防御力+5.2% 不冲突）",
+
+  "stats": {
+    "生命值": { "category": "flat_hp", "always_pct": false },
+    "生命值%": { "category": "pct_hp", "always_pct": true },
+    "攻击力": { "category": "flat_atk", "always_pct": false },
+    "攻击力%": { "category": "pct_atk", "always_pct": true },
+    "防御力": { "category": "flat_def", "always_pct": false },
+    "防御力%": { "category": "pct_def", "always_pct": true },
+    "元素精通": { "category": "em", "always_pct": false },
+    "元素充能效率": { "category": "er", "always_pct": true },
+    "暴击率": { "category": "cr", "always_pct": true },
+    "暴击伤害": { "category": "cd", "always_pct": true },
+    "物理伤害加成": { "category": "physical_dmg", "always_pct": true },
+    "火元素伤害加成": { "category": "pyro_dmg", "always_pct": true },
+    "水元素伤害加成": { "category": "hydro_dmg", "always_pct": true },
+    "冰元素伤害加成": { "category": "cryo_dmg", "always_pct": true },
+    "雷元素伤害加成": { "category": "electro_dmg", "always_pct": true },
+    "风元素伤害加成": { "category": "anemo_dmg", "always_pct": true },
+    "岩元素伤害加成": { "category": "geo_dmg", "always_pct": true },
+    "草元素伤害加成": { "category": "dendro_dmg", "always_pct": true },
+    "治疗加成": { "category": "heal", "always_pct": true }
+  },
+
+  "main_stats_by_piece": {
+    "生之花": ["生命值"],
+    "死之羽": ["攻击力"],
+    "时之沙": ["生命值%", "攻击力%", "防御力%", "元素精通", "元素充能效率"],
+    "空之杯": [
+      "生命值%",
+      "攻击力%",
+      "防御力%",
+      "元素精通",
+      "物理伤害加成",
+      "火元素伤害加成",
+      "水元素伤害加成",
+      "冰元素伤害加成",
+      "雷元素伤害加成",
+      "风元素伤害加成",
+      "岩元素伤害加成",
+      "草元素伤害加成"
+    ],
+    "理之冠": [
+      "生命值%",
+      "攻击力%",
+      "防御力%",
+      "元素精通",
+      "暴击率",
+      "暴击伤害",
+      "治疗加成"
+    ]
+  },
+
+  "sub_stat_names": [
+    "生命值",
+    "生命值%",
+    "攻击力",
+    "攻击力%",
+    "防御力",
+    "防御力%",
+    "元素精通",
+    "元素充能效率",
+    "暴击率",
+    "暴击伤害"
+  ],
+
+  "rules": {
+    "main_sub_no_conflict": true,
+    "sub_no_duplicate": true,
+    "description": "主词条与副词条类型不能重复（含数值/百分比区分）；副词条之间不能重复"
+  }
+}

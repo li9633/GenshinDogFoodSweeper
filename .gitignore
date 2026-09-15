@@ -1,1 +1,63 @@
 docs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+# Node / Vue
+node_modules/
+frontend/dist/
+
+# 构建产物
+backend/static/
+dist/
+build/
+backend/utils/_build_channel.py
+common/_build_channel.py
+
+# 数据库文件
+backend/data/*.db
+backend/data/*.db-wal
+backend/data/*.db-shm
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# 运行时数据
+backend/test_output/*
+installer/installer.spec
+installer/uninstaller.spec
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+
+
+# 系统文件
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# 环境变量
+.env
+.env.local
+
+# 日志
+*.log
+
+temp/
+
+#OCR模型文件
+engines/
+
+scan_result/
+# 测试缓存
+.pytest_cache/
+pytest-cache-files-*/
