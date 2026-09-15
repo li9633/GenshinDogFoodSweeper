@@ -21,6 +21,7 @@ permissions:
 
 env:
   PROJECT: GenshinDogFoodSweeper
+  PYTHONIOENCODING: utf-8
 
 jobs:
   build-and-release:
