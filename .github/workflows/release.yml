@@ -60,6 +60,7 @@ jobs:
           echo "产物目录: $DIST_NAME"
 
       - name: 🚀 创建 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ steps.dist.outputs.name }}
