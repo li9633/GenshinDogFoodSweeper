@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from enum import Enum
 
-_MAJOR = 0
-_MINOR = 9
-_PATCH = 41
+_MAJOR = 1
+_MINOR = 0
+_PATCH = 0
 
 
 class Channel(Enum):
