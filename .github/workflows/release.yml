@@ -37,17 +37,17 @@ jobs:
         with:
           enable-cache: true
 
-      - name: 🐍 安装 Python 3.13
-        run: uv python install 3.13
+      - name: 🐍 安装 Python 3.13.7
+        run: uv python install 3.13.7
 
       - name: 📦 安装依赖
         run: uv sync --group dev
 
-      - name: 🔨 构建主程序
+      - name: 🔨 构建 & 打包
         shell: bash
         run: |
           CHANNEL="${{ github.event.inputs.channel || 'release' }}"
-          uv run python build.py --channel "$CHANNEL" --clear
+          uv run python build.py --channel "$CHANNEL" --installer --zip --clear
 
       - name: 📋 获取产物信息
         id: dist
@@ -56,19 +56,7 @@ jobs:
           DIST_DIR=$(ls -d dist/${PROJECT}-*/ | head -1)
           DIST_NAME=$(basename "$DIST_DIR")
           echo "name=$DIST_NAME" >> $GITHUB_OUTPUT
-          echo "path=$DIST_DIR" >> $GITHUB_OUTPUT
           echo "产物目录: $DIST_NAME"
-
-      - name: 📦 打包 ZIP（便携版）
-        shell: bash
-        run: |
-          cd dist
-          7z a -tzip "${{ steps.dist.outputs.name }}.zip" "${{ steps.dist.outputs.name }}/"
-
-      - name: 🔧 构建安装程序
-        shell: bash
-        run: |
-          uv run python build_installer.py --app-dist "${{ steps.dist.outputs.path }}"
 
       - name: 🚀 创建 GitHub Release
         uses: softprops/action-gh-release@v2
