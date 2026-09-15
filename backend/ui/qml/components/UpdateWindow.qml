@@ -26,6 +26,7 @@ Window {
     // ============================================================
     signal updateNow()
     signal remindLater()
+    signal cancelDownload()
 
     // ============================================================
     // 阴影容器 — 与 MainWindow 一致的 MultiEffect 阴影方案
@@ -132,6 +133,26 @@ Window {
                         fontFamily: Icon.fontSolid
                         onClicked: root.remindLater()
                     }
+                }
+            }
+
+            // ── 网络错误提示 ──
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 24
+                Layout.rightMargin: 24
+                Layout.preferredHeight: networkErrorText.implicitHeight + 12
+                radius: Theme.radius
+                color: "#33FF5555"
+                visible: UpdatePresenter.networkErrorText !== ""
+
+                Text {
+                    id: networkErrorText
+                    anchors.centerIn: parent
+                    text: UpdatePresenter.networkErrorText
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11
+                    color: Theme.danger
                 }
             }
 
@@ -255,15 +276,20 @@ Window {
             // ── 下载进度条 ──
             Item {
                 id: progressArea
-                visible: UpdatePresenter.downloading
                 Layout.fillWidth: true
                 Layout.leftMargin: 24
                 Layout.rightMargin: 24
-                Layout.preferredHeight: 30
+                Layout.preferredHeight: UpdatePresenter.downloading ? 50 : 0
+                clip: true
+
+                Behavior on Layout.preferredHeight {
+                    NumberAnimation { duration: 150 }
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 4
+                    visible: UpdatePresenter.downloading
 
                     Text {
                         text: UpdatePresenter.progressLabel
@@ -272,18 +298,49 @@ Window {
                         color: Theme.textSecondary
                     }
 
-                    Rectangle {
+                    RowLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 6
-                        radius: 3
-                        color: Theme.bgTrack
+                        spacing: 8
 
-                        Rectangle {
-                            width: parent.width * UpdatePresenter.progressRatio
-                            height: parent.height
-                            radius: 3
-                            color: Theme.accent
-                            Behavior on width { NumberAnimation { duration: 200 } }
+                        GProgressBar {
+                            Layout.fillWidth: true
+                            value: UpdatePresenter.downloadTotal > 0 ? UpdatePresenter.progressRatio : 0
+                            indeterminate: UpdatePresenter.downloading && UpdatePresenter.downloadTotal === 0
+                        }
+
+                        Text {
+                            visible: UpdatePresenter.downloadTotal > 0
+                            text: UpdatePresenter.progressPercentText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            color: Theme.textSecondary
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        Text {
+                            visible: UpdatePresenter.progressSpeedText !== ""
+                            text: UpdatePresenter.progressSpeedText
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            color: Theme.textSecondary
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        Text {
+                            text: "取消"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            color: mouseArea.containsMouse ? Theme.accent : Theme.textSecondary
+
+                            Layout.alignment: Qt.AlignVCenter
+
+                            MouseArea {
+                                id: mouseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.cancelDownload()
+                            }
                         }
                     }
                 }

@@ -30,6 +30,10 @@ UPDATE_REPO = "GenshinDogFoodSweeper"
 # ── 工具函数 ──
 
 
+class CancelDownloadError(Exception):
+    """下载被取消"""
+
+
 def detect_mock_server(
     host: str = "127.0.0.1", port: int = 9888, timeout: float = 0.5
 ) -> str | None:
@@ -185,8 +189,15 @@ class AppUpdater:
         url: str,
         *,
         progress_cb: Callable[[int, int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> Path:
-        """下载到临时目录，返回文件路径"""
+        """下载到临时目录，返回文件路径
+
+        Args:
+            url: 下载地址
+            progress_cb: 进度回调 (downloaded_bytes, total_bytes)
+            cancel_check: 取消检查回调，返回 True 时中止下载
+        """
         dest = Path(tempfile.gettempdir()) / f"{self._repo}_update_setup.exe"
         with requests.get(url, stream=True, timeout=600) as r:
             r.raise_for_status()
@@ -196,10 +207,10 @@ class AppUpdater:
                 for chunk in r.iter_content(chunk_size=65536):
                     f.write(chunk)
                     downloaded += len(chunk)
-                    # 无 Content-Length（分块传输）时 total 为 0，仍上报已下载字节数，
-                    # 让调用方能显示实际进度而不是一片空白
                     if progress_cb:
                         progress_cb(downloaded, total)
+                    if cancel_check and cancel_check():
+                        raise CancelDownloadError(f"下载已取消 ({downloaded} 字节)")
         return dest
 
     def install(self, setup_path: Path) -> None:

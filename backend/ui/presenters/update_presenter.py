@@ -10,12 +10,15 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from PySide6.QtCore import Property, QObject, QThread, Signal, Slot
+from utils.logger import log
 
 from backend.ui.presenters.window_presenter import WindowPresenter
 from backend.ui.presenters.worker_host import WorkerHost
+from common.format_utils import FormatUtils
 from common.version_manager import AppVersion
 
 
@@ -61,18 +64,30 @@ class _DownloadWorker(QThread):
     def __init__(self, url: str, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._url = url
+        self._cancelled = False
+
+    def stop(self) -> None:
+        """请求取消下载"""
+        self._cancelled = True
 
     def run(self) -> None:
         from backend.features.update.app_updater import (
             UPDATE_OWNER,
             UPDATE_REPO,
             AppUpdater,
+            CancelDownloadError,
         )
 
         try:
             updater = AppUpdater(UPDATE_OWNER, UPDATE_REPO)
-            path = updater.download(self._url, progress_cb=self.progress.emit)
+            path = updater.download(
+                self._url,
+                progress_cb=self.progress.emit,
+                cancel_check=lambda: self._cancelled,
+            )
             self.finished_download.emit(True, str(path))
+        except CancelDownloadError:
+            self.finished_download.emit(False, "CANCELLED")
         except Exception as e:
             self.finished_download.emit(False, str(e))
 
@@ -105,8 +120,11 @@ class UpdatePresenter(WindowPresenter):
     versionLabelChanged = Signal()
     progressLabelChanged = Signal()
     progressRatioChanged = Signal()
+    progressPercentTextChanged = Signal()
+    progressSpeedTextChanged = Signal()
     changelogOrPlaceholderChanged = Signal()
     updateButtonTextChanged = Signal()
+    networkErrorTextChanged = Signal()
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -129,8 +147,13 @@ class UpdatePresenter(WindowPresenter):
         self._version_label = ""
         self._progress_label = "正在下载…"
         self._progress_ratio: float = 0.0
+        self._progress_percent_text = ""
+        self._progress_speed_text = ""
+        self._last_progress_ts: float = 0.0
+        self._last_progress_bytes: int = 0
         self._changelog_or_placeholder = "暂无更新日志"
         self._update_button_text = "立即更新"
+        self._network_error_text = ""
 
         # ── 工作线程（检查与下载互不干扰，各自单飞）──
         self._check_host = WorkerHost(self)
@@ -198,6 +221,14 @@ class UpdatePresenter(WindowPresenter):
     def progressRatio(self) -> float:
         return self._progress_ratio
 
+    @Property(str, notify=progressPercentTextChanged)
+    def progressPercentText(self) -> str:
+        return self._progress_percent_text
+
+    @Property(str, notify=progressSpeedTextChanged)
+    def progressSpeedText(self) -> str:
+        return self._progress_speed_text
+
     @Property(str, notify=changelogOrPlaceholderChanged)
     def changelogOrPlaceholder(self) -> str:
         return self._changelog_or_placeholder
@@ -205,6 +236,10 @@ class UpdatePresenter(WindowPresenter):
     @Property(str, notify=updateButtonTextChanged)
     def updateButtonText(self) -> str:
         return self._update_button_text
+
+    @Property(str, notify=networkErrorTextChanged)
+    def networkErrorText(self) -> str:
+        return self._network_error_text
 
     # ════════════════════════════════════════════
     # 公开槽
@@ -226,6 +261,7 @@ class UpdatePresenter(WindowPresenter):
             self.checkResultTextChanged.emit()
 
         log.info("正在检查更新…")
+        self._clear_network_error()
 
         worker = _CheckWorker()
         worker.checkCompleted.connect(self._on_check_finished)
@@ -240,16 +276,29 @@ class UpdatePresenter(WindowPresenter):
         self._downloading = True
         self._download_progress = 0
         self._download_total = 0
+        self._last_progress_ts = time.time()
+        self._last_progress_bytes = 0
         self.downloadingChanged.emit()
         self.downloadProgressChanged.emit()
         self.downloadTotalChanged.emit()
-        self._refresh_download_display()
+        self._refresh_download_display(time.time())
         self._refresh_button_text()
+        self._clear_network_error()
 
         worker = _DownloadWorker(self._download_url)
         worker.progress.connect(self._on_download_progress)
         worker.finished_download.connect(self._on_download_finished)
         self._download_host.start(worker)
+
+    @Slot()
+    def cancelDownload(self) -> None:
+        """取消当前下载"""
+        if not self._downloading:
+            return
+        self._download_host.stop()
+        self._downloading = False
+        self.downloadingChanged.emit()
+        self._refresh_button_text()
 
     # ════════════════════════════════════════════
     # 窗口生命周期（继承 WindowPresenter）
@@ -259,6 +308,7 @@ class UpdatePresenter(WindowPresenter):
         """UpdateWindow 创建后：连接 QML 信号"""
         win.updateNow.connect(self.downloadAndInstall)
         win.remindLater.connect(win.close)
+        win.cancelDownload.connect(self.cancelDownload)
 
     # ════════════════════════════════════════════
     # 内部回调
@@ -278,6 +328,7 @@ class UpdatePresenter(WindowPresenter):
             self.checkResultTextChanged.emit()
             self.checkResultIsErrorChanged.emit()
             log.warning(f"检查更新失败: {error}")
+            self._set_network_error(f"连接 GitHub 失败：{error}")
             return
 
         if result is None:
@@ -287,6 +338,7 @@ class UpdatePresenter(WindowPresenter):
             self.checkResultTextChanged.emit()
             self.checkResultIsErrorChanged.emit()
             log.info("未发现新版本")
+            self._clear_network_error()
             return
 
         has_update, info = result  # type: ignore[misc]
@@ -295,6 +347,7 @@ class UpdatePresenter(WindowPresenter):
             if self._check_result_text:
                 self._check_result_text = ""
                 self.checkResultTextChanged.emit()
+            self._clear_network_error()
             self._version = info.get("tag", "?")
             self._changelog = info.get("body", "") or ""
             self._download_url = info.get("download_url", "")
@@ -313,20 +366,26 @@ class UpdatePresenter(WindowPresenter):
             self.checkResultIsErrorChanged.emit()
 
     def _on_download_progress(self, downloaded: int, total: int) -> None:
+        now = time.time()
         self._download_progress = downloaded
         if total != self._download_total:
             self._download_total = total
             self.downloadTotalChanged.emit()
-        self._refresh_download_display()
+        self._refresh_download_display(now)
         self.downloadProgressChanged.emit()
 
     def _on_download_finished(self, success: bool, filepath: str) -> None:
+        if filepath == "CANCELLED":
+            return
         self._downloading = False
         self.downloadingChanged.emit()
         self._refresh_button_text()
         if success:
+            self._clear_network_error()
             self._install(Path(filepath))
         else:
+            log.warning(f"下载安装包失败: {filepath}")
+            self._set_network_error("下载失败，请检查网络后重试")
             self.downloadProgressChanged.emit()
 
     # ════════════════════════════════════════════
@@ -339,7 +398,7 @@ class UpdatePresenter(WindowPresenter):
         self.versionLabelChanged.emit()
         self.changelogOrPlaceholderChanged.emit()
 
-    def _refresh_download_display(self) -> None:
+    def _refresh_download_display(self, now: float) -> None:
         downloaded = self._download_progress
         total = self._download_total
 
@@ -348,15 +407,44 @@ class UpdatePresenter(WindowPresenter):
             self._progress_label = (
                 f"正在下载 {downloaded / 1048576:.1f} / {total / 1048576:.1f} MB"
             )
+            self._progress_percent_text = f"{self._progress_ratio * 100:.0f}%"
         elif downloaded > 0:
             self._progress_ratio = 0.0
             self._progress_label = f"正在下载 {downloaded / 1048576:.1f} MB…"
+            self._progress_percent_text = ""
         else:
             self._progress_ratio = 0.0
             self._progress_label = "正在下载…"
+            self._progress_percent_text = ""
+
+        self._compute_speed_text(downloaded, now)
 
         self.progressRatioChanged.emit()
         self.progressLabelChanged.emit()
+        self.progressPercentTextChanged.emit()
+        self.progressSpeedTextChanged.emit()
+
+    def _compute_speed_text(self, downloaded: int, now: float) -> None:
+        delta_bytes = downloaded - self._last_progress_bytes
+        delta_sec = now - self._last_progress_ts
+
+        if delta_sec > 0 and delta_bytes > 0:
+            speed = delta_bytes / delta_sec
+            self._progress_speed_text = FormatUtils.speed_bytes(speed)
+        else:
+            self._progress_speed_text = ""
+
+        self._last_progress_ts = now
+        self._last_progress_bytes = downloaded
+
+    def _set_network_error(self, text: str) -> None:
+        self._network_error_text = text
+        self.networkErrorTextChanged.emit()
+
+    def _clear_network_error(self) -> None:
+        if self._network_error_text:
+            self._network_error_text = ""
+            self.networkErrorTextChanged.emit()
 
     def _refresh_button_text(self) -> None:
         self._update_button_text = "下载中…" if self._downloading else "立即更新"
